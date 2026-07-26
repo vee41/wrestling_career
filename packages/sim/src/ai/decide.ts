@@ -35,6 +35,24 @@ interface Scored<T> {
   score: number;
 }
 
+interface InteractionCandidate {
+  target: InteractionTarget;
+  intent: InteractionIntent;
+  subjectWrestlerId?: string;
+}
+
+/** Best guess at "who this feud is with": the strongest existing rivalry, or a random other wrestler. */
+function pickFeudSubject(world: WorldState, wrestler: Wrestler, rng: TickContext["rng"]): string | undefined {
+  const others = world.wrestlers.filter((w) => w.id !== wrestler.id);
+  if (others.length === 0) return undefined;
+  const byRivalry = others
+    .map((w) => ({ id: w.id, rivalry: findRelationship(world, wrestler.id, w.id)?.rivalry ?? 0 }))
+    .sort((a, b) => b.rivalry - a.rivalry);
+  const top = byRivalry[0];
+  if (top && top.rivalry > 20) return top.id;
+  return rng.pick(others).id;
+}
+
 function argmax<T>(candidates: Scored<T>[], rng: TickContext["rng"]): T {
   let best: T[] = [];
   let bestScore = -Infinity;
@@ -125,17 +143,24 @@ function gmInteractionCandidates(
   wrestler: Wrestler,
   weights: StanceWeights,
   ctx: TickContext,
-): Scored<{ target: InteractionTarget; intent: InteractionIntent }>[] {
+): Scored<InteractionCandidate>[] {
   const activeStory = world.stories.some(
     (s) =>
       s.participantWrestlerIds.includes(wrestler.id) && (s.phase === "building" || s.phase === "peaking"),
   );
+  const subjectRng = ctx.rng.fork(`${wrestler.id}:feud-subject`);
   return Object.entries(GM_INTENT_BASE_SCORE)
     .filter(([intent]) => intent !== "pitch_feud" || !activeStory)
     .map(([intent, baseScore]) => {
       const repeats = countRecentInteractions(world, wrestler.id, intent as InteractionIntent, ctx.tick);
+      const subjectWrestlerId =
+        intent === "pitch_feud" ? pickFeudSubject(world, wrestler, subjectRng) : undefined;
       return {
-        value: { target: { kind: "gm" as const }, intent: intent as InteractionIntent },
+        value: {
+          target: { kind: "gm" as const },
+          intent: intent as InteractionIntent,
+          ...(subjectWrestlerId !== undefined ? { subjectWrestlerId } : {}),
+        },
         score: baseScore(weights) * patienceMultiplier(repeats),
       };
     });
@@ -192,9 +217,9 @@ function wrestlerInteractionCandidates(
   world: WorldState,
   wrestler: Wrestler,
   weights: StanceWeights,
-): Scored<{ target: InteractionTarget; intent: InteractionIntent }>[] {
+): Scored<InteractionCandidate>[] {
   const selfPop = findPopularity(world, wrestler.id).generalPopularity;
-  const candidates: Scored<{ target: InteractionTarget; intent: InteractionIntent }>[] = [];
+  const candidates: Scored<InteractionCandidate>[] = [];
   for (const other of world.wrestlers) {
     if (other.id === wrestler.id) continue;
     const rel = findRelationship(world, wrestler.id, other.id) ?? {
@@ -234,6 +259,7 @@ function decideInteraction(
     wrestlerId: wrestler.id,
     target: chosen.target,
     intent: chosen.intent,
+    ...(chosen.subjectWrestlerId !== undefined ? { subjectWrestlerId: chosen.subjectWrestlerId } : {}),
   };
 }
 

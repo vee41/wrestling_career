@@ -169,9 +169,31 @@ export function resolveProposalResponses(
             affinity: -4,
           });
           break;
-        case "counter":
+        case "counter": {
           proposal.status = "countered";
+          // Minor tuning gap: a counter used to just close the original
+          // proposal with no way for the original proposer to respond —
+          // spin up the actual counter-proposal, roles reversed, so the
+          // conversation continues instead of silently dead-ending.
+          const counter = {
+            id: ctx.ids.next("proposal"),
+            proposerWrestlerId: proposal.recipientWrestlerId,
+            recipientWrestlerId: proposal.proposerWrestlerId,
+            originatingIntent: proposal.originatingIntent,
+            ...(response.counterPayload !== undefined ? { payload: response.counterPayload } : {}),
+            createdAtTick: ctx.tick,
+            deadlineTick: ctx.tick + 2,
+            status: "pending" as const,
+          };
+          world.pendingProposals.push(counter);
+          addEvent(world, ctx, {
+            type: "proposal_created",
+            summary: `${recipient.name} countered ${proposer.name}'s ${proposal.originatingIntent.replace(/_/g, " ")} proposal.`,
+            wrestlerIds: [proposal.recipientWrestlerId, proposal.proposerWrestlerId],
+            data: { intent: proposal.originatingIntent, proposalId: counter.id },
+          });
           break;
+        }
         case "ignore":
           proposal.status = "ignored";
           applyRelationshipDelta(world, proposal.proposerWrestlerId, proposal.recipientWrestlerId, {

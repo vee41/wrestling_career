@@ -76,6 +76,41 @@ describe("proposal expiry (spec §3.3)", () => {
     expect(findRelationship(world, "wrestler-1", "wrestler-0")?.affinity).toBeGreaterThan(0);
     expect(findRelationship(world, "wrestler-0", "wrestler-1")?.affinity).toBeGreaterThan(0);
   });
+
+  it("countering a proposal spins up a new proposal with roles reversed (minor tuning gap)", () => {
+    const world = createTestWorld({ wrestlerCount: 2 });
+    world.pendingProposals.push({
+      id: "prop-4",
+      proposerWrestlerId: "wrestler-0",
+      recipientWrestlerId: "wrestler-1",
+      originatingIntent: "propose_alliance",
+      createdAtTick: 1,
+      deadlineTick: 3,
+      status: "pending",
+    });
+    const turns = new Map<string, PlayerTurn>([
+      [
+        "wrestler-1",
+        {
+          wrestlerId: "wrestler-1",
+          reactiveResponses: [],
+          proposalResponses: [{ proposalId: "prop-4", response: "counter", counterPayload: "only if you back me too" }],
+          matchIntents: {},
+          segmentIntents: {},
+        },
+      ],
+    ]);
+
+    resolveProposalResponses(world, turns, ctxAt(2));
+
+    expect(world.pendingProposals).toHaveLength(1);
+    const counter = world.pendingProposals[0];
+    expect(counter?.proposerWrestlerId).toBe("wrestler-1");
+    expect(counter?.recipientWrestlerId).toBe("wrestler-0");
+    expect(counter?.originatingIntent).toBe("propose_alliance");
+    expect(counter?.payload).toBe("only if you back me too");
+    expect(counter?.status).toBe("pending");
+  });
 });
 
 describe("reactive decision expiry and resolution (spec §5)", () => {

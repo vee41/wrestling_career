@@ -8,15 +8,19 @@
     "wrestling-cli": "./src/index.ts"
   },
   "scripts": {
+    "cli": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@wrestling/contracts": "workspace:*",
     "@wrestling/narrative": "workspace:*",
-    "@wrestling/sim": "workspace:*"
+    "@wrestling/sim": "workspace:*",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

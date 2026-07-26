@@ -165,12 +165,46 @@ function buildCandidates(world: WorldState, wrestlerId: string, ctx: TickContext
     });
   }
 
-  if (wrestler.alignment === "tweener") {
+  // GDD §10's flagship turn example — a face whose negative heat has
+  // overtaken their positive heat (or the heel mirror) is a crowd already
+  // reacting the opposite of their alignment; a tweener is eligible either
+  // way since there's no incumbent reaction to contradict.
+  const HEAT_CONTRADICTION_MARGIN = 15;
+  const heatContradicts =
+    wrestler.alignment === "tweener" ||
+    (wrestler.alignment === "face" && popularity.negativeHeat > popularity.positiveHeat + HEAT_CONTRADICTION_MARGIN) ||
+    (wrestler.alignment === "heel" && popularity.positiveHeat > popularity.negativeHeat + HEAT_CONTRADICTION_MARGIN);
+  if (heatContradicts) {
     candidates.push({
       type: "turn_proposal",
       weight: 0.2,
       offeredResponses: ["accept", "refuse", "negotiate"],
       deadlineTick: ctx.tick + 2,
+    });
+  }
+
+  // Spec §4.2 / GDD §7: a wrestler working through low condition faces a
+  // real decision — push through (more strain, more momentum) or sit out.
+  if (wrestler.condition < 35) {
+    candidates.push({
+      type: "injury_decision",
+      weight: 0.6,
+      offeredResponses: ["accept", "refuse", "cooperate_conditionally"],
+      deadlineTick: ctx.tick + 2,
+    });
+  }
+
+  // A booked, story-linked match is exactly where the GM has a finish worth
+  // changing on short notice (spec §5.1).
+  const storyLinkedBooking = upcomingSlotsFor(world, wrestlerId, ctx.tick).find((ref) => ref.slot.storyId !== undefined);
+  if (storyLinkedBooking) {
+    candidates.push({
+      type: "finish_changed",
+      weight: 0.4,
+      offeredResponses: ["accept", "refuse", "negotiate"],
+      deadlineTick: storyLinkedBooking.show.tick,
+      originMatchId: storyLinkedBooking.slot.id,
+      ...(storyLinkedBooking.slot.storyId !== undefined ? { originStoryId: storyLinkedBooking.slot.storyId } : {}),
     });
   }
 

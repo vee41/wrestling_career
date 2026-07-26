@@ -65,10 +65,18 @@ export const interactionSchema = z
     target: interactionTargetSchema,
     intent: interactionIntentSchema,
     emphasis: z.string().min(1).optional(),
+    // PLAN Phase 3 tuning gap #4: an accepted `pitch_feud` toward the GM
+    // needs *someone* to seed or boost the story with — this names them.
+    // Optional and only meaningful alongside `pitch_feud`.
+    subjectWrestlerId: idSchema.optional(),
   })
   .refine((i) => (i.target.kind === "gm" ? GM_INTENTS : WRESTLER_INTENTS).has(i.intent), {
     message: "intent is not valid for this target kind (spec §3.2–§3.3)",
     path: ["intent"],
+  })
+  .refine((i) => i.subjectWrestlerId === undefined || i.subjectWrestlerId !== i.wrestlerId, {
+    message: "subjectWrestlerId cannot be the interaction's own wrestler",
+    path: ["subjectWrestlerId"],
   });
 export type Interaction = z.infer<typeof interactionSchema>;
 

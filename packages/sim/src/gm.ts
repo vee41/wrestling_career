@@ -2,6 +2,7 @@ import type { GmObjective, MatchSlot, Show, WorldState, Wrestler } from "@wrestl
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick } from "./booking.js";
+import { recentPerformanceReaction } from "./patience.js";
 
 // GDD §11: "possible GM objectives" — rotated by the sim every few weeks.
 const ALL_OBJECTIVES: GmObjective[] = [
@@ -51,9 +52,18 @@ function objectiveFit(world: WorldState, wrestler: Wrestler): number {
   }
 }
 
-function bookingScore(world: WorldState, wrestler: Wrestler): number {
+function bookingScore(world: WorldState, wrestler: Wrestler, currentTick: number): number {
   const popularity = findPopularity(world, wrestler.id);
-  return popularity.generalPopularity + popularity.momentum * 0.5 + objectiveFit(world, wrestler);
+  // Tuning gap #3: being a good soldier (positive gmReaction/backstageReaction
+  // from recent matches) now materially improves booking odds, and going
+  // off-script/refusing GM asks materially hurts them.
+  const { gmReaction, backstageReaction } = recentPerformanceReaction(world, wrestler.id, currentTick);
+  return (
+    popularity.generalPopularity +
+    popularity.momentum * 0.5 +
+    objectiveFit(world, wrestler) +
+    (gmReaction + backstageReaction) * 0.15
+  );
 }
 
 const TARGET_SLOT_MIN = 4;
@@ -98,7 +108,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
 
   const remaining = world.wrestlers
     .filter((w) => !used.has(w.id))
-    .map((w) => ({ wrestler: w, score: bookingScore(world, w) }))
+    .map((w) => ({ wrestler: w, score: bookingScore(world, w, ctx.tick) }))
     .sort((a, b) => b.score - a.score);
 
   let i = 0;

@@ -1,14 +1,23 @@
-import type { Interaction, InteractionIntent, InteractionOutcome, PlayerTurn, WorldState } from "@wrestling/contracts";
+import type {
+  Interaction,
+  InteractionIntent,
+  InteractionOutcome,
+  PlayerTurn,
+  Story,
+  WorldState,
+  Wrestler,
+} from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import {
   applyRelationshipDelta,
   findPopularity,
   findRelationship,
   findStance,
+  findWrestler,
   requireWrestler,
 } from "./lookups.js";
-import { clamp01, clampDelta100 } from "./clamp.js";
-import { countRecentInteractions, patienceMultiplier } from "./patience.js";
+import { clamp01, clampDelta100, clampScale100 } from "./clamp.js";
+import { countRecentInteractions, patienceMultiplier, recentPerformanceReaction } from "./patience.js";
 import { stanceWeights } from "./ai/stance-weights.js";
 
 // Spec §3.3: "many intents create a proposal" when the target is human.
@@ -39,7 +48,12 @@ function gmAcceptanceProbability(
   const wrestler = requireWrestler(world, wrestlerId);
   const popularity = findPopularity(world, wrestlerId);
   const repeats = countRecentInteractions(world, wrestlerId, intent, ctx.tick);
-  const base = 0.35 + (popularity.generalPopularity / 100) * 0.3 + (wrestler.skills.professionalism / 100) * 0.2;
+  const { gmReaction, backstageReaction } = recentPerformanceReaction(world, wrestlerId, ctx.tick);
+  const base =
+    0.35 +
+    (popularity.generalPopularity / 100) * 0.3 +
+    (wrestler.skills.professionalism / 100) * 0.2 +
+    (gmReaction + backstageReaction) * 0.001;
   const objectiveBonus = GM_OBJECTIVE_INTENT_FIT[world.gmObjective]?.[intent] ?? 0;
   return clamp01(base * patienceMultiplier(repeats) + objectiveBonus);
 }
@@ -107,6 +121,54 @@ export function resolveInteractions(
   }
 }
 
+// Tuning gap #4: an accepted GM pitch must be able to cause the things it
+// exists to cause (GDD §13) — reignite an existing story with the named
+// subject, or start a fresh one if there isn't one yet.
+const FEUD_STORY_INTEREST_BOOST = 12;
+const FEUD_STORY_MOMENTUM_BOOST = 15;
+
+function seedOrBoostFeud(world: WorldState, ctx: TickContext, proposer: Wrestler, subject: Wrestler): void {
+  const existing = world.stories.find(
+    (s) =>
+      s.phase !== "resolved" &&
+      s.participantWrestlerIds.includes(proposer.id) &&
+      s.participantWrestlerIds.includes(subject.id),
+  );
+  if (existing) {
+    existing.momentum = clampDelta100(existing.momentum + FEUD_STORY_MOMENTUM_BOOST);
+    existing.audienceInterest = clampScale100(existing.audienceInterest + FEUD_STORY_INTEREST_BOOST);
+    addEvent(world, ctx, {
+      type: "story_developed",
+      summary: `${proposer.name}'s pitch to the GM reignited the story with ${subject.name}.`,
+      wrestlerIds: [proposer.id, subject.id],
+      storyId: existing.id,
+      data: {},
+    });
+    return;
+  }
+
+  const story: Story = {
+    id: ctx.ids.next("story"),
+    participantWrestlerIds: [proposer.id, subject.id],
+    tension: "push_conflict",
+    tensionDescription: `${proposer.name} pitched the GM a feud with ${subject.name}.`,
+    stakes: "a spot on the card",
+    audienceInterest: 45,
+    momentum: 15,
+    coherence: 65,
+    phase: "building",
+    unresolvedDevelopments: [],
+  };
+  world.stories.push(story);
+  addEvent(world, ctx, {
+    type: "story_started",
+    summary: story.tensionDescription,
+    wrestlerIds: [proposer.id, subject.id],
+    storyId: story.id,
+    data: { tension: story.tension },
+  });
+}
+
 function resolveOneInteraction(world: WorldState, interaction: Interaction, ctx: TickContext): void {
   const proposer = requireWrestler(world, interaction.wrestlerId);
 
@@ -114,7 +176,16 @@ function resolveOneInteraction(world: WorldState, interaction: Interaction, ctx:
     const outcome = resolveGmInteraction(world, proposer.id, interaction.intent, ctx);
     if (outcome === "accepted") {
       const popularity = findPopularity(world, proposer.id);
-      popularity.momentum = clampDelta100(popularity.momentum + 4);
+      // request_opportunity's whole point is a better shot at the next
+      // card — a materially bigger bump than a generic accepted ask, since
+      // bookingScore (gm.ts) weighs momentum directly.
+      const momentumBump = interaction.intent === "request_opportunity" ? 12 : 4;
+      popularity.momentum = clampDelta100(popularity.momentum + momentumBump);
+
+      if (interaction.intent === "pitch_feud" && interaction.subjectWrestlerId) {
+        const subject = findWrestler(world, interaction.subjectWrestlerId);
+        if (subject) seedOrBoostFeud(world, ctx, proposer, subject);
+      }
     }
     addEvent(world, ctx, {
       type: "interaction_resolved",

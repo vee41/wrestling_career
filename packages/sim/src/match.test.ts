@@ -32,4 +32,42 @@ describe("resolveShow", () => {
     expect(matchEvent?.data["payouts"]).toBeDefined();
     expect(result?.performances).toHaveLength(2);
   });
+
+  it("emits an injury event when a match drives a wrestler's condition below the strain threshold", () => {
+    const world = createTestWorld({ wrestlerCount: 2, humanCount: 0, seed: "injury" });
+    const wrestler = world.wrestlers.find((w) => w.id === "wrestler-0");
+    // physicalCost's floor (follow_plan assertiveness, worst-case rng roll)
+    // is ~8, i.e. at least a 4-point condition hit — 26 always crosses 25.
+    if (wrestler) wrestler.condition = 26;
+    const show: Show = {
+      id: "show-y",
+      tick: 0,
+      card: [{ id: "slot-y", participantWrestlerIds: ["wrestler-0", "wrestler-1"], intents: {} }],
+    };
+    world.shows.push(show);
+
+    const ctx = ctxAt(0);
+    resolveShow(world, show, ctx);
+
+    const injured = world.wrestlers.find((w) => w.id === "wrestler-0");
+    expect(injured?.condition).toBeLessThan(25);
+    const injuryEvents = ctx.events.filter((e) => e.type === "injury");
+    expect(injuryEvents.some((e) => e.wrestlerIds.includes("wrestler-0"))).toBe(true);
+  });
+
+  it("does not emit an injury event for a wrestler who stays above the strain threshold", () => {
+    const world = createTestWorld({ wrestlerCount: 2, humanCount: 0, seed: "no-injury" });
+    for (const w of world.wrestlers) w.condition = 100;
+    const show: Show = {
+      id: "show-z",
+      tick: 0,
+      card: [{ id: "slot-z", participantWrestlerIds: ["wrestler-0", "wrestler-1"], intents: {} }],
+    };
+    world.shows.push(show);
+
+    const ctx = ctxAt(0);
+    resolveShow(world, show, ctx);
+
+    expect(ctx.events.some((e) => e.type === "injury")).toBe(false);
+  });
 });

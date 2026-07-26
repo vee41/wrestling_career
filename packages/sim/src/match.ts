@@ -33,6 +33,7 @@ const CONFLICT_THRESHOLD = 0.6;
 
 const APPEARANCE_PAY_BASE = 30;
 const CROWD_PAY_FACTOR = 0.5;
+const INJURY_CONDITION_THRESHOLD = 25;
 
 function resolveIntent(world: WorldState, slot: MatchSlot, wrestlerId: string): MatchIntent {
   return slot.intents[wrestlerId] ?? defaultMatchIntent(findStance(world, wrestlerId).stance);
@@ -143,9 +144,23 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   const payouts: Record<string, number> = {};
   for (const p of participants) {
     const perf = performances.find((r) => r.wrestlerId === p.id);
+    const conditionBefore = p.condition;
     p.condition = clampScale100(p.condition - (perf?.physicalCost ?? 0) * 0.5);
     p.money += pay;
     payouts[p.id] = pay;
+
+    // PLAN Phase 2 simplification: injuries are a strain threshold, not a
+    // taxonomy — crossing it while taking real physical cost is "an injury".
+    if (p.condition < INJURY_CONDITION_THRESHOLD && conditionBefore >= INJURY_CONDITION_THRESHOLD) {
+      addEvent(world, ctx, {
+        type: "injury",
+        summary: `${p.name} is banged up after the match and will need to manage a reduced condition.`,
+        wrestlerIds: [p.id],
+        matchId: result.id,
+        showId: show.id,
+        data: { condition: p.condition },
+      });
+    }
   }
 
   addEvent(world, ctx, {

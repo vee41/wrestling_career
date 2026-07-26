@@ -123,7 +123,7 @@ Two tick types: `decision` and `show`. A week = N decision ticks + 1 show tick (
 
 ---
 
-## Phase 3 — CLI harness: headless playtesting
+## Phase 3 — CLI harness: headless playtesting ✅ (done)
 
 **Goal:** `apps/cli` lets a human (or the agent itself) play the game in the terminal before any UI exists.
 
@@ -150,6 +150,12 @@ The tuning pass must also close these known Phase 2 gaps (found in review — ea
 4. **Accepted GM pitches have no material effect.** An accepted `pitch_feud` should seed or boost a story (may need an optional subject-wrestler field on the interaction), and an accepted `request_opportunity` should boost the wrestler's next-show booking score — otherwise the interaction slot cannot cause the things it exists to cause (GDD §13).
 
 Minor, address opportunistically during the same pass: feed `fatigue` into crowd response (GDD §10 overexposure); the patience/plateau event-log scans are O(all events) and `world.events` grows unboundedly — window or prune before the Phase 6 soak; proposal `counter` currently resolves without creating a counter-proposal.
+
+**Post-implementation amendments (applied after review):**
+- All four required gaps and all three minor items above were closed in this pass; see `docs/playtest-notes.md` for the gate write-up and the per-gap evidence from headless seasons.
+- Closing gap 4 needed the "optional subject-wrestler field" the plan anticipated: `interaction.ts` gained `subjectWrestlerId` (optional, only meaningful with a `pitch_feud` toward the GM). The CLI's `interact` command exposes it as `--about <wrestlerId>`. This is a new optional field, not a token change, so it needed no spec amendment.
+- `apps/cli` has no build step (matching every other package): its `bin` entry and tests run the TypeScript sources directly. Node's own `.ts` type-stripping doesn't rewrite the `./foo.js`-referencing-`foo.ts` NodeNext import style this monorepo uses, so a `tsx` devDependency plus a `"cli": "tsx src/index.ts"` script is the actual way to run it (`pnpm --filter @wrestling/cli run cli -- <args>`), not `node src/index.ts` directly.
+- The CLI's `intent` command only wires match intents (`matchIntents`); `segmentIntents` remain unconsumed by `runTick` (`mergeMatchIntents` in tick.ts never reads them) — this is a pre-existing Phase 2 gap, not something this phase's gap list called out, and is left for a future pass since there's no segment-slot entity yet to attach them to.
 
 ---
 

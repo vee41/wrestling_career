@@ -22,6 +22,11 @@ import { advanceStories } from "./stories.js";
 import { generateReactiveDecisions, scanForNewStory } from "./director.js";
 import { buildNarrativeJobs } from "./narrative.js";
 
+// Comfortably larger than the patience (6-tick) and training-plateau
+// (8-tick) windows those subsystems scan `world.events` for.
+const EVENT_RETENTION_TICKS = 30;
+const PRUNABLE_EVENT_TYPES: ReadonlySet<WorldEvent["type"]> = new Set(["interaction_resolved", "action_performed"]);
+
 export interface TickResult {
   world: WorldState;
   events: WorldEvent[];
@@ -86,6 +91,15 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
 
   // Step 8 — emit narrative jobs.
   const narrativeJobs = buildNarrativeJobs(draft, ctx, ctx.events);
+
+  // Tuning gap: patience.ts/plateau windows rescan the full event log every
+  // tick, and only ever look at `interaction_resolved`/`action_performed`
+  // entries — those two types are pruned once they age out of every window
+  // that reads them (patience: 6 ticks, plateau: 8 ticks). Everything else
+  // (title changes, stories, injuries, ...) is a permanent fact and stays.
+  draft.events = draft.events.filter(
+    (e) => !PRUNABLE_EVENT_TYPES.has(e.type) || e.tick > tick - EVENT_RETENTION_TICKS,
+  );
 
   draft.tick = tick + 1;
 

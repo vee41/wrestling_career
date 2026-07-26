@@ -10,6 +10,8 @@ const MOMENTUM_DECAY_FACTOR = 0.85;
 const IDLE_FATIGUE_RELIEF = 3;
 const HEAT_MAX_STEP = 12;
 const TWEENER_HEAT_MAX_STEP = 8;
+const OVEREXPOSURE_FATIGUE_FLOOR = 50;
+const OVEREXPOSURE_PENALTY_FACTOR = 0.3;
 
 /**
  * GDD §10: crowd response moves gradually (capped per-tick deltas), never a
@@ -54,7 +56,12 @@ export function updatePopularity(world: WorldState, _ctx: TickContext, matchResu
     const perf = perfByWrestler.get(wrestler.id);
 
     if (perf) {
-      const reactionTarget = clampScale100(perf.performanceScore * 0.6 + perf.crowdResponse * 0.4);
+      // GDD §10 overexposure: a wrestler who's been out there too much gets
+      // a duller reaction even for the same underlying performance.
+      const overexposurePenalty = Math.max(0, popularity.fatigue - OVEREXPOSURE_FATIGUE_FLOOR) * OVEREXPOSURE_PENALTY_FACTOR;
+      const reactionTarget = clampScale100(
+        perf.performanceScore * 0.6 + perf.crowdResponse * 0.4 - overexposurePenalty,
+      );
       popularity.currentReaction = moveToward(popularity.currentReaction, reactionTarget, REACTION_MAX_STEP);
 
       const popularityTarget = clampScale100((popularity.currentReaction + perf.performanceScore) / 2);

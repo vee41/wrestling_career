@@ -30,3 +30,31 @@ export function patienceMultiplier(repeatCount: number): number {
   if (repeatCount <= 0) return 1;
   return 1 / (1 + repeatCount * 0.6);
 }
+
+/**
+ * PLAN Phase 3 tuning gap #3: `gmReactionDelta`/`backstageReactionDelta` are
+ * computed per match (match.ts) but were previously never read again —
+ * refusing a booking request or going off-script had no lasting GM-side
+ * cost, and being a good soldier backstage never paid off. This windows the
+ * same signal patience.ts already windows interactions over, joined through
+ * each match's show to recover its tick.
+ */
+export function recentPerformanceReaction(
+  world: WorldState,
+  wrestlerId: string,
+  currentTick: number,
+  windowTicks: number = PATIENCE_WINDOW_TICKS,
+): { gmReaction: number; backstageReaction: number } {
+  const showTickById = new Map(world.shows.map((s) => [s.id, s.tick]));
+  let gmReaction = 0;
+  let backstageReaction = 0;
+  for (const result of world.matchResults) {
+    const tick = showTickById.get(result.showId);
+    if (tick === undefined || tick <= currentTick - windowTicks || tick > currentTick) continue;
+    const perf = result.performances.find((p) => p.wrestlerId === wrestlerId);
+    if (!perf) continue;
+    gmReaction += perf.gmReactionDelta;
+    backstageReaction += perf.backstageReactionDelta;
+  }
+  return { gmReaction, backstageReaction };
+}
