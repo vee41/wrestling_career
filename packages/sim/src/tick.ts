@@ -32,11 +32,15 @@ export interface TickResult {
  * The canonical tick pipeline (GDD §4), as a pure function: same `world` +
  * `playerTurns` + `seed` always produces the same result. `world` itself is
  * never mutated — a clone is threaded through every stage instead.
+ *
+ * The tick counter is mixed into the RNG, so passing a constant seed (e.g.
+ * `world.seed`) across consecutive ticks is safe — every tick still rolls
+ * fresh randomness rather than repeating the previous tick's decisions.
  */
 export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], seed: string | number): TickResult {
   const draft = cloneWorld(world);
   const tick = draft.tick;
-  const ctx: TickContext = { tick, rng: createRng(seed), ids: createIdFactory(tick), events: [] };
+  const ctx: TickContext = { tick, rng: createRng(`${seed}:${tick}`), ids: createIdFactory(tick), events: [] };
 
   applyStanceInertia(draft, ctx);
 

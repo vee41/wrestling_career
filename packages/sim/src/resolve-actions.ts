@@ -4,10 +4,12 @@ import { clampScale100 } from "./clamp.js";
 import { findPopularity, findStory, requireWrestler } from "./lookups.js";
 import { mergeDefined } from "./merge.js";
 
-// GDD §8: money never occupies a slot — it upgrades the quality of
-// whichever action was chosen. Flat per-action costs are this phase's
-// simplification (the GDD gives sinks, not prices).
-const ACTION_COST: Record<string, number> = {
+// GDD §8: money never occupies a slot — it upgrades the quality of the
+// chosen action, but only when the turn explicitly opts in via the action's
+// `invest` flag (never automatically, so saving stays a real choice). Flat
+// per-action costs are this phase's simplification (the GDD gives sinks,
+// not prices). Exported so the AI brain can weigh cost against its reserve.
+export const ACTION_COST: Record<string, number> = {
   train_skill: 30,
   recover: 20,
   promote_match: 15,
@@ -63,7 +65,7 @@ function applyOneAction(world: WorldState, action: NonNullable<PlayerTurn["actio
   const wrestler = requireWrestler(world, action.wrestlerId);
   const popularity = findPopularity(world, action.wrestlerId);
   const rng = ctx.rng.fork(`action:${action.id}`);
-  const upgraded = spendForQuality(world, action.wrestlerId, action.type);
+  const upgraded = action.invest === true && spendForQuality(world, action.wrestlerId, action.type);
   const qualityMultiplier = upgraded ? QUALITY_BONUS_MULTIPLIER : 1;
 
   switch (action.type) {

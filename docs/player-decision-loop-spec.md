@@ -120,7 +120,7 @@ The important choice is usually **who** receives the player's single interaction
 
 Each player receives **one action slot per decision period**. The action represents how the wrestler spends their available time and energy.
 
-Money does not occupy a slot: spending money **upgrades the quality of an action** (better training, better recovery, better presentation — GDD §8) rather than being an action itself.
+Money does not occupy a slot: spending money **upgrades the quality of an action** (better training, better recovery, better presentation — GDD §8) rather than being an action itself. Investing is an explicit per-action choice (`invest`), never automatic — holding money back for a future injury or a rainy day is a valid strategy. Money is earned through appearances: every match participant receives appearance pay, win or lose.
 
 ### 4.1 Action categories and trade-offs
 

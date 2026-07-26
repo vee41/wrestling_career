@@ -31,6 +31,9 @@ const ASSERTIVENESS: Record<MatchIntent, number> = {
 
 const CONFLICT_THRESHOLD = 0.6;
 
+const APPEARANCE_PAY_BASE = 30;
+const CROWD_PAY_FACTOR = 0.5;
+
 function resolveIntent(world: WorldState, slot: MatchSlot, wrestlerId: string): MatchIntent {
   return slot.intents[wrestlerId] ?? defaultMatchIntent(findStance(world, wrestlerId).stance);
 }
@@ -132,9 +135,17 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   };
 
   world.matchResults.push(result);
+  // GDD §8: money is earned through appearances — every participant gets
+  // appearance pay, with a bonus scaled by how hot the crowd was. This is
+  // the earn side of the economy; the spend side is the explicit `invest`
+  // flag on actions (resolve-actions.ts).
+  const pay = APPEARANCE_PAY_BASE + Math.round(crowdResponse * CROWD_PAY_FACTOR);
+  const payouts: Record<string, number> = {};
   for (const p of participants) {
     const perf = performances.find((r) => r.wrestlerId === p.id);
     p.condition = clampScale100(p.condition - (perf?.physicalCost ?? 0) * 0.5);
+    p.money += pay;
+    payouts[p.id] = pay;
   }
 
   addEvent(world, ctx, {
@@ -147,7 +158,7 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     ...(story ? { storyId: story.id } : {}),
     matchId: result.id,
     showId: show.id,
-    data: { quality, crowdResponse },
+    data: { quality, crowdResponse, payouts },
   });
 
   return result;

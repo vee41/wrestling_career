@@ -20,6 +20,19 @@ describe("determinism", () => {
   });
 });
 
+describe("constant-seed safety", () => {
+  it("mixes the tick into the RNG, so identical worlds at different ticks roll different outcomes", () => {
+    const world = createTestWorld({ wrestlerCount: 12, humanCount: 0, seed: "seed-mix" });
+    const later = JSON.parse(JSON.stringify(world)) as typeof world;
+    // Ticks 0 and 3 are both first-of-week decision ticks (no booking, no
+    // show) — structurally identical, so any difference below is pure RNG.
+    later.tick = 3;
+    const a = runTick(world, [], "constant-seed");
+    const b = runTick(later, [], "constant-seed");
+    expect(a.events.map((e) => e.summary)).not.toEqual(b.events.map((e) => e.summary));
+  });
+});
+
 describe("DL-7: absence is supported", () => {
   it("a human who submits no turn still gets a reactive decision resolved via stance fallback", () => {
     const world = createTestWorld({ wrestlerCount: 2, humanCount: 1 });

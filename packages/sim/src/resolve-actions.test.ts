@@ -85,3 +85,36 @@ describe("training plateau (spec §4.2)", () => {
     expect(plateauedGain).toBe(freshGain);
   });
 });
+
+function recoverTurn(wrestlerId: string, invest: boolean): PlayerTurn {
+  return {
+    wrestlerId,
+    action: { type: "recover", id: "recover-1", wrestlerId, ...(invest ? { invest: true } : {}) },
+    reactiveResponses: [],
+    proposalResponses: [],
+    matchIntents: {},
+    segmentIntents: {},
+  };
+}
+
+describe("money: explicit invest (GDD §8 / spec §4)", () => {
+  it("spends money and boosts the effect only when invest is set — never automatically", () => {
+    const make = () => {
+      const world = createTestWorld({ wrestlerCount: 2, humanCount: 2, seed: "invest" });
+      const w = world.wrestlers.find((x) => x.id === "wrestler-0");
+      if (!w) throw new Error("missing wrestler-0");
+      w.condition = 50;
+      w.money = 500;
+      return world;
+    };
+
+    const plain = runTick(make(), [recoverTurn("wrestler-0", false)], "invest-check");
+    const invested = runTick(make(), [recoverTurn("wrestler-0", true)], "invest-check");
+
+    const plainW = plain.world.wrestlers.find((x) => x.id === "wrestler-0");
+    const investedW = invested.world.wrestlers.find((x) => x.id === "wrestler-0");
+    expect(plainW?.money).toBe(500); // no auto-spend
+    expect(investedW?.money).toBe(480); // recover costs 20
+    expect(investedW?.condition ?? 0).toBeGreaterThan(plainW?.condition ?? 0);
+  });
+});

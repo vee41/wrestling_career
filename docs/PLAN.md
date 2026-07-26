@@ -117,6 +117,10 @@ Two tick types: `decision` and `show`. A week = N decision ticks + 1 show tick (
 
 **Done when:** all tests pass and a 12-week simulated season with 30 AI wrestlers and 0 humans runs without errors, producing a non-degenerate world (title changes hands or is credibly defended, ≥5 distinct stories occur, popularity rankings shuffle).
 
+**Post-implementation amendments (applied after review):**
+- Money flows both ways: every match participant earns appearance pay scaled by crowd response (GDD §8 "appearances"), and quality upgrades happen only when a turn explicitly sets `invest: true` on its action — auto-spending was removed so saving stays a real choice. The AI invests above a stance-driven cash reserve.
+- `runTick` mixes the tick counter into the seeded RNG, so callers (Phase 3 CLI included) may safely pass a constant seed across ticks without decision rolls repeating.
+
 ---
 
 ## Phase 3 — CLI harness: headless playtesting
@@ -137,6 +141,15 @@ Two tick types: `decision` and `show`. A week = N decision ticks + 1 show tick (
 **Done when:** the agent can play a 4-week career via CLI exercising all five choice types: pitch a feud, get booked, set an intent, answer a reactive decision, change stance, read the show result, and see relationship/popularity consequences — and the transcript is legible enough to evaluate against GDD §21.
 
 **⚠ Gate:** After this phase, run 2–3 full seasons and write `docs/playtest-notes.md` evaluating against GDD §21 and the spec's design rules DL-1…DL-7 (cite rule IDs): do careers diverge? do stories emerge that don't revolve around one wrestler? does "train stats → champion" fail as a strategy (DL-3)? does an absent player survive a season intact (DL-7)? Tune Phase 2 weights before proceeding. Do not start the UI until this gate passes.
+
+The tuning pass must also close these known Phase 2 gaps (found in review — each currently weakens a promise the spec makes):
+
+1. **Dead reactive types / no named injuries.** The director never generates `injury_decision` or `finish_changed`, though their consequence code exists in `responses.ts`, and no `injury` event is ever emitted. Wire `injury_decision` to a low-condition trigger and `finish_changed` to story-linked bookings (or delete the dead branches), and emit an `injury` event when strain forces reduced performance.
+2. **Heel/face turns unreachable for aligned wrestlers.** `turn_proposal` is gated on `alignment === "tweener"`; spec §10's flagship example (GM proposes turning a *face* heel) can never occur. Gate it on alignment/heat contradiction instead (e.g. a face whose negative heat overtakes positive), with the turn flipping toward the crowd's actual reaction.
+3. **GM reaction is computed but never consumed.** Fold recent `gmReactionDelta`/`backstageReactionDelta` (windowed event scan, same pattern as patience) into `gmAcceptanceProbability` and `bookingScore`, so refusing a `booking_request` has a GM-side cost (spec §5.2's own example) and being a good soldier pays off.
+4. **Accepted GM pitches have no material effect.** An accepted `pitch_feud` should seed or boost a story (may need an optional subject-wrestler field on the interaction), and an accepted `request_opportunity` should boost the wrestler's next-show booking score — otherwise the interaction slot cannot cause the things it exists to cause (GDD §13).
+
+Minor, address opportunistically during the same pass: feed `fatigue` into crowd response (GDD §10 overexposure); the patience/plateau event-log scans are O(all events) and `world.events` grows unboundedly — window or prune before the Phase 6 soak; proposal `counter` currently resolves without creating a counter-proposal.
 
 ---
 

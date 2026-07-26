@@ -14,6 +14,7 @@ import type {
 import { skillNameSchema } from "@wrestling/contracts";
 import type { TickContext } from "../context.js";
 import { upcomingSlotsFor } from "../booking.js";
+import { ACTION_COST } from "../resolve-actions.js";
 import { interactionGatePasses } from "../gates.js";
 import { countRecentInteractions, patienceMultiplier } from "../patience.js";
 import { findPopularity, findRelationship, findStance } from "../lookups.js";
@@ -81,17 +82,30 @@ function decideAction(
   const chosen = argmax(candidates, rng);
   const id = ctx.ids.next("action");
 
+  // Spec §4 / GDD §8: investing money to upgrade an action is an explicit
+  // choice. The AI invests only above a stance-driven cash reserve —
+  // income-focused wrestlers hoard a deeper cushion before spending.
+  const cost = ACTION_COST[chosen] ?? 0;
+  const reserve = 50 + weights.income * 300;
+  const invest = cost > 0 && wrestler.money >= cost + reserve ? { invest: true } : {};
+
   switch (chosen) {
     case "recover":
-      return { type: "recover", id, wrestlerId: wrestler.id };
+      return { type: "recover", id, wrestlerId: wrestler.id, ...invest };
     case "train_skill":
-      return { type: "train_skill", id, wrestlerId: wrestler.id, skill: pickWeakestSkill(wrestler.skills, rng) };
+      return {
+        type: "train_skill",
+        id,
+        wrestlerId: wrestler.id,
+        skill: pickWeakestSkill(wrestler.skills, rng),
+        ...invest,
+      };
     case "promote_match": {
       const slot = rng.pick(upcoming);
-      return { type: "promote_match", id, wrestlerId: wrestler.id, matchSlotId: slot.slot.id };
+      return { type: "promote_match", id, wrestlerId: wrestler.id, matchSlotId: slot.slot.id, ...invest };
     }
     case "develop_character":
-      return { type: "develop_character", id, wrestlerId: wrestler.id, adjustment: {} };
+      return { type: "develop_character", id, wrestlerId: wrestler.id, adjustment: {}, ...invest };
   }
 }
 
