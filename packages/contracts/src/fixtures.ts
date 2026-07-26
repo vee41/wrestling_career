@@ -1,0 +1,277 @@
+import { CURRENT_SCHEMA_VERSION } from "./common.js";
+import type { WorldState } from "./world.js";
+
+/**
+ * A small, fully-populated WorldState fixture: 3 wrestlers, one relationship
+ * pair, one story, one show with a result, one event, and one narrative
+ * job/result pair shaped like the GDD §16 example. Used by contracts' own
+ * round-trip tests and available to later phases (CLI seeding, sim tests).
+ */
+export const exampleWorldState: WorldState = {
+  schemaVersion: CURRENT_SCHEMA_VERSION,
+  tick: 3,
+  seed: "prototype-seed-1",
+  wrestlers: [
+    {
+      id: "ace-steel",
+      name: "Ace Steel",
+      controlledBy: "human",
+      skills: {
+        ringPerformance: 62,
+        psychology: 55,
+        promoAbility: 48,
+        characterWork: 50,
+        athleticism: 70,
+        toughness: 60,
+        professionalism: 65,
+        politicalInstinct: 40,
+      },
+      condition: 82,
+      money: 1200,
+      alignment: "face",
+      gimmick: {
+        concept: "Underdog technician",
+        promoTone: "earnest",
+        traits: ["determined", "humble"],
+        presentation: "classic singlet, no frills",
+        currentDirection: "chasing a title opportunity",
+      },
+    },
+    {
+      id: "vic-vendetta",
+      name: "Vic Vendetta",
+      controlledBy: "ai",
+      skills: {
+        ringPerformance: 58,
+        psychology: 70,
+        promoAbility: 75,
+        characterWork: 68,
+        athleticism: 55,
+        toughness: 50,
+        professionalism: 45,
+        politicalInstinct: 66,
+      },
+      condition: 90,
+      money: 4300,
+      alignment: "heel",
+      gimmick: {
+        concept: "Arrogant former champion",
+        promoTone: "condescending",
+        traits: ["manipulative", "charismatic"],
+        presentation: "expensive robe, sunglasses",
+        currentDirection: "protecting his legacy",
+      },
+    },
+    {
+      id: "dusty-cole",
+      name: "Dusty Cole",
+      controlledBy: "ai",
+      skills: {
+        ringPerformance: 45,
+        psychology: 40,
+        promoAbility: 35,
+        characterWork: 42,
+        athleticism: 60,
+        toughness: 72,
+        professionalism: 80,
+        politicalInstinct: 30,
+      },
+      condition: 75,
+      money: 600,
+      alignment: "tweener",
+      gimmick: {
+        concept: "Journeyman brawler",
+        promoTone: "blunt",
+        traits: ["reliable", "unpredictable"],
+        presentation: "worn leather jacket",
+        currentDirection: "looking for a signature feud",
+      },
+    },
+  ],
+  popularity: [
+    {
+      wrestlerId: "ace-steel",
+      currentReaction: 70,
+      generalPopularity: 55,
+      momentum: 8,
+      positiveHeat: 60,
+      negativeHeat: 5,
+      fatigue: 20,
+    },
+    {
+      wrestlerId: "vic-vendetta",
+      currentReaction: 65,
+      generalPopularity: 60,
+      momentum: -3,
+      positiveHeat: 10,
+      negativeHeat: 75,
+      fatigue: 35,
+    },
+    {
+      wrestlerId: "dusty-cole",
+      currentReaction: 40,
+      generalPopularity: 38,
+      momentum: 0,
+      positiveHeat: 30,
+      negativeHeat: 20,
+      fatigue: 10,
+    },
+  ],
+  relationships: [
+    {
+      fromWrestlerId: "ace-steel",
+      toWrestlerId: "vic-vendetta",
+      affinity: -40,
+      respect: 20,
+      trust: -10,
+      rivalry: 80,
+      resentment: 30,
+      influence: 15,
+    },
+    {
+      fromWrestlerId: "vic-vendetta",
+      toWrestlerId: "ace-steel",
+      affinity: -60,
+      respect: 10,
+      trust: -30,
+      rivalry: 85,
+      resentment: 55,
+      influence: 45,
+    },
+  ],
+  stories: [
+    {
+      id: "story-ace-vs-vic",
+      participantWrestlerIds: ["ace-steel", "vic-vendetta"],
+      tension: "push_conflict",
+      tensionDescription:
+        "A popular underdog is gaining support while a protective former champion tries to hold his position.",
+      stakes: "number-one contendership",
+      audienceInterest: 72,
+      momentum: 12,
+      coherence: 80,
+      phase: "peaking",
+      unresolvedDevelopments: ["Vic refused a rematch clause on air"],
+    },
+  ],
+  shows: [
+    {
+      id: "show-week-3",
+      tick: 3,
+      card: [
+        {
+          id: "slot-main-event",
+          participantWrestlerIds: ["ace-steel", "vic-vendetta"],
+          storyId: "story-ace-vs-vic",
+          gmIntent: "capitalise_on_rising_star",
+        },
+      ],
+    },
+  ],
+  matchResults: [
+    {
+      id: "match-week-3-main-event",
+      matchSlotId: "slot-main-event",
+      showId: "show-week-3",
+      participantWrestlerIds: ["ace-steel", "vic-vendetta"],
+      winnerWrestlerId: "vic-vendetta",
+      quality: 78,
+      crowdResponse: 82,
+      chemistry: 74,
+      storyId: "story-ace-vs-vic",
+      storyAdvancement: 18,
+      performances: [
+        {
+          wrestlerId: "ace-steel",
+          performanceScore: 75,
+          characterCredibilityDelta: 10,
+          physicalCost: 35,
+          gmReactionDelta: 8,
+          backstageReactionDelta: 5,
+        },
+        {
+          wrestlerId: "vic-vendetta",
+          performanceScore: 70,
+          characterCredibilityDelta: -5,
+          physicalCost: 25,
+          gmReactionDelta: 4,
+          backstageReactionDelta: -2,
+        },
+      ],
+    },
+  ],
+  events: [
+    {
+      id: "event-match-week-3-main-event",
+      tick: 3,
+      type: "match_result",
+      summary: "Vic Vendetta defeated Ace Steel, but the crowd left louder for Ace.",
+      wrestlerIds: ["ace-steel", "vic-vendetta"],
+      storyId: "story-ace-vs-vic",
+      matchId: "match-week-3-main-event",
+      showId: "show-week-3",
+      data: {},
+    },
+  ],
+  narrativeJobs: [
+    {
+      id: "job-show-week-3-recap",
+      tick: 3,
+      jobType: "show_recap",
+      facts: [
+        "Vic Vendetta defeated Ace Steel",
+        "Ace Steel received the louder crowd reaction",
+        "The rivalry gained audience interest",
+      ],
+      characters: [
+        { id: "vic-vendetta", voice: ["arrogant", "controlled"] },
+        { id: "ace-steel", voice: ["earnest", "defiant"] },
+      ],
+      constraints: {
+        maxWords: 120,
+        inventFacts: false,
+      },
+      status: "done",
+    },
+  ],
+  narrativeResults: [
+    {
+      jobId: "job-show-week-3-recap",
+      headline: "Victory Does Not Silence the Crowd",
+      body: "Vic Vendetta won the match, but the audience clearly left talking about Ace Steel.",
+      mentionedCharacterIds: ["vic-vendetta", "ace-steel"],
+    },
+  ],
+  gmObjective: "capitalise_on_rising_star",
+  gmObjectiveSince: 1,
+  stances: [
+    { wrestlerId: "ace-steel", stance: "pursue_championships" },
+    { wrestlerId: "vic-vendetta", stance: "protect_character" },
+    { wrestlerId: "dusty-cole", stance: "avoid_conflict", pendingStance: "seek_match_quality" },
+  ],
+  pendingProposals: [
+    {
+      id: "proposal-dusty-to-ace-alliance",
+      proposerWrestlerId: "dusty-cole",
+      recipientWrestlerId: "ace-steel",
+      originatingIntent: "propose_alliance",
+      payload: "Let's watch each other's backs against Vic's crew.",
+      createdAtTick: 3,
+      deadlineTick: 5,
+      status: "pending",
+    },
+  ],
+  pendingReactiveDecisions: [
+    {
+      id: "reactive-vic-post-match-attack",
+      type: "wrestler_proposal",
+      targetWrestlerId: "ace-steel",
+      originWrestlerId: "vic-vendetta",
+      originStoryId: "story-ace-vs-vic",
+      originMatchId: "match-week-3-main-event",
+      offeredResponses: ["accept", "refuse", "negotiate"],
+      deadlineTick: 4,
+      status: "pending",
+    },
+  ],
+};
