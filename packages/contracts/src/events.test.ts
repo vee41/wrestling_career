@@ -35,4 +35,20 @@ describe("worldEventSchema", () => {
   it("rejects an unknown event type", () => {
     expect(() => worldEventSchema.parse({ ...validEvent, type: "wrestler_traded" })).toThrow();
   });
+
+  it("accepts the Phase 2 tick-engine event types", () => {
+    for (const type of [
+      "action_performed",
+      "interaction_resolved",
+      "proposal_created",
+      "proposal_resolved",
+      "reactive_decision_created",
+      "reactive_decision_resolved",
+      "stance_changed",
+      "show_booked",
+      "title_change",
+    ]) {
+      expect(() => worldEventSchema.parse({ ...validEvent, type })).not.toThrow();
+    }
+  });
 });

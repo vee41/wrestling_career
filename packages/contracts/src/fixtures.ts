@@ -164,6 +164,7 @@ export const exampleWorldState: WorldState = {
           participantWrestlerIds: ["ace-steel", "vic-vendetta"],
           storyId: "story-ace-vs-vic",
           gmIntent: "capitalise_on_rising_star",
+          intents: {},
         },
       ],
     },

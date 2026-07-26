@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { idSchema, tickSchema } from "./common.js";
+import { matchIntentSchema } from "./intent.js";
 
 // GDD §11 — the GM's active creative objective, rotated by the sim every few weeks.
 export const gmObjectiveSchema = z.enum([
@@ -17,6 +18,11 @@ export const matchSlotSchema = z.object({
   participantWrestlerIds: z.array(idSchema).min(2),
   storyId: idSchema.optional(),
   gmIntent: gmObjectiveSchema.optional(),
+  // PLAN Phase 2: a show's card is booked one tick ahead of airing so
+  // players have a decision period to set match intent (spec §6) before it
+  // resolves. Intents accumulate here (wrestlerId -> intent) across however
+  // many ticks the slot is visible before the show tick consumes it.
+  intents: z.record(idSchema, matchIntentSchema).default({}),
 });
 export type MatchSlot = z.infer<typeof matchSlotSchema>;
 

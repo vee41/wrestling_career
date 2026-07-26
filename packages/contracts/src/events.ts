@@ -6,6 +6,14 @@ import { idSchema, tickSchema } from "./common.js";
 // Phase 2's tick engine owns what actually goes in `data`.
 export const worldEventTypeSchema = z.enum([
   "action_rejected",
+  "action_performed",
+  "interaction_resolved",
+  "proposal_created",
+  "proposal_resolved",
+  "reactive_decision_created",
+  "reactive_decision_resolved",
+  "stance_changed",
+  "show_booked",
   "match_result",
   "story_started",
   "story_developed",
@@ -16,6 +24,7 @@ export const worldEventTypeSchema = z.enum([
   "injury",
   "rumour",
   "gimmick_changed",
+  "title_change",
 ]);
 export type WorldEventType = z.infer<typeof worldEventTypeSchema>;
 

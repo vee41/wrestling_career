@@ -94,7 +94,7 @@ Model (keep every numeric system as a small integer scale, e.g. 0–100):
 
 ---
 
-## Phase 2 — Sim core: the tick engine
+## Phase 2 — Sim core: the tick engine ✅ (done)
 
 **Goal:** `runTick(world, playerTurns, seed) → { world, events, narrativeJobs }` as a pure function in `packages/sim`. This is the heart of the game; spend the most effort here.
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CURRENT_SCHEMA_VERSION, tickSchema } from "./common.js";
+import { CURRENT_SCHEMA_VERSION, idSchema, tickSchema } from "./common.js";
 import { wrestlerSchema } from "./wrestler.js";
 import { popularityBlockSchema } from "./popularity.js";
 import { relationshipSchema } from "./relationship.js";
@@ -28,6 +28,10 @@ export const worldStateSchema = z
     narrativeResults: z.array(narrativeResultSchema),
     gmObjective: gmObjectiveSchema,
     gmObjectiveSince: tickSchema,
+    // PLAN Phase 2 simplification: "titles as a single championship belt" —
+    // one belt, no injury/title taxonomy. Absent until first crowned.
+    championId: idSchema.optional(),
+    championSince: tickSchema.optional(),
     stances: z.array(wrestlerStanceSchema),
     pendingProposals: z.array(proposalSchema),
     pendingReactiveDecisions: z.array(reactiveDecisionSchema),
@@ -110,6 +114,10 @@ export const worldStateSchema = z
     world.events.forEach((e, i) => {
       e.wrestlerIds.forEach((id, j) => requireKnownWrestler(id, ["events", i, "wrestlerIds", j]));
     });
+
+    if (world.championId !== undefined) {
+      requireKnownWrestler(world.championId, ["championId"]);
+    }
 
     const stanceWrestlerIds = world.stances.map((s) => s.wrestlerId);
     if (new Set(stanceWrestlerIds).size !== wrestlerIds.size) {

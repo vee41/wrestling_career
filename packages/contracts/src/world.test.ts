@@ -102,6 +102,16 @@ describe("worldStateSchema", () => {
     expect(() => worldStateSchema.parse(invalid)).toThrow(/unknown match id/);
   });
 
+  it("accepts a world with a crowned champion", () => {
+    const valid = { ...exampleWorldState, championId: "ace-steel", championSince: 3 };
+    expect(() => worldStateSchema.parse(valid)).not.toThrow();
+  });
+
+  it("rejects a championId that references an unknown wrestler", () => {
+    const invalid = { ...exampleWorldState, championId: "ghost-wrestler" };
+    expect(() => worldStateSchema.parse(invalid)).toThrow(/unknown wrestler id.*ghost-wrestler/);
+  });
+
   it("accepts a pending reactive decision whose origin match is only a booked slot, not yet resolved", () => {
     const valid = {
       ...exampleWorldState,
