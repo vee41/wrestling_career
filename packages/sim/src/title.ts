@@ -1,6 +1,7 @@
 import type { MatchResult, Title, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { requireWrestler } from "./lookups.js";
+import { adjustStarPower } from "./popularity.js";
 
 /** Resolve every booked title match independently; title_change events are the derived lineage. */
 export function updateChampionships(world: WorldState, ctx: TickContext, matchResults: MatchResult[]): void {
@@ -46,4 +47,14 @@ function crown(world: WorldState, ctx: TickContext, title: Title, holderId: stri
     wrestlerIds: previousHolderId ? [holderId, previousHolderId] : [holderId], matchId,
     data: { titleId: title.id, defended: false },
   });
+  const winnerGain = title.tier === "world"
+    ? world.config.popularity.worldTitleWinStarPowerGain
+    : world.config.popularity.midcardTitleWinStarPowerGain;
+  adjustStarPower(world, ctx, holderId, winnerGain, `${requireWrestler(world, holderId).name} gained lasting status by winning the ${title.name}.`);
+  if (previousHolderId) {
+    const previousLoss = title.tier === "world"
+      ? -world.config.popularity.worldTitleLossStarPowerLoss
+      : -world.config.popularity.midcardTitleLossStarPowerLoss;
+    adjustStarPower(world, ctx, previousHolderId, previousLoss, `${requireWrestler(world, previousHolderId).name} lost status with the ${title.name}.`);
+  }
 }

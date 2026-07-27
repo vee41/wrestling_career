@@ -251,50 +251,54 @@ Major changes, such as a heel turn or complete repackaging, require time and may
 
 ## 10. Crowd response and popularity
 
-Crowd response is a central simulation system.
+Crowd response is a central simulation system. The crowd reacts to match performance, character clarity, story momentum, opponent chemistry, wins and losses, promos, repetition, surprise, perceived authenticity, and promotion context.
 
-The crowd reacts to:
+Crowd response is never a single permanent score. It is modelled as **four layers on four timescales**, each slower and stickier than the last:
 
-* Match performance
-* Character clarity
-* Story momentum
-* Opponent chemistry
-* Wins and losses
-* Promos
-* Repetition
-* Surprise
-* Perceived authenticity
-* Promotion context
+| Layer | Field | Timescale | Meaning |
+| --- | --- | --- | --- |
+| Reaction | `currentReaction` | tonight | how hot this single segment was; volatile |
+| Momentum | `momentum` | weeks | the trend — a decaying average of recent surprise |
+| Popularity | `generalPopularity` | months | the wrestler's current spot on the card |
+| Status | `starPower` | career | earned standing; the anchor popularity is pulled toward |
 
-Crowd response should not be a single permanent score.
+Alongside these, **`positiveHeat` / `negativeHeat`** track face/heel crowd sentiment and **`fatigue`** tracks overexposure. All are per-wrestler fields on the contracts popularity block.
 
-Useful measures may include:
+### 10.1 What moves popularity: surprise, not performance
 
-* Current reaction
-* General popularity
-* Momentum
-* Audience segment appeal
-* Positive versus negative heat
-* Fatigue or overexposure
+The driver of change is **surprise** — how far a night lands from what was expected of *that* wrestler — never raw performance. Expectation is the wrestler's own recent baseline (a trailing average of their recent segments), adjusted by the stakes of the spot. Consequences:
 
-Popularity strongly influences GM decisions, including:
+* Meeting your usual level moves nothing — a star having a routine good match stays where they are.
+* A wrestler cannot rise merely by wrestling at their skill level; they must **exceed their own norm** (a breakout) or **win something** (a status gain).
+* Beating a bigger act is an **upset** (large gain); losing to a smaller one is a **burial** (large loss). Expected results are neutral.
 
-* Booking position
-* Storyline attention
-* Title opportunities
-* Match placement
-* Protection from losses
-* Investment in presentation
+### 10.2 The four layers
 
-Popularity should influence decisions without fully determining them.
+* **`momentum`** is a decaying average of surprise. One good night nudges it; a sustained run builds real heat. Momentum, not popularity, is what the GM reads first when deciding a push — so a hot act climbs the card before its popularity has caught up.
+* **`generalPopularity`** moves slowly, is capped per appearance, and is pulled by two forces: **gravity** toward `starPower`, and a **push** from sustained momentum. Gains shrink as popularity nears the ceiling and losses shrink near the floor, so nobody rockets to the top on one streak or free-falls to zero on one bad month.
+* **`starPower`** is the earned anchor and the only thing that lets a wrestler durably leave their starting tier. It moves only on **milestones**: winning or losing a title, main-eventing a PLE to a strong crowd, or momentum held high (or low) for several weeks. This is what makes a made man stay made and forces a riser to convert a hot streak into an achievement before it sticks.
 
-The GM may still favour:
+Overexposure (`fatigue`) and losing streaks are pressures within this model, not flat penalties: a tired act draws a duller crowd (a lower segment, hence negative surprise), and sustained losing shows up as negative surprise and, over weeks, erodes `starPower`. Falls are gradual and earned, never a sudden collapse.
 
-* Reliable workers
-* Wrestlers who fit current plans
-* Politically influential veterans
-* Characters suited to a specific story
-* Wrestlers with strong long-term potential
+### 10.3 Moments — flavour the story engine can see
+
+Most weeks a wrestler's popularity drifts quietly. **Moments** are the discrete, occasional beats that give a career texture and give the narrative layer something concrete to grab. Each has a normative `reason` token:
+
+| `reason` | What happened |
+| --- | --- |
+| `breakout` | a star-making performance well above the wrestler's own norm |
+| `crowd_ignition` | the crowd spontaneously caught fire for someone (the random splash of flavour) |
+| `upset` | beat a much higher-status opponent |
+| `burial` | lost to a much lower-status opponent |
+| `overexposure` | the act has gone stale from too many appearances |
+| `slump` | sustained decline from a run of underwhelming nights |
+| `status_rise` / `status_fall` | earned status (`starPower`) crossed a threshold — e.g. after a title change or PLE main event |
+
+Whenever a moment fires — or an ordinary movement crosses a notability threshold — the tick emits a **`popularity_changed`** event. Its `summary` states the qualitative reason as fact ("the crowd erupted for a midcard act no one had booked to get over"), and its `data.reason` carries one of the tokens above plus a `direction` (`rise` | `fall`), so the narrative engine, dirt sheet, and personal feeds can explain *why* a wrestler is rising or falling — not merely *that* they are. Routine drift stays out of the log to keep it meaningful. Players never see the underlying numbers (§10 measures are internal; see spec §8) — only the narrated moment and a rising / steady / falling indicator.
+
+### 10.4 Influence on the GM
+
+Popularity strongly influences GM decisions — booking position, storyline attention, title opportunities, match placement, protection from losses, and investment in presentation — but influences without fully determining. The GM may still favour reliable workers, wrestlers who fit current plans, politically influential veterans, characters suited to a specific story, or wrestlers with strong long-term potential.
 
 ---
 

@@ -282,7 +282,7 @@ Meaningful choice under scarcity requires legible but imperfect information. Thi
 | --- | --- |
 | Relationships | Qualitative tiers per dimension (e.g. hostile / cold / neutral / warm / trusted), coarse |
 | Own skills | Coarse bands, slightly finer than what you see of others |
-| Popularity & momentum | Descriptive bands plus a direction indicator (rising / steady / falling) |
+| Popularity & momentum | Descriptive bands plus a direction indicator (rising / steady / falling); the *why* behind a move surfaces as narrated **moment** beats in the feed and dirt sheet (GDD §10.3), never as raw numbers |
 | GM disposition | Never shown directly — inferred from message tone, booking decisions, and outcomes |
 | Story state | Qualitative interest and momentum ("the crowd is invested", "this feud is cooling") |
 | Crowd reaction | Shown per show, in narrative form |

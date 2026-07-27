@@ -205,6 +205,26 @@ entered a world-title match (SL-5). Each run started 26 stories, resolved
 
 ### Tuning changes and observed effects
 
+4. **Anchored surprise popularity (SL-1, SL-2, SL-3, SL-7, SL-10).** Phase
+   3.7.1 replaces the old performance-target ratchet with GDD §10's earned
+   `starPower` anchor, five-segment expectations, upset/loss edge, and capped
+   momentum push. The initial 0.15 push rounded away at the weekly integer
+   cadence, so the first slice-tuning values are a 4.00 momentum push, 0.08
+   anchor gravity, an 18% crowd-ignition rate per
+   appearance rather than the illustrative 4%; the surprise signal uses a
+   0.65 contribution to momentum and routine losses carry a -8 edge. The idle
+   anchor settle is 0.01 rather than the initial 0.03, so it cannot erase a
+   capped show-night movement before the act is booked again. These are
+   deliberately open tuning constants; the rerun below records their effect.
+
+   The three fixed `wwe-2026` seeds now pass every MUST and all within-seed
+   SHOULD clauses: rises were 13/14/13 (SL-1), falls 6/8/8 (SL-2), and weekly
+   trajectories spanning 16+ points 30/44, 37/44, and 37/44 (SL-3). Card
+   mobility and cross-seed variety remained healthy: SL-7 passed on all runs,
+   and SL-10 produced two distinct final #1 acts. This is a structural
+   improvement over the pre-fix flat trajectories rather than a return to the
+   former skill-target ratchet.
+
 1. **Story cadence and endings (SL-6).** AI wrestlers no longer auto-pitch a
    feud whenever unpaired; the director starts at most one organic story per
    weekly show. Cooling stories are held for a PLE resolution rather than

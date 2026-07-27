@@ -1,7 +1,11 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { analyzeSlice, crossSeedCriterion, runHeadlessSlice, worldFromScenario, type SliceAnalysis } from "@wrestling/sim";
 import { extractOption, parsePositiveInt } from "../args.js";
 import type { CliContext } from "../context.js";
 import { loadScenario } from "../scenario.js";
+import { renderSliceHtmlReport } from "../slice-report.js";
 
 const SPARKS = "▁▂▃▄▅▆▇█";
 
@@ -68,7 +72,8 @@ export function runSlice(args: readonly string[], ctx: CliContext): string {
   const scenarioOption = extractOption(args, "scenario");
   const seedOption = extractOption(scenarioOption.rest, "seeds");
   const weekOption = extractOption(seedOption.rest, "weeks");
-  if (weekOption.rest.length > 0) throw new Error(`slice: unexpected argument "${weekOption.rest[0]}"`);
+  const reportOption = extractOption(weekOption.rest, "report");
+  if (reportOption.rest.length > 0) throw new Error(`slice: unexpected argument "${reportOption.rest[0]}"`);
   const scenarioId = scenarioOption.value ?? "wwe-2026";
   const seedCount = parsePositiveInt(seedOption.value, 3, "seeds");
   const scenario = loadScenario(scenarioId, ctx.dataRoot);
@@ -82,10 +87,25 @@ export function runSlice(args: readonly string[], ctx: CliContext): string {
   const shouldPass = analyses.filter(({ analysis }) => analysis.criteria
     .filter((criterion) => criterion.shouldPass !== undefined)
     .every((criterion) => criterion.shouldPass)).length;
+  const defaultReportName = `${scenarioId}-${seedCount}-seed${seedCount === 1 ? "" : "s"}-${weeks}-weeks.html`;
+  const reportPath = reportOption.value
+    ? resolve(reportOption.value)
+    : resolve(ctx.sliceReportDirectory ?? fileURLToPath(new URL("../../../../artifacts/slice-reports", import.meta.url)), defaultReportName);
+  mkdirSync(dirname(reportPath), { recursive: true });
+  writeFileSync(reportPath, renderSliceHtmlReport({
+    scenarioName: scenario.manifest.name,
+    scenarioId,
+    weeks,
+    runs: analyses,
+    crossSeed,
+    mustPass,
+    shouldPass,
+  }), "utf8");
   const lines = [
     `# Six-month slice validation: ${scenario.manifest.name}`,
     "",
     `Runs: ${seedCount}; weeks per run: ${weeks}; humans: 0.`,
+    `HTML report: ${reportPath}`,
     "",
     "## Combined verdict",
     "",

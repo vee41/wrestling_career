@@ -7,12 +7,12 @@ const validScenario = {
   roster: [
     {
       wrestler: { id: "alpha", name: "Alpha", skills: { ringPerformance: 60, psychology: 60, promoAbility: 60, characterWork: 60, athleticism: 60, toughness: 60, professionalism: 60, politicalInstinct: 60 }, condition: 90, money: 1000, alignment: "face", gimmick: { concept: "Hero", promoTone: "earnest", traits: ["brave"], presentation: "simple gear", currentDirection: "rising" } },
-      popularity: { wrestlerId: "alpha", currentReaction: 50, generalPopularity: 50, momentum: 0, positiveHeat: 50, negativeHeat: 0, fatigue: 0 },
+      popularity: { wrestlerId: "alpha", currentReaction: 50, generalPopularity: 50, starPower: 50, momentum: 0, positiveHeat: 50, negativeHeat: 0, fatigue: 0 },
       stance: "pursue_championships",
     },
     {
       wrestler: { id: "beta", name: "Beta", skills: { ringPerformance: 60, psychology: 60, promoAbility: 60, characterWork: 60, athleticism: 60, toughness: 60, professionalism: 60, politicalInstinct: 60 }, condition: 90, money: 1000, alignment: "heel", gimmick: { concept: "Villain", promoTone: "smug", traits: ["ruthless"], presentation: "dark gear", currentDirection: "rising" } },
-      popularity: { wrestlerId: "beta", currentReaction: 50, generalPopularity: 50, momentum: 0, positiveHeat: 0, negativeHeat: 50, fatigue: 0 },
+      popularity: { wrestlerId: "beta", currentReaction: 50, generalPopularity: 50, starPower: 50, momentum: 0, positiveHeat: 0, negativeHeat: 50, fatigue: 0 },
       stance: "protect_character",
     },
   ],

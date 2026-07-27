@@ -218,6 +218,55 @@ Minor, address opportunistically during the same pass: feed `fatigue` into crowd
 
 ---
 
+## Phase 3.7.1 — Popularity model redesign (surprise-based, anchored) ⚙ within the gate
+
+**Goal:** Replace the skill-chasing popularity update — which lets high-workrate lower-card acts drift up for free and lets flat penalties ratchet others to zero — with the four-timescale, surprise-driven model in **GDD §10**. Movement must be *earned and bounded*, and every notable move must surface as a `popularity_changed` event the narrative layer can explain. This is a structural change fed into the 3.7 tuning loop; the constants below are **starting points to tune against `slice`, not final values**. It stays scenario-agnostic (no dataset names in `packages/`) and touches contracts + sim + data.
+
+### Tokens & schema (machine canon — land with GDD §10 in the same change)
+1. **`starPower`** — add to `popularityBlockSchema` in [packages/contracts/src/popularity.ts](packages/contracts/src/popularity.ts) as `scale100Schema`, the earned-status anchor (GDD §10.2). Update `packages/contracts/src/fixtures.ts` and any `test-helpers` popularity factories so every block carries it.
+2. **`popularityChangeReasonSchema`** — add an exported `z.enum` in contracts with the normative tokens from GDD §10.3: `breakout`, `crowd_ignition`, `upset`, `burial`, `overexposure`, `slump`, `status_rise`, `status_fall`. The `popularity_changed` event's `data` stays the loose record, but its `reason` MUST be one of these and `direction` MUST be `rise` | `fall`.
+3. **Scenario data:** add `starPower` to every entry's popularity block in `data/<scenario>/roster.json` (seed `= generalPopularity` unless the authoring exceptions in scenario-data-spec apply). `scenario.ts:24` already `structuredClone`s the block, so no seeding-code change; the scenario zod validation in [packages/contracts/src/scenario.ts](packages/contracts/src/scenario.ts) picks the field up automatically once the schema has it.
+
+### Sim rewrite — [packages/sim/src/popularity.ts](packages/sim/src/popularity.ts)
+`updatePopularity` currently ignores `ctx` (`_ctx`); it now needs it for `addEvent`/`ids`. Per **participant appearance**:
+```
+segment  = 0.55·performanceScore + 0.35·crowdResponse + 0.10·storyAdvancement − max(0, fatigue−50)·0.3
+expected = trailing mean of this wrestler's last 5 segments (seed first-ever appearance = segment ⇒ surprise 0)
+edge     = won ?  +max(0, oppAvgPop − generalPopularity)·0.5
+                : −max(0, generalPopularity − oppAvgPop)·0.5 − 3
+surprise = (segment − expected) + edge
+momentum        = clamp(momentum·0.7 + surprise·0.3, −100, 100)
+currentReaction = moveToward(currentReaction, segment, 15)
+gravity  = (starPower − generalPopularity)·0.05
+push     = momentum·0.15·(momentum ≥ 0 ? (1 − pop/100) : (pop/100))     // diminishing near ceiling/floor
+generalPopularity += clampStep(gravity + push, ±3)                       // POP_MAX_STEP = 3
+```
+`oppAvgPop` = mean `generalPopularity` of the other participants. `expected` is computed from `world.matchResults` history (same pattern as today's 3-loss lookup at [popularity.ts:93-95](packages/sim/src/popularity.ts#L93-L95)) — no new stored field. Keep the existing `fatigue += physicalCost·0.3` and the face/heel/tweener heat moves.
+
+Per **idle tick** (no appearance): keep `currentReaction → generalPopularity` (step 5), `momentum ×= 0.85`, `fatigue −= 3`; add gentle anchor settle `generalPopularity += clampStep((starPower − generalPopularity)·0.03, ±1)`.
+
+**Delete:** the `popularityTarget = (currentReaction + performanceScore)/2` block, the flat `−3` on 3-straight-losses, and the flat `−3 pop / −5 momentum` at `fatigue ≥ 65` (all replaced above — overexposure now flows through `segment`, losing through `edge`).
+
+### starPower milestones (the only durable movers)
+- Title win/loss applied where `title_change` is emitted ([title.ts](packages/sim/src/title.ts) / [match.ts](packages/sim/src/match.ts)): world `+12 / −10`, midcard `+8 / −6`.
+- PLE main event with `crowdResponse ≥ 70`: `+2`, once per show.
+- Momentum held `≥ +25` for ≥3 consecutive weeks: `+1/week`; held `≤ −25`: `−1/week` (detect from the momentum trajectory / recent events).
+- Clamp `starPower` to `[0,100]`. Each milestone that moves the anchor emits `status_rise` / `status_fall`.
+
+### Moments & event surfacing
+- **`crowd_ignition`** — rare seeded flavour, e.g. `ctx.rng.fork("moment:"+id).chance(0.04)` per appearance → momentum spike `+20…30` and a reaction bump. This is load-bearing for **SL-3** (keeps the mid/lower card from flatlining) — tune its rate deliberately, don't drop it.
+- **Emit `popularity_changed`** when a moment/milestone fires OR `|Δ generalPopularity|` this appearance `≥ 2` OR momentum crosses `±25`. Map to `reason`: large positive `segment − expected` → `breakout`; large positive/negative `edge` → `upset` / `burial`; high fatigue dulling a face who's slipping → `overexposure`; momentum crossing `−25` → `slump`; anchor moved → `status_rise` / `status_fall`; the random moment → `crowd_ignition`. `summary` is a qualitative fact (no numbers); `data = { reason, direction, ... }`. Routine drift emits nothing. These flow to the narrative layer for free via `buildNarrativeJobs` (dirt-sheet + personal-summary jobs already include all tick events) — no narrative change required now.
+- **Projections:** confirm `starPower` is **not** leaked in [packages/contracts/src/projections.ts](packages/contracts/src/projections.ts) — the player-facing popularity band + rising/steady/falling indicator stay derived from `generalPopularity`/`momentum` only (spec §8.2).
+
+### Tests
+- `packages/sim/src/popularity.test.ts`: routine-at-baseline ⇒ ~no change; breakout/upset ⇒ momentum & pop rise (capped at 3); burial & sustained losing ⇒ fall with a floor (never 0 from one streak); anchor gravity pulls an idle over/under-performer back toward `starPower`; a title win raises `starPower`; a `popularity_changed` event with a valid `reason` fires on a moment and does **not** fire on quiet drift.
+- Update `phase35.test.ts` / `season.test.ts` expectations touching popularity fields.
+- Re-run the 3.7 `slice` harness; record deltas and SL-1/2/3/7/10 effects in `playtest-notes.md` under the "slice tuning" section, citing SL ids.
+
+**Done when:** contracts/sim/data all typecheck with `starPower`, the popularity unit tests are green, no raw numbers leak into projections, and the 3.7 slice gate still passes (or is closer, with the report showing *why*). Constants remain open for 3.7 tuning.
+
+---
+
 ## Phase 4 — Narrative layer
 
 **Goal:** `packages/narrative` turns queued jobs into stored prose, provider-agnostic.

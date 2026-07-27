@@ -5,6 +5,7 @@ const validPopularity = {
   wrestlerId: "ace-steel",
   currentReaction: 70,
   generalPopularity: 55,
+  starPower: 55,
   momentum: 8,
   positiveHeat: 60,
   negativeHeat: 5,
@@ -33,5 +34,10 @@ describe("popularityBlockSchema", () => {
       generalPopularity: 10,
     });
     expect(parsed.currentReaction).not.toBe(parsed.generalPopularity);
+  });
+
+  it("requires the earned-status star-power anchor", () => {
+    const { starPower: _starPower, ...withoutStarPower } = validPopularity;
+    expect(() => popularityBlockSchema.parse(withoutStarPower)).toThrow();
   });
 });

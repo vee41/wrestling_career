@@ -91,12 +91,15 @@ export function createTestWorld(options: TestWorldOptions = {}): WorldState {
       wrestlerId: id,
       currentReaction: rng.int(20, 60),
       generalPopularity: rng.int(15, 55),
+      // Synthetic worlds start without an unearned status gap.
+      starPower: 0,
       momentum: rng.int(-10, 10),
       positiveHeat: rng.int(0, 30),
       negativeHeat: rng.int(0, 30),
       fatigue: rng.int(0, 20),
     });
     stances.push({ wrestlerId: id, stance: rng.pick(STANCES) as CareerStance });
+    popularity[popularity.length - 1]!.starPower = popularity[popularity.length - 1]!.generalPopularity;
   }
 
   return {

@@ -1,46 +1,1762 @@
 [
-  { "wrestler": { "id": "cm-punk", "name": "CM Punk", "skills": { "ringPerformance": 90, "psychology": 94, "promoAbility": 96, "characterWork": 94, "athleticism": 72, "toughness": 78, "professionalism": 82, "politicalInstinct": 88 }, "condition": 88, "money": 5000, "alignment": "face", "gimmick": { "concept": "Defiant veteran champion", "promoTone": "cutting", "traits": ["authentic", "relentless"], "presentation": "straight-edge icon", "currentDirection": "defending the world title against every doubter" } }, "popularity": { "wrestlerId": "cm-punk", "currentReaction": 89, "generalPopularity": 91, "momentum": 14, "positiveHeat": 84, "negativeHeat": 18, "fatigue": 12 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "seth-rollins", "name": "Seth Rollins", "skills": { "ringPerformance": 93, "psychology": 91, "promoAbility": 91, "characterWork": 92, "athleticism": 88, "toughness": 80, "professionalism": 85, "politicalInstinct": 90 }, "condition": 90, "money": 5000, "alignment": "heel", "gimmick": { "concept": "Visionary master manipulator", "promoTone": "theatrical", "traits": ["cunning", "driven"], "presentation": "extravagant entrance gear", "currentDirection": "proving he is still the defining star" } }, "popularity": { "wrestlerId": "seth-rollins", "currentReaction": 86, "generalPopularity": 90, "momentum": 12, "positiveHeat": 35, "negativeHeat": 72, "fatigue": 15 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "roman-reigns", "name": "Roman Reigns", "skills": { "ringPerformance": 88, "psychology": 92, "promoAbility": 93, "characterWork": 97, "athleticism": 82, "toughness": 94, "professionalism": 89, "politicalInstinct": 95 }, "condition": 92, "money": 5500, "alignment": "face", "gimmick": { "concept": "The OTC", "promoTone": "commanding", "traits": ["dominant", "measured"], "presentation": "tribal chief entrance", "currentDirection": "reclaiming his place at the top" } }, "popularity": { "wrestlerId": "roman-reigns", "currentReaction": 93, "generalPopularity": 95, "momentum": 9, "positiveHeat": 88, "negativeHeat": 12, "fatigue": 8 }, "stance": "protect_character" },
-  { "wrestler": { "id": "gunther", "name": "Gunther", "skills": { "ringPerformance": 94, "psychology": 93, "promoAbility": 79, "characterWork": 89, "athleticism": 78, "toughness": 91, "professionalism": 95, "politicalInstinct": 78 }, "condition": 93, "money": 4400, "alignment": "heel", "gimmick": { "concept": "The Ring General", "promoTone": "severe", "traits": ["disciplined", "merciless"], "presentation": "austere ring general", "currentDirection": "restoring order through brutal excellence" } }, "popularity": { "wrestlerId": "gunther", "currentReaction": 77, "generalPopularity": 84, "momentum": 7, "positiveHeat": 18, "negativeHeat": 76, "fatigue": 14 }, "stance": "seek_match_quality" },
-  { "wrestler": { "id": "jey-uso", "name": "Jey Uso", "skills": { "ringPerformance": 82, "psychology": 80, "promoAbility": 84, "characterWork": 88, "athleticism": 82, "toughness": 79, "professionalism": 79, "politicalInstinct": 75 }, "condition": 90, "money": 3900, "alignment": "face", "gimmick": { "concept": "Main-event crowd catalyst", "promoTone": "energized", "traits": ["resilient", "charismatic"], "presentation": "arena-wide crowd entrance", "currentDirection": "turning every reaction into a main-event claim" } }, "popularity": { "wrestlerId": "jey-uso", "currentReaction": 91, "generalPopularity": 87, "momentum": 16, "positiveHeat": 90, "negativeHeat": 8, "fatigue": 19 }, "stance": "chase_popularity" },
-  { "wrestler": { "id": "bron-breakker", "name": "Bron Breakker", "skills": { "ringPerformance": 84, "psychology": 75, "promoAbility": 68, "characterWork": 79, "athleticism": 96, "toughness": 90, "professionalism": 76, "politicalInstinct": 62 }, "condition": 96, "money": 2800, "alignment": "heel", "gimmick": { "concept": "Explosive young powerhouse", "promoTone": "intense", "traits": ["volatile", "athletic"], "presentation": "siren-lit sprint to the ring", "currentDirection": "running through established names" } }, "popularity": { "wrestlerId": "bron-breakker", "currentReaction": 68, "generalPopularity": 71, "momentum": 15, "positiveHeat": 18, "negativeHeat": 67, "fatigue": 16 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "drew-mcintyre", "name": "Drew McIntyre", "skills": { "ringPerformance": 87, "psychology": 85, "promoAbility": 87, "characterWork": 89, "athleticism": 83, "toughness": 93, "professionalism": 87, "politicalInstinct": 84 }, "condition": 91, "money": 4300, "alignment": "heel", "gimmick": { "concept": "Bitter Scottish warrior", "promoTone": "furious", "traits": ["proud", "vindictive"], "presentation": "sword-bearing entrance", "currentDirection": "making everyone pay for overlooking him" } }, "popularity": { "wrestlerId": "drew-mcintyre", "currentReaction": 76, "generalPopularity": 82, "momentum": 8, "positiveHeat": 20, "negativeHeat": 75, "fatigue": 18 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "damian-priest", "name": "Damian Priest", "skills": { "ringPerformance": 82, "psychology": 81, "promoAbility": 75, "characterWork": 82, "athleticism": 79, "toughness": 88, "professionalism": 84, "politicalInstinct": 72 }, "condition": 90, "money": 3300, "alignment": "face", "gimmick": { "concept": "Streetwise archer", "promoTone": "calm", "traits": ["loyal", "dangerous"], "presentation": "dark club anthem", "currentDirection": "settling old debts with Finn Balor" } }, "popularity": { "wrestlerId": "damian-priest", "currentReaction": 70, "generalPopularity": 75, "momentum": 5, "positiveHeat": 66, "negativeHeat": 18, "fatigue": 15 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "finn-balor", "name": "Finn Balor", "skills": { "ringPerformance": 88, "psychology": 86, "promoAbility": 75, "characterWork": 85, "athleticism": 86, "toughness": 74, "professionalism": 86, "politicalInstinct": 88 }, "condition": 89, "money": 3500, "alignment": "heel", "gimmick": { "concept": "Calculating Prince", "promoTone": "smug", "traits": ["opportunistic", "precise"], "presentation": "dark judgment-day style", "currentDirection": "proving Priest needed him more" } }, "popularity": { "wrestlerId": "finn-balor", "currentReaction": 68, "generalPopularity": 74, "momentum": 6, "positiveHeat": 16, "negativeHeat": 67, "fatigue": 17 }, "stance": "protect_character" },
-  { "wrestler": { "id": "dominik-mysterio", "name": "Dominik Mysterio", "skills": { "ringPerformance": 73, "psychology": 72, "promoAbility": 78, "characterWork": 90, "athleticism": 78, "toughness": 66, "professionalism": 72, "politicalInstinct": 84 }, "condition": 88, "money": 2500, "alignment": "heel", "gimmick": { "concept": "Cowardly but slippery champion", "promoTone": "taunting", "traits": ["devious", "spoiled"], "presentation": "luxury entrance with backup", "currentDirection": "escaping every Intercontinental challenge" } }, "popularity": { "wrestlerId": "dominik-mysterio", "currentReaction": 74, "generalPopularity": 70, "momentum": 10, "positiveHeat": 8, "negativeHeat": 84, "fatigue": 21 }, "stance": "protect_character" },
-  { "wrestler": { "id": "penta", "name": "Penta", "skills": { "ringPerformance": 91, "psychology": 83, "promoAbility": 65, "characterWork": 85, "athleticism": 92, "toughness": 78, "professionalism": 84, "politicalInstinct": 63 }, "condition": 93, "money": 2800, "alignment": "face", "gimmick": { "concept": "Fearless masked striker", "promoTone": "intense", "traits": ["fearless", "flashy"], "presentation": "elaborate mask and hand signal", "currentDirection": "chasing the Intercontinental title" } }, "popularity": { "wrestlerId": "penta", "currentReaction": 81, "generalPopularity": 77, "momentum": 17, "positiveHeat": 78, "negativeHeat": 6, "fatigue": 18 }, "stance": "seek_match_quality" },
-  { "wrestler": { "id": "aj-styles", "name": "AJ Styles", "skills": { "ringPerformance": 94, "psychology": 88, "promoAbility": 78, "characterWork": 80, "athleticism": 86, "toughness": 76, "professionalism": 91, "politicalInstinct": 76 }, "condition": 84, "money": 3900, "alignment": "face", "gimmick": { "concept": "Phenomenal veteran", "promoTone": "confident", "traits": ["competitive", "respected"], "presentation": "signature hooded entrance", "currentDirection": "showing that experience still wins" } }, "popularity": { "wrestlerId": "aj-styles", "currentReaction": 75, "generalPopularity": 80, "momentum": 4, "positiveHeat": 73, "negativeHeat": 12, "fatigue": 24 }, "stance": "seek_match_quality" },
-  { "wrestler": { "id": "sami-zayn", "name": "Sami Zayn", "skills": { "ringPerformance": 88, "psychology": 90, "promoAbility": 87, "characterWork": 90, "athleticism": 80, "toughness": 85, "professionalism": 90, "politicalInstinct": 76 }, "condition": 88, "money": 3500, "alignment": "face", "gimmick": { "concept": "Everyman underdog", "promoTone": "passionate", "traits": ["empathetic", "stubborn"], "presentation": "raw, heartfelt entrance", "currentDirection": "earning another run at the top" } }, "popularity": { "wrestlerId": "sami-zayn", "currentReaction": 84, "generalPopularity": 83, "momentum": 8, "positiveHeat": 84, "negativeHeat": 10, "fatigue": 20 }, "stance": "chase_popularity" },
-  { "wrestler": { "id": "sheamus", "name": "Sheamus", "skills": { "ringPerformance": 84, "psychology": 83, "promoAbility": 79, "characterWork": 82, "athleticism": 75, "toughness": 94, "professionalism": 88, "politicalInstinct": 70 }, "condition": 82, "money": 3300, "alignment": "face", "gimmick": { "concept": "Hard-hitting Celtic veteran", "promoTone": "blunt", "traits": ["durable", "proud"], "presentation": "fight-night brawler", "currentDirection": "adding one more major achievement" } }, "popularity": { "wrestlerId": "sheamus", "currentReaction": 69, "generalPopularity": 74, "momentum": 3, "positiveHeat": 66, "negativeHeat": 12, "fatigue": 27 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "la-knight", "name": "LA Knight", "skills": { "ringPerformance": 76, "psychology": 76, "promoAbility": 93, "characterWork": 91, "athleticism": 72, "toughness": 78, "professionalism": 79, "politicalInstinct": 78 }, "condition": 87, "money": 3400, "alignment": "face", "gimmick": { "concept": "Self-made megastar", "promoTone": "electric", "traits": ["confident", "tenacious"], "presentation": "flashy catchphrase entrance", "currentDirection": "forcing management to acknowledge him" } }, "popularity": { "wrestlerId": "la-knight", "currentReaction": 82, "generalPopularity": 80, "momentum": 9, "positiveHeat": 84, "negativeHeat": 14, "fatigue": 18 }, "stance": "chase_popularity" },
-  { "wrestler": { "id": "rusev", "name": "Rusev", "skills": { "ringPerformance": 80, "psychology": 77, "promoAbility": 79, "characterWork": 86, "athleticism": 75, "toughness": 91, "professionalism": 80, "politicalInstinct": 70 }, "condition": 91, "money": 2900, "alignment": "heel", "gimmick": { "concept": "Unforgiving Bulgarian brute", "promoTone": "threatening", "traits": ["proud", "destructive"], "presentation": "battle-ready bruiser", "currentDirection": "punishing everyone who forgot him" } }, "popularity": { "wrestlerId": "rusev", "currentReaction": 64, "generalPopularity": 68, "momentum": 11, "positiveHeat": 14, "negativeHeat": 69, "fatigue": 14 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "dragon-lee", "name": "Dragon Lee", "skills": { "ringPerformance": 88, "psychology": 78, "promoAbility": 58, "characterWork": 70, "athleticism": 94, "toughness": 66, "professionalism": 82, "politicalInstinct": 54 }, "condition": 94, "money": 1500, "alignment": "face", "gimmick": { "concept": "Daring masked aerialist", "promoTone": "earnest", "traits": ["fearless", "quick"], "presentation": "vivid lucha gear", "currentDirection": "breaking through with spectacular performances" } }, "popularity": { "wrestlerId": "dragon-lee", "currentReaction": 53, "generalPopularity": 50, "momentum": 8, "positiveHeat": 52, "negativeHeat": 5, "fatigue": 17 }, "stance": "seek_match_quality" },
-  { "wrestler": { "id": "rey-mysterio", "name": "Rey Mysterio", "skills": { "ringPerformance": 86, "psychology": 88, "promoAbility": 75, "characterWork": 88, "athleticism": 82, "toughness": 74, "professionalism": 94, "politicalInstinct": 72 }, "condition": 80, "money": 3600, "alignment": "face", "gimmick": { "concept": "Legendary masked inspiration", "promoTone": "sincere", "traits": ["heroic", "resilient"], "presentation": "iconic lucha entrance", "currentDirection": "guiding the next generation" } }, "popularity": { "wrestlerId": "rey-mysterio", "currentReaction": 78, "generalPopularity": 82, "momentum": 2, "positiveHeat": 80, "negativeHeat": 8, "fatigue": 25 }, "stance": "support_allies" },
-  { "wrestler": { "id": "chad-gable", "name": "Chad Gable", "skills": { "ringPerformance": 90, "psychology": 88, "promoAbility": 76, "characterWork": 80, "athleticism": 85, "toughness": 75, "professionalism": 87, "politicalInstinct": 73 }, "condition": 91, "money": 2100, "alignment": "heel", "gimmick": { "concept": "Obsessive wrestling coach", "promoTone": "condescending", "traits": ["demanding", "brilliant"], "presentation": "academy warmup jacket", "currentDirection": "forcing the roster to respect his system" } }, "popularity": { "wrestlerId": "chad-gable", "currentReaction": 61, "generalPopularity": 63, "momentum": 7, "positiveHeat": 15, "negativeHeat": 64, "fatigue": 16 }, "stance": "protect_character" },
-  { "wrestler": { "id": "otis", "name": "Otis", "skills": { "ringPerformance": 65, "psychology": 65, "promoAbility": 67, "characterWork": 82, "athleticism": 60, "toughness": 88, "professionalism": 78, "politicalInstinct": 48 }, "condition": 90, "money": 1400, "alignment": "tweener", "gimmick": { "concept": "Lovable heavy hitter", "promoTone": "goofy", "traits": ["powerful", "good-natured"], "presentation": "blue-collar singlet", "currentDirection": "deciding whether to follow Gable or himself" } }, "popularity": { "wrestlerId": "otis", "currentReaction": 54, "generalPopularity": 55, "momentum": 1, "positiveHeat": 45, "negativeHeat": 18, "fatigue": 14 }, "stance": "support_allies" },
-  { "wrestler": { "id": "karrion-kross", "name": "Karrion Kross", "skills": { "ringPerformance": 72, "psychology": 75, "promoAbility": 82, "characterWork": 90, "athleticism": 70, "toughness": 82, "professionalism": 77, "politicalInstinct": 86 }, "condition": 88, "money": 2100, "alignment": "heel", "gimmick": { "concept": "Apocalyptic manipulator", "promoTone": "ominous", "traits": ["patient", "controlling"], "presentation": "cinematic dark entrance", "currentDirection": "turning other people's ambition against them" } }, "popularity": { "wrestlerId": "karrion-kross", "currentReaction": 57, "generalPopularity": 61, "momentum": 5, "positiveHeat": 10, "negativeHeat": 59, "fatigue": 12 }, "stance": "protect_character" },
-  { "wrestler": { "id": "kofi-kingston", "name": "Kofi Kingston", "skills": { "ringPerformance": 82, "psychology": 80, "promoAbility": 74, "characterWork": 83, "athleticism": 85, "toughness": 72, "professionalism": 90, "politicalInstinct": 67 }, "condition": 85, "money": 2900, "alignment": "face", "gimmick": { "concept": "Veteran fan favorite", "promoTone": "uplifting", "traits": ["positive", "experienced"], "presentation": "bright athletic gear", "currentDirection": "finding one more singles breakthrough" } }, "popularity": { "wrestlerId": "kofi-kingston", "currentReaction": 66, "generalPopularity": 71, "momentum": 2, "positiveHeat": 68, "negativeHeat": 6, "fatigue": 22 }, "stance": "support_allies" },
-  { "wrestler": { "id": "xavier-woods", "name": "Xavier Woods", "skills": { "ringPerformance": 78, "psychology": 77, "promoAbility": 80, "characterWork": 86, "athleticism": 78, "toughness": 70, "professionalism": 86, "politicalInstinct": 75 }, "condition": 87, "money": 2700, "alignment": "heel", "gimmick": { "concept": "Resentful intellectual", "promoTone": "sharp", "traits": ["ambitious", "insecure"], "presentation": "regal gaming-inspired gear", "currentDirection": "proving he outgrew the people beside him" } }, "popularity": { "wrestlerId": "xavier-woods", "currentReaction": 62, "generalPopularity": 67, "momentum": 6, "positiveHeat": 18, "negativeHeat": 60, "fatigue": 19 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "the-miz", "name": "The Miz", "skills": { "ringPerformance": 70, "psychology": 81, "promoAbility": 91, "characterWork": 94, "athleticism": 65, "toughness": 72, "professionalism": 90, "politicalInstinct": 94 }, "condition": 84, "money": 3500, "alignment": "heel", "gimmick": { "concept": "Hollywood survivor", "promoTone": "smug", "traits": ["media-savvy", "persistent"], "presentation": "red-carpet arrogance", "currentDirection": "remaining relevant by any means" } }, "popularity": { "wrestlerId": "the-miz", "currentReaction": 59, "generalPopularity": 69, "momentum": 0, "positiveHeat": 8, "negativeHeat": 68, "fatigue": 21 }, "stance": "maximize_income" },
-  { "wrestler": { "id": "r-truth", "name": "R-Truth", "skills": { "ringPerformance": 62, "psychology": 70, "promoAbility": 79, "characterWork": 96, "athleticism": 64, "toughness": 65, "professionalism": 88, "politicalInstinct": 58 }, "condition": 78, "money": 2300, "alignment": "face", "gimmick": { "concept": "Unpredictable comedy veteran", "promoTone": "goofy", "traits": ["likeable", "unpredictable"], "presentation": "crowd-friendly antics", "currentDirection": "finding heart beneath the jokes" } }, "popularity": { "wrestlerId": "r-truth", "currentReaction": 63, "generalPopularity": 67, "momentum": 1, "positiveHeat": 67, "negativeHeat": 4, "fatigue": 15 }, "stance": "avoid_conflict" },
-  { "wrestler": { "id": "ludwig-kaiser", "name": "Ludwig Kaiser", "skills": { "ringPerformance": 78, "psychology": 76, "promoAbility": 74, "characterWork": 78, "athleticism": 77, "toughness": 72, "professionalism": 85, "politicalInstinct": 72 }, "condition": 89, "money": 1800, "alignment": "heel", "gimmick": { "concept": "Arrogant European technician", "promoTone": "dismissive", "traits": ["precise", "ambitious"], "presentation": "tailored ring gear", "currentDirection": "proving he belongs beyond Gunther's shadow" } }, "popularity": { "wrestlerId": "ludwig-kaiser", "currentReaction": 48, "generalPopularity": 52, "momentum": 5, "positiveHeat": 8, "negativeHeat": 49, "fatigue": 13 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "ilja-dragunov", "name": "Ilja Dragunov", "skills": { "ringPerformance": 91, "psychology": 86, "promoAbility": 70, "characterWork": 81, "athleticism": 88, "toughness": 90, "professionalism": 88, "politicalInstinct": 61 }, "condition": 85, "money": 1900, "alignment": "face", "gimmick": { "concept": "Unbreakable mad dragon", "promoTone": "ferocious", "traits": ["intense", "fearless"], "presentation": "battle-scarred intensity", "currentDirection": "making pain the price of every victory" } }, "popularity": { "wrestlerId": "ilja-dragunov", "currentReaction": 60, "generalPopularity": 61, "momentum": 9, "positiveHeat": 57, "negativeHeat": 11, "fatigue": 26 }, "stance": "seek_match_quality" },
-  { "wrestler": { "id": "shinsuke-nakamura", "name": "Shinsuke Nakamura", "skills": { "ringPerformance": 85, "psychology": 84, "promoAbility": 72, "characterWork": 87, "athleticism": 79, "toughness": 75, "professionalism": 86, "politicalInstinct": 76 }, "condition": 84, "money": 3000, "alignment": "heel", "gimmick": { "concept": "Cold-blooded artist", "promoTone": "unsettling", "traits": ["unpredictable", "ruthless"], "presentation": "kinetic rockstar entrance", "currentDirection": "finding a new victim to torment" } }, "popularity": { "wrestlerId": "shinsuke-nakamura", "currentReaction": 61, "generalPopularity": 68, "momentum": 4, "positiveHeat": 12, "negativeHeat": 62, "fatigue": 20 }, "stance": "protect_character" },
-  { "wrestler": { "id": "jd-mcdonagh", "name": "JD McDonagh", "skills": { "ringPerformance": 80, "psychology": 78, "promoAbility": 62, "characterWork": 72, "athleticism": 82, "toughness": 73, "professionalism": 82, "politicalInstinct": 76 }, "condition": 90, "money": 1600, "alignment": "heel", "gimmick": { "concept": "Unhinged tactician", "promoTone": "nervy", "traits": ["obsessive", "reckless"], "presentation": "dark faction colors", "currentDirection": "earning respect inside a dangerous group" } }, "popularity": { "wrestlerId": "jd-mcdonagh", "currentReaction": 45, "generalPopularity": 48, "momentum": 4, "positiveHeat": 6, "negativeHeat": 48, "fatigue": 15 }, "stance": "cooperate_with_creative" },
-  { "wrestler": { "id": "austin-theory", "name": "Austin Theory", "skills": { "ringPerformance": 75, "psychology": 73, "promoAbility": 75, "characterWork": 80, "athleticism": 83, "toughness": 70, "professionalism": 75, "politicalInstinct": 72 }, "condition": 92, "money": 1800, "alignment": "heel", "gimmick": { "concept": "Entitled future star", "promoTone": "cocky", "traits": ["vain", "driven"], "presentation": "camera-ready arrogance", "currentDirection": "demanding the spotlight he believes he deserves" } }, "popularity": { "wrestlerId": "austin-theory", "currentReaction": 48, "generalPopularity": 52, "momentum": 3, "positiveHeat": 7, "negativeHeat": 52, "fatigue": 14 }, "stance": "chase_popularity" },
-  { "wrestler": { "id": "grayson-waller", "name": "Grayson Waller", "skills": { "ringPerformance": 71, "psychology": 72, "promoAbility": 84, "characterWork": 86, "athleticism": 74, "toughness": 69, "professionalism": 73, "politicalInstinct": 80 }, "condition": 89, "money": 1700, "alignment": "heel", "gimmick": { "concept": "Talk-show provocateur", "promoTone": "sarcastic", "traits": ["annoying", "clever"], "presentation": "celebrity host swagger", "currentDirection": "talking his way into bigger opportunities" } }, "popularity": { "wrestlerId": "grayson-waller", "currentReaction": 46, "generalPopularity": 51, "momentum": 2, "positiveHeat": 5, "negativeHeat": 53, "fatigue": 12 }, "stance": "chase_popularity" },
-  { "wrestler": { "id": "bronson-reed", "name": "Bronson Reed", "skills": { "ringPerformance": 76, "psychology": 74, "promoAbility": 65, "characterWork": 76, "athleticism": 67, "toughness": 94, "professionalism": 78, "politicalInstinct": 60 }, "condition": 93, "money": 2000, "alignment": "heel", "gimmick": { "concept": "Tsunami powerhouse", "promoTone": "menacing", "traits": ["destructive", "unstoppable"], "presentation": "industrial monster entrance", "currentDirection": "flattening the midcard on the way up" } }, "popularity": { "wrestlerId": "bronson-reed", "currentReaction": 55, "generalPopularity": 58, "momentum": 7, "positiveHeat": 8, "negativeHeat": 61, "fatigue": 15 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "solo-sikoa", "name": "Solo Sikoa", "skills": { "ringPerformance": 76, "psychology": 71, "promoAbility": 60, "characterWork": 80, "athleticism": 73, "toughness": 91, "professionalism": 77, "politicalInstinct": 73 }, "condition": 92, "money": 2400, "alignment": "heel", "gimmick": { "concept": "Silent bloodline enforcer", "promoTone": "controlled", "traits": ["intimidating", "loyal"], "presentation": "tribal combat gear", "currentDirection": "leading through fear after a family collapse" } }, "popularity": { "wrestlerId": "solo-sikoa", "currentReaction": 63, "generalPopularity": 67, "momentum": 5, "positiveHeat": 8, "negativeHeat": 68, "fatigue": 16 }, "stance": "protect_character" },
-  { "wrestler": { "id": "jacob-fatu", "name": "Jacob Fatu", "skills": { "ringPerformance": 85, "psychology": 77, "promoAbility": 69, "characterWork": 83, "athleticism": 88, "toughness": 94, "professionalism": 72, "politicalInstinct": 61 }, "condition": 95, "money": 2400, "alignment": "tweener", "gimmick": { "concept": "Uncontrollable Samoan werewolf", "promoTone": "wild", "traits": ["feral", "explosive"], "presentation": "violent tribal intensity", "currentDirection": "refusing to be controlled by any family leader" } }, "popularity": { "wrestlerId": "jacob-fatu", "currentReaction": 72, "generalPopularity": 70, "momentum": 14, "positiveHeat": 38, "negativeHeat": 50, "fatigue": 18 }, "stance": "pursue_championships" },
-  { "wrestler": { "id": "jimmy-uso", "name": "Jimmy Uso", "skills": { "ringPerformance": 78, "psychology": 77, "promoAbility": 74, "characterWork": 81, "athleticism": 80, "toughness": 76, "professionalism": 80, "politicalInstinct": 73 }, "condition": 89, "money": 2700, "alignment": "face", "gimmick": { "concept": "Family-first survivor", "promoTone": "passionate", "traits": ["loyal", "resilient"], "presentation": "Samoan streetwear", "currentDirection": "standing beside Jey while seeking his own identity" } }, "popularity": { "wrestlerId": "jimmy-uso", "currentReaction": 65, "generalPopularity": 68, "momentum": 4, "positiveHeat": 64, "negativeHeat": 12, "fatigue": 17 }, "stance": "support_allies" },
-  { "wrestler": { "id": "tama-tonga", "name": "Tama Tonga", "skills": { "ringPerformance": 76, "psychology": 75, "promoAbility": 65, "characterWork": 75, "athleticism": 78, "toughness": 80, "professionalism": 79, "politicalInstinct": 70 }, "condition": 90, "money": 1900, "alignment": "heel", "gimmick": { "concept": "Cold bloodline gun for hire", "promoTone": "hostile", "traits": ["aggressive", "unforgiving"], "presentation": "black tactical gear", "currentDirection": "holding the line for Solo's faction" } }, "popularity": { "wrestlerId": "tama-tonga", "currentReaction": 46, "generalPopularity": 50, "momentum": 3, "positiveHeat": 5, "negativeHeat": 52, "fatigue": 13 }, "stance": "support_allies" },
-  { "wrestler": { "id": "angelo-dawkins", "name": "Angelo Dawkins", "skills": { "ringPerformance": 72, "psychology": 72, "promoAbility": 69, "characterWork": 73, "athleticism": 78, "toughness": 82, "professionalism": 80, "politicalInstinct": 60 }, "condition": 91, "money": 1800, "alignment": "face", "gimmick": { "concept": "High-energy powerhouse", "promoTone": "upbeat", "traits": ["loyal", "athletic"], "presentation": "stylish sports-entertainment gear", "currentDirection": "showing he can shine on his own" } }, "popularity": { "wrestlerId": "angelo-dawkins", "currentReaction": 48, "generalPopularity": 52, "momentum": 3, "positiveHeat": 48, "negativeHeat": 8, "fatigue": 14 }, "stance": "support_allies" },
-  { "wrestler": { "id": "montez-ford", "name": "Montez Ford", "skills": { "ringPerformance": 82, "psychology": 75, "promoAbility": 80, "characterWork": 82, "athleticism": 94, "toughness": 70, "professionalism": 82, "politicalInstinct": 68 }, "condition": 94, "money": 2100, "alignment": "face", "gimmick": { "concept": "Charismatic aerial athlete", "promoTone": "electric", "traits": ["explosive", "likeable"], "presentation": "high-flying arena entrance", "currentDirection": "making a singles breakthrough impossible to deny" } }, "popularity": { "wrestlerId": "montez-ford", "currentReaction": 62, "generalPopularity": 64, "momentum": 9, "positiveHeat": 65, "negativeHeat": 7, "fatigue": 17 }, "stance": "chase_popularity" },
-  { "wrestler": { "id": "andrade", "name": "Andrade", "skills": { "ringPerformance": 88, "psychology": 82, "promoAbility": 66, "characterWork": 75, "athleticism": 84, "toughness": 75, "professionalism": 83, "politicalInstinct": 66 }, "condition": 90, "money": 2400, "alignment": "tweener", "gimmick": { "concept": "Tranquilo elite technician", "promoTone": "cool", "traits": ["proud", "smooth"], "presentation": "tailored lucha luxury", "currentDirection": "letting superior skill speak for him" } }, "popularity": { "wrestlerId": "andrade", "currentReaction": 58, "generalPopularity": 61, "momentum": 4, "positiveHeat": 35, "negativeHeat": 32, "fatigue": 16 }, "stance": "seek_match_quality" },
-  { "wrestler": { "id": "carmelo-hayes", "name": "Carmelo Hayes", "skills": { "ringPerformance": 86, "psychology": 79, "promoAbility": 78, "characterWork": 82, "athleticism": 89, "toughness": 70, "professionalism": 78, "politicalInstinct": 70 }, "condition": 94, "money": 1900, "alignment": "heel", "gimmick": { "concept": "Him", "promoTone": "cocky", "traits": ["ambitious", "flashy"], "presentation": "premium basketball-inspired gear", "currentDirection": "proving the future already belongs to him" } }, "popularity": { "wrestlerId": "carmelo-hayes", "currentReaction": 57, "generalPopularity": 59, "momentum": 10, "positiveHeat": 14, "negativeHeat": 58, "fatigue": 15 }, "stance": "chase_popularity" },
-  { "wrestler": { "id": "joe-gacy", "name": "Joe Gacy", "skills": { "ringPerformance": 71, "psychology": 73, "promoAbility": 70, "characterWork": 82, "athleticism": 69, "toughness": 82, "professionalism": 75, "politicalInstinct": 68 }, "condition": 89, "money": 1500, "alignment": "heel", "gimmick": { "concept": "Unsettling cult bruiser", "promoTone": "disturbed", "traits": ["chaotic", "intense"], "presentation": "warped dark gear", "currentDirection": "dragging the show into his kind of chaos" } }, "popularity": { "wrestlerId": "joe-gacy", "currentReaction": 40, "generalPopularity": 43, "momentum": 2, "positiveHeat": 4, "negativeHeat": 46, "fatigue": 12 }, "stance": "protect_character" },
-  { "wrestler": { "id": "dexter-lumis", "name": "Dexter Lumis", "skills": { "ringPerformance": 70, "psychology": 72, "promoAbility": 45, "characterWork": 88, "athleticism": 68, "toughness": 78, "professionalism": 76, "politicalInstinct": 55 }, "condition": 88, "money": 1500, "alignment": "tweener", "gimmick": { "concept": "Silent unsettling wildcard", "promoTone": "silent", "traits": ["mysterious", "patient"], "presentation": "wordless horror-inspired entrance", "currentDirection": "making everybody wonder what he wants" } }, "popularity": { "wrestlerId": "dexter-lumis", "currentReaction": 44, "generalPopularity": 47, "momentum": 2, "positiveHeat": 23, "negativeHeat": 28, "fatigue": 10 }, "stance": "avoid_conflict" },
-  { "wrestler": { "id": "erik", "name": "Erik", "skills": { "ringPerformance": 70, "psychology": 71, "promoAbility": 55, "characterWork": 70, "athleticism": 73, "toughness": 86, "professionalism": 82, "politicalInstinct": 55 }, "condition": 88, "money": 1400, "alignment": "face", "gimmick": { "concept": "Viking war machine", "promoTone": "battle-ready", "traits": ["tough", "loyal"], "presentation": "Norse battle gear", "currentDirection": "bringing fight-night intensity to singles competition" } }, "popularity": { "wrestlerId": "erik", "currentReaction": 39, "generalPopularity": 42, "momentum": 1, "positiveHeat": 38, "negativeHeat": 8, "fatigue": 11 }, "stance": "cooperate_with_creative" },
-  { "wrestler": { "id": "pete-dunne", "name": "Pete Dunne", "skills": { "ringPerformance": 84, "psychology": 81, "promoAbility": 62, "characterWork": 76, "athleticism": 76, "toughness": 84, "professionalism": 82, "politicalInstinct": 64 }, "condition": 90, "money": 1800, "alignment": "heel", "gimmick": { "concept": "The Bruiserweight", "promoTone": "hostile", "traits": ["sadistic", "technical"], "presentation": "brutalist joint manipulation", "currentDirection": "breaking fingers to force his way upward" } }, "popularity": { "wrestlerId": "pete-dunne", "currentReaction": 49, "generalPopularity": 53, "momentum": 5, "positiveHeat": 7, "negativeHeat": 55, "fatigue": 14 }, "stance": "seek_match_quality" }
+    {
+        "wrestler":  {
+                         "id":  "cm-punk",
+                         "name":  "CM Punk",
+                         "skills":  {
+                                        "ringPerformance":  90,
+                                        "psychology":  94,
+                                        "promoAbility":  96,
+                                        "characterWork":  94,
+                                        "athleticism":  72,
+                                        "toughness":  78,
+                                        "professionalism":  82,
+                                        "politicalInstinct":  88
+                                    },
+                         "condition":  88,
+                         "money":  5000,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Defiant veteran champion",
+                                         "promoTone":  "cutting",
+                                         "traits":  [
+                                                        "authentic",
+                                                        "relentless"
+                                                    ],
+                                         "presentation":  "straight-edge icon",
+                                         "currentDirection":  "defending the world title against every doubter"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "cm-punk",
+                           "currentReaction":  89,
+                           "generalPopularity":  91,
+                           "momentum":  14,
+                           "positiveHeat":  84,
+                           "negativeHeat":  18,
+                           "fatigue":  12,
+                           "starPower":  91
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "seth-rollins",
+                         "name":  "Seth Rollins",
+                         "skills":  {
+                                        "ringPerformance":  93,
+                                        "psychology":  91,
+                                        "promoAbility":  91,
+                                        "characterWork":  92,
+                                        "athleticism":  88,
+                                        "toughness":  80,
+                                        "professionalism":  85,
+                                        "politicalInstinct":  90
+                                    },
+                         "condition":  90,
+                         "money":  5000,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Visionary master manipulator",
+                                         "promoTone":  "theatrical",
+                                         "traits":  [
+                                                        "cunning",
+                                                        "driven"
+                                                    ],
+                                         "presentation":  "extravagant entrance gear",
+                                         "currentDirection":  "proving he is still the defining star"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "seth-rollins",
+                           "currentReaction":  86,
+                           "generalPopularity":  90,
+                           "momentum":  12,
+                           "positiveHeat":  35,
+                           "negativeHeat":  72,
+                           "fatigue":  15,
+                           "starPower":  90
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "roman-reigns",
+                         "name":  "Roman Reigns",
+                         "skills":  {
+                                        "ringPerformance":  88,
+                                        "psychology":  92,
+                                        "promoAbility":  93,
+                                        "characterWork":  97,
+                                        "athleticism":  82,
+                                        "toughness":  94,
+                                        "professionalism":  89,
+                                        "politicalInstinct":  95
+                                    },
+                         "condition":  92,
+                         "money":  5500,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "The OTC",
+                                         "promoTone":  "commanding",
+                                         "traits":  [
+                                                        "dominant",
+                                                        "measured"
+                                                    ],
+                                         "presentation":  "tribal chief entrance",
+                                         "currentDirection":  "reclaiming his place at the top"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "roman-reigns",
+                           "currentReaction":  93,
+                           "generalPopularity":  95,
+                           "momentum":  9,
+                           "positiveHeat":  88,
+                           "negativeHeat":  12,
+                           "fatigue":  8,
+                           "starPower":  95
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "gunther",
+                         "name":  "Gunther",
+                         "skills":  {
+                                        "ringPerformance":  94,
+                                        "psychology":  93,
+                                        "promoAbility":  79,
+                                        "characterWork":  89,
+                                        "athleticism":  78,
+                                        "toughness":  91,
+                                        "professionalism":  95,
+                                        "politicalInstinct":  78
+                                    },
+                         "condition":  93,
+                         "money":  4400,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "The Ring General",
+                                         "promoTone":  "severe",
+                                         "traits":  [
+                                                        "disciplined",
+                                                        "merciless"
+                                                    ],
+                                         "presentation":  "austere ring general",
+                                         "currentDirection":  "restoring order through brutal excellence"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "gunther",
+                           "currentReaction":  77,
+                           "generalPopularity":  84,
+                           "momentum":  7,
+                           "positiveHeat":  18,
+                           "negativeHeat":  76,
+                           "fatigue":  14,
+                           "starPower":  84
+                       },
+        "stance":  "seek_match_quality"
+    },
+    {
+        "wrestler":  {
+                         "id":  "jey-uso",
+                         "name":  "Jey Uso",
+                         "skills":  {
+                                        "ringPerformance":  82,
+                                        "psychology":  80,
+                                        "promoAbility":  84,
+                                        "characterWork":  88,
+                                        "athleticism":  82,
+                                        "toughness":  79,
+                                        "professionalism":  79,
+                                        "politicalInstinct":  75
+                                    },
+                         "condition":  90,
+                         "money":  3900,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Main-event crowd catalyst",
+                                         "promoTone":  "energized",
+                                         "traits":  [
+                                                        "resilient",
+                                                        "charismatic"
+                                                    ],
+                                         "presentation":  "arena-wide crowd entrance",
+                                         "currentDirection":  "turning every reaction into a main-event claim"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "jey-uso",
+                           "currentReaction":  91,
+                           "generalPopularity":  87,
+                           "momentum":  16,
+                           "positiveHeat":  90,
+                           "negativeHeat":  8,
+                           "fatigue":  19,
+                           "starPower":  87
+                       },
+        "stance":  "chase_popularity"
+    },
+    {
+        "wrestler":  {
+                         "id":  "bron-breakker",
+                         "name":  "Bron Breakker",
+                         "skills":  {
+                                        "ringPerformance":  84,
+                                        "psychology":  75,
+                                        "promoAbility":  68,
+                                        "characterWork":  79,
+                                        "athleticism":  96,
+                                        "toughness":  90,
+                                        "professionalism":  76,
+                                        "politicalInstinct":  62
+                                    },
+                         "condition":  96,
+                         "money":  2800,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Explosive young powerhouse",
+                                         "promoTone":  "intense",
+                                         "traits":  [
+                                                        "volatile",
+                                                        "athletic"
+                                                    ],
+                                         "presentation":  "siren-lit sprint to the ring",
+                                         "currentDirection":  "running through established names"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "bron-breakker",
+                           "currentReaction":  68,
+                           "generalPopularity":  71,
+                           "momentum":  15,
+                           "positiveHeat":  18,
+                           "negativeHeat":  67,
+                           "fatigue":  16,
+                           "starPower":  71
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "drew-mcintyre",
+                         "name":  "Drew McIntyre",
+                         "skills":  {
+                                        "ringPerformance":  87,
+                                        "psychology":  85,
+                                        "promoAbility":  87,
+                                        "characterWork":  89,
+                                        "athleticism":  83,
+                                        "toughness":  93,
+                                        "professionalism":  87,
+                                        "politicalInstinct":  84
+                                    },
+                         "condition":  91,
+                         "money":  4300,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Bitter Scottish warrior",
+                                         "promoTone":  "furious",
+                                         "traits":  [
+                                                        "proud",
+                                                        "vindictive"
+                                                    ],
+                                         "presentation":  "sword-bearing entrance",
+                                         "currentDirection":  "making everyone pay for overlooking him"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "drew-mcintyre",
+                           "currentReaction":  76,
+                           "generalPopularity":  82,
+                           "momentum":  8,
+                           "positiveHeat":  20,
+                           "negativeHeat":  75,
+                           "fatigue":  18,
+                           "starPower":  82
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "damian-priest",
+                         "name":  "Damian Priest",
+                         "skills":  {
+                                        "ringPerformance":  82,
+                                        "psychology":  81,
+                                        "promoAbility":  75,
+                                        "characterWork":  82,
+                                        "athleticism":  79,
+                                        "toughness":  88,
+                                        "professionalism":  84,
+                                        "politicalInstinct":  72
+                                    },
+                         "condition":  90,
+                         "money":  3300,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Streetwise archer",
+                                         "promoTone":  "calm",
+                                         "traits":  [
+                                                        "loyal",
+                                                        "dangerous"
+                                                    ],
+                                         "presentation":  "dark club anthem",
+                                         "currentDirection":  "settling old debts with Finn Balor"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "damian-priest",
+                           "currentReaction":  70,
+                           "generalPopularity":  75,
+                           "momentum":  5,
+                           "positiveHeat":  66,
+                           "negativeHeat":  18,
+                           "fatigue":  15,
+                           "starPower":  75
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "finn-balor",
+                         "name":  "Finn Balor",
+                         "skills":  {
+                                        "ringPerformance":  88,
+                                        "psychology":  86,
+                                        "promoAbility":  75,
+                                        "characterWork":  85,
+                                        "athleticism":  86,
+                                        "toughness":  74,
+                                        "professionalism":  86,
+                                        "politicalInstinct":  88
+                                    },
+                         "condition":  89,
+                         "money":  3500,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Calculating Prince",
+                                         "promoTone":  "smug",
+                                         "traits":  [
+                                                        "opportunistic",
+                                                        "precise"
+                                                    ],
+                                         "presentation":  "dark judgment-day style",
+                                         "currentDirection":  "proving Priest needed him more"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "finn-balor",
+                           "currentReaction":  68,
+                           "generalPopularity":  74,
+                           "momentum":  6,
+                           "positiveHeat":  16,
+                           "negativeHeat":  67,
+                           "fatigue":  17,
+                           "starPower":  74
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "dominik-mysterio",
+                         "name":  "Dominik Mysterio",
+                         "skills":  {
+                                        "ringPerformance":  73,
+                                        "psychology":  72,
+                                        "promoAbility":  78,
+                                        "characterWork":  90,
+                                        "athleticism":  78,
+                                        "toughness":  66,
+                                        "professionalism":  72,
+                                        "politicalInstinct":  84
+                                    },
+                         "condition":  88,
+                         "money":  2500,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Cowardly but slippery champion",
+                                         "promoTone":  "taunting",
+                                         "traits":  [
+                                                        "devious",
+                                                        "spoiled"
+                                                    ],
+                                         "presentation":  "luxury entrance with backup",
+                                         "currentDirection":  "escaping every Intercontinental challenge"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "dominik-mysterio",
+                           "currentReaction":  74,
+                           "generalPopularity":  70,
+                           "momentum":  10,
+                           "positiveHeat":  8,
+                           "negativeHeat":  84,
+                           "fatigue":  21,
+                           "starPower":  70
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "penta",
+                         "name":  "Penta",
+                         "skills":  {
+                                        "ringPerformance":  91,
+                                        "psychology":  83,
+                                        "promoAbility":  65,
+                                        "characterWork":  85,
+                                        "athleticism":  92,
+                                        "toughness":  78,
+                                        "professionalism":  84,
+                                        "politicalInstinct":  63
+                                    },
+                         "condition":  93,
+                         "money":  2800,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Fearless masked striker",
+                                         "promoTone":  "intense",
+                                         "traits":  [
+                                                        "fearless",
+                                                        "flashy"
+                                                    ],
+                                         "presentation":  "elaborate mask and hand signal",
+                                         "currentDirection":  "chasing the Intercontinental title"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "penta",
+                           "currentReaction":  81,
+                           "generalPopularity":  77,
+                           "momentum":  17,
+                           "positiveHeat":  78,
+                           "negativeHeat":  6,
+                           "fatigue":  18,
+                           "starPower":  77
+                       },
+        "stance":  "seek_match_quality"
+    },
+    {
+        "wrestler":  {
+                         "id":  "aj-styles",
+                         "name":  "AJ Styles",
+                         "skills":  {
+                                        "ringPerformance":  94,
+                                        "psychology":  88,
+                                        "promoAbility":  78,
+                                        "characterWork":  80,
+                                        "athleticism":  86,
+                                        "toughness":  76,
+                                        "professionalism":  91,
+                                        "politicalInstinct":  76
+                                    },
+                         "condition":  84,
+                         "money":  3900,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Phenomenal veteran",
+                                         "promoTone":  "confident",
+                                         "traits":  [
+                                                        "competitive",
+                                                        "respected"
+                                                    ],
+                                         "presentation":  "signature hooded entrance",
+                                         "currentDirection":  "showing that experience still wins"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "aj-styles",
+                           "currentReaction":  75,
+                           "generalPopularity":  80,
+                           "momentum":  4,
+                           "positiveHeat":  73,
+                           "negativeHeat":  12,
+                           "fatigue":  24,
+                           "starPower":  80
+                       },
+        "stance":  "seek_match_quality"
+    },
+    {
+        "wrestler":  {
+                         "id":  "sami-zayn",
+                         "name":  "Sami Zayn",
+                         "skills":  {
+                                        "ringPerformance":  88,
+                                        "psychology":  90,
+                                        "promoAbility":  87,
+                                        "characterWork":  90,
+                                        "athleticism":  80,
+                                        "toughness":  85,
+                                        "professionalism":  90,
+                                        "politicalInstinct":  76
+                                    },
+                         "condition":  88,
+                         "money":  3500,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Everyman underdog",
+                                         "promoTone":  "passionate",
+                                         "traits":  [
+                                                        "empathetic",
+                                                        "stubborn"
+                                                    ],
+                                         "presentation":  "raw, heartfelt entrance",
+                                         "currentDirection":  "earning another run at the top"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "sami-zayn",
+                           "currentReaction":  84,
+                           "generalPopularity":  83,
+                           "momentum":  8,
+                           "positiveHeat":  84,
+                           "negativeHeat":  10,
+                           "fatigue":  20,
+                           "starPower":  83
+                       },
+        "stance":  "chase_popularity"
+    },
+    {
+        "wrestler":  {
+                         "id":  "sheamus",
+                         "name":  "Sheamus",
+                         "skills":  {
+                                        "ringPerformance":  84,
+                                        "psychology":  83,
+                                        "promoAbility":  79,
+                                        "characterWork":  82,
+                                        "athleticism":  75,
+                                        "toughness":  94,
+                                        "professionalism":  88,
+                                        "politicalInstinct":  70
+                                    },
+                         "condition":  82,
+                         "money":  3300,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Hard-hitting Celtic veteran",
+                                         "promoTone":  "blunt",
+                                         "traits":  [
+                                                        "durable",
+                                                        "proud"
+                                                    ],
+                                         "presentation":  "fight-night brawler",
+                                         "currentDirection":  "adding one more major achievement"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "sheamus",
+                           "currentReaction":  69,
+                           "generalPopularity":  74,
+                           "momentum":  3,
+                           "positiveHeat":  66,
+                           "negativeHeat":  12,
+                           "fatigue":  27,
+                           "starPower":  74
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "la-knight",
+                         "name":  "LA Knight",
+                         "skills":  {
+                                        "ringPerformance":  76,
+                                        "psychology":  76,
+                                        "promoAbility":  93,
+                                        "characterWork":  91,
+                                        "athleticism":  72,
+                                        "toughness":  78,
+                                        "professionalism":  79,
+                                        "politicalInstinct":  78
+                                    },
+                         "condition":  87,
+                         "money":  3400,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Self-made megastar",
+                                         "promoTone":  "electric",
+                                         "traits":  [
+                                                        "confident",
+                                                        "tenacious"
+                                                    ],
+                                         "presentation":  "flashy catchphrase entrance",
+                                         "currentDirection":  "forcing management to acknowledge him"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "la-knight",
+                           "currentReaction":  82,
+                           "generalPopularity":  80,
+                           "momentum":  9,
+                           "positiveHeat":  84,
+                           "negativeHeat":  14,
+                           "fatigue":  18,
+                           "starPower":  80
+                       },
+        "stance":  "chase_popularity"
+    },
+    {
+        "wrestler":  {
+                         "id":  "rusev",
+                         "name":  "Rusev",
+                         "skills":  {
+                                        "ringPerformance":  80,
+                                        "psychology":  77,
+                                        "promoAbility":  79,
+                                        "characterWork":  86,
+                                        "athleticism":  75,
+                                        "toughness":  91,
+                                        "professionalism":  80,
+                                        "politicalInstinct":  70
+                                    },
+                         "condition":  91,
+                         "money":  2900,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Unforgiving Bulgarian brute",
+                                         "promoTone":  "threatening",
+                                         "traits":  [
+                                                        "proud",
+                                                        "destructive"
+                                                    ],
+                                         "presentation":  "battle-ready bruiser",
+                                         "currentDirection":  "punishing everyone who forgot him"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "rusev",
+                           "currentReaction":  64,
+                           "generalPopularity":  68,
+                           "momentum":  11,
+                           "positiveHeat":  14,
+                           "negativeHeat":  69,
+                           "fatigue":  14,
+                           "starPower":  68
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "dragon-lee",
+                         "name":  "Dragon Lee",
+                         "skills":  {
+                                        "ringPerformance":  88,
+                                        "psychology":  78,
+                                        "promoAbility":  58,
+                                        "characterWork":  70,
+                                        "athleticism":  94,
+                                        "toughness":  66,
+                                        "professionalism":  82,
+                                        "politicalInstinct":  54
+                                    },
+                         "condition":  94,
+                         "money":  1500,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Daring masked aerialist",
+                                         "promoTone":  "earnest",
+                                         "traits":  [
+                                                        "fearless",
+                                                        "quick"
+                                                    ],
+                                         "presentation":  "vivid lucha gear",
+                                         "currentDirection":  "breaking through with spectacular performances"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "dragon-lee",
+                           "currentReaction":  53,
+                           "generalPopularity":  50,
+                           "momentum":  8,
+                           "positiveHeat":  52,
+                           "negativeHeat":  5,
+                           "fatigue":  17,
+                           "starPower":  50
+                       },
+        "stance":  "seek_match_quality"
+    },
+    {
+        "wrestler":  {
+                         "id":  "rey-mysterio",
+                         "name":  "Rey Mysterio",
+                         "skills":  {
+                                        "ringPerformance":  86,
+                                        "psychology":  88,
+                                        "promoAbility":  75,
+                                        "characterWork":  88,
+                                        "athleticism":  82,
+                                        "toughness":  74,
+                                        "professionalism":  94,
+                                        "politicalInstinct":  72
+                                    },
+                         "condition":  80,
+                         "money":  3600,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Legendary masked inspiration",
+                                         "promoTone":  "sincere",
+                                         "traits":  [
+                                                        "heroic",
+                                                        "resilient"
+                                                    ],
+                                         "presentation":  "iconic lucha entrance",
+                                         "currentDirection":  "guiding the next generation"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "rey-mysterio",
+                           "currentReaction":  78,
+                           "generalPopularity":  82,
+                           "momentum":  2,
+                           "positiveHeat":  80,
+                           "negativeHeat":  8,
+                           "fatigue":  25,
+                           "starPower":  82
+                       },
+        "stance":  "support_allies"
+    },
+    {
+        "wrestler":  {
+                         "id":  "chad-gable",
+                         "name":  "Chad Gable",
+                         "skills":  {
+                                        "ringPerformance":  90,
+                                        "psychology":  88,
+                                        "promoAbility":  76,
+                                        "characterWork":  80,
+                                        "athleticism":  85,
+                                        "toughness":  75,
+                                        "professionalism":  87,
+                                        "politicalInstinct":  73
+                                    },
+                         "condition":  91,
+                         "money":  2100,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Obsessive wrestling coach",
+                                         "promoTone":  "condescending",
+                                         "traits":  [
+                                                        "demanding",
+                                                        "brilliant"
+                                                    ],
+                                         "presentation":  "academy warmup jacket",
+                                         "currentDirection":  "forcing the roster to respect his system"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "chad-gable",
+                           "currentReaction":  61,
+                           "generalPopularity":  63,
+                           "momentum":  7,
+                           "positiveHeat":  15,
+                           "negativeHeat":  64,
+                           "fatigue":  16,
+                           "starPower":  63
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "otis",
+                         "name":  "Otis",
+                         "skills":  {
+                                        "ringPerformance":  65,
+                                        "psychology":  65,
+                                        "promoAbility":  67,
+                                        "characterWork":  82,
+                                        "athleticism":  60,
+                                        "toughness":  88,
+                                        "professionalism":  78,
+                                        "politicalInstinct":  48
+                                    },
+                         "condition":  90,
+                         "money":  1400,
+                         "alignment":  "tweener",
+                         "gimmick":  {
+                                         "concept":  "Lovable heavy hitter",
+                                         "promoTone":  "goofy",
+                                         "traits":  [
+                                                        "powerful",
+                                                        "good-natured"
+                                                    ],
+                                         "presentation":  "blue-collar singlet",
+                                         "currentDirection":  "deciding whether to follow Gable or himself"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "otis",
+                           "currentReaction":  54,
+                           "generalPopularity":  55,
+                           "momentum":  1,
+                           "positiveHeat":  45,
+                           "negativeHeat":  18,
+                           "fatigue":  14,
+                           "starPower":  55
+                       },
+        "stance":  "support_allies"
+    },
+    {
+        "wrestler":  {
+                         "id":  "karrion-kross",
+                         "name":  "Karrion Kross",
+                         "skills":  {
+                                        "ringPerformance":  72,
+                                        "psychology":  75,
+                                        "promoAbility":  82,
+                                        "characterWork":  90,
+                                        "athleticism":  70,
+                                        "toughness":  82,
+                                        "professionalism":  77,
+                                        "politicalInstinct":  86
+                                    },
+                         "condition":  88,
+                         "money":  2100,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Apocalyptic manipulator",
+                                         "promoTone":  "ominous",
+                                         "traits":  [
+                                                        "patient",
+                                                        "controlling"
+                                                    ],
+                                         "presentation":  "cinematic dark entrance",
+                                         "currentDirection":  "turning other people\u0027s ambition against them"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "karrion-kross",
+                           "currentReaction":  57,
+                           "generalPopularity":  61,
+                           "momentum":  5,
+                           "positiveHeat":  10,
+                           "negativeHeat":  59,
+                           "fatigue":  12,
+                           "starPower":  61
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "kofi-kingston",
+                         "name":  "Kofi Kingston",
+                         "skills":  {
+                                        "ringPerformance":  82,
+                                        "psychology":  80,
+                                        "promoAbility":  74,
+                                        "characterWork":  83,
+                                        "athleticism":  85,
+                                        "toughness":  72,
+                                        "professionalism":  90,
+                                        "politicalInstinct":  67
+                                    },
+                         "condition":  85,
+                         "money":  2900,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Veteran fan favorite",
+                                         "promoTone":  "uplifting",
+                                         "traits":  [
+                                                        "positive",
+                                                        "experienced"
+                                                    ],
+                                         "presentation":  "bright athletic gear",
+                                         "currentDirection":  "finding one more singles breakthrough"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "kofi-kingston",
+                           "currentReaction":  66,
+                           "generalPopularity":  71,
+                           "momentum":  2,
+                           "positiveHeat":  68,
+                           "negativeHeat":  6,
+                           "fatigue":  22,
+                           "starPower":  71
+                       },
+        "stance":  "support_allies"
+    },
+    {
+        "wrestler":  {
+                         "id":  "xavier-woods",
+                         "name":  "Xavier Woods",
+                         "skills":  {
+                                        "ringPerformance":  78,
+                                        "psychology":  77,
+                                        "promoAbility":  80,
+                                        "characterWork":  86,
+                                        "athleticism":  78,
+                                        "toughness":  70,
+                                        "professionalism":  86,
+                                        "politicalInstinct":  75
+                                    },
+                         "condition":  87,
+                         "money":  2700,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Resentful intellectual",
+                                         "promoTone":  "sharp",
+                                         "traits":  [
+                                                        "ambitious",
+                                                        "insecure"
+                                                    ],
+                                         "presentation":  "regal gaming-inspired gear",
+                                         "currentDirection":  "proving he outgrew the people beside him"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "xavier-woods",
+                           "currentReaction":  62,
+                           "generalPopularity":  67,
+                           "momentum":  6,
+                           "positiveHeat":  18,
+                           "negativeHeat":  60,
+                           "fatigue":  19,
+                           "starPower":  67
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "the-miz",
+                         "name":  "The Miz",
+                         "skills":  {
+                                        "ringPerformance":  70,
+                                        "psychology":  81,
+                                        "promoAbility":  91,
+                                        "characterWork":  94,
+                                        "athleticism":  65,
+                                        "toughness":  72,
+                                        "professionalism":  90,
+                                        "politicalInstinct":  94
+                                    },
+                         "condition":  84,
+                         "money":  3500,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Hollywood survivor",
+                                         "promoTone":  "smug",
+                                         "traits":  [
+                                                        "media-savvy",
+                                                        "persistent"
+                                                    ],
+                                         "presentation":  "red-carpet arrogance",
+                                         "currentDirection":  "remaining relevant by any means"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "the-miz",
+                           "currentReaction":  59,
+                           "generalPopularity":  69,
+                           "momentum":  0,
+                           "positiveHeat":  8,
+                           "negativeHeat":  68,
+                           "fatigue":  21,
+                           "starPower":  69
+                       },
+        "stance":  "maximize_income"
+    },
+    {
+        "wrestler":  {
+                         "id":  "r-truth",
+                         "name":  "R-Truth",
+                         "skills":  {
+                                        "ringPerformance":  62,
+                                        "psychology":  70,
+                                        "promoAbility":  79,
+                                        "characterWork":  96,
+                                        "athleticism":  64,
+                                        "toughness":  65,
+                                        "professionalism":  88,
+                                        "politicalInstinct":  58
+                                    },
+                         "condition":  78,
+                         "money":  2300,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Unpredictable comedy veteran",
+                                         "promoTone":  "goofy",
+                                         "traits":  [
+                                                        "likeable",
+                                                        "unpredictable"
+                                                    ],
+                                         "presentation":  "crowd-friendly antics",
+                                         "currentDirection":  "finding heart beneath the jokes"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "r-truth",
+                           "currentReaction":  63,
+                           "generalPopularity":  67,
+                           "momentum":  1,
+                           "positiveHeat":  67,
+                           "negativeHeat":  4,
+                           "fatigue":  15,
+                           "starPower":  67
+                       },
+        "stance":  "avoid_conflict"
+    },
+    {
+        "wrestler":  {
+                         "id":  "ludwig-kaiser",
+                         "name":  "Ludwig Kaiser",
+                         "skills":  {
+                                        "ringPerformance":  78,
+                                        "psychology":  76,
+                                        "promoAbility":  74,
+                                        "characterWork":  78,
+                                        "athleticism":  77,
+                                        "toughness":  72,
+                                        "professionalism":  85,
+                                        "politicalInstinct":  72
+                                    },
+                         "condition":  89,
+                         "money":  1800,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Arrogant European technician",
+                                         "promoTone":  "dismissive",
+                                         "traits":  [
+                                                        "precise",
+                                                        "ambitious"
+                                                    ],
+                                         "presentation":  "tailored ring gear",
+                                         "currentDirection":  "proving he belongs beyond Gunther\u0027s shadow"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "ludwig-kaiser",
+                           "currentReaction":  48,
+                           "generalPopularity":  52,
+                           "momentum":  5,
+                           "positiveHeat":  8,
+                           "negativeHeat":  49,
+                           "fatigue":  13,
+                           "starPower":  52
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "ilja-dragunov",
+                         "name":  "Ilja Dragunov",
+                         "skills":  {
+                                        "ringPerformance":  91,
+                                        "psychology":  86,
+                                        "promoAbility":  70,
+                                        "characterWork":  81,
+                                        "athleticism":  88,
+                                        "toughness":  90,
+                                        "professionalism":  88,
+                                        "politicalInstinct":  61
+                                    },
+                         "condition":  85,
+                         "money":  1900,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Unbreakable mad dragon",
+                                         "promoTone":  "ferocious",
+                                         "traits":  [
+                                                        "intense",
+                                                        "fearless"
+                                                    ],
+                                         "presentation":  "battle-scarred intensity",
+                                         "currentDirection":  "making pain the price of every victory"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "ilja-dragunov",
+                           "currentReaction":  60,
+                           "generalPopularity":  61,
+                           "momentum":  9,
+                           "positiveHeat":  57,
+                           "negativeHeat":  11,
+                           "fatigue":  26,
+                           "starPower":  61
+                       },
+        "stance":  "seek_match_quality"
+    },
+    {
+        "wrestler":  {
+                         "id":  "shinsuke-nakamura",
+                         "name":  "Shinsuke Nakamura",
+                         "skills":  {
+                                        "ringPerformance":  85,
+                                        "psychology":  84,
+                                        "promoAbility":  72,
+                                        "characterWork":  87,
+                                        "athleticism":  79,
+                                        "toughness":  75,
+                                        "professionalism":  86,
+                                        "politicalInstinct":  76
+                                    },
+                         "condition":  84,
+                         "money":  3000,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Cold-blooded artist",
+                                         "promoTone":  "unsettling",
+                                         "traits":  [
+                                                        "unpredictable",
+                                                        "ruthless"
+                                                    ],
+                                         "presentation":  "kinetic rockstar entrance",
+                                         "currentDirection":  "finding a new victim to torment"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "shinsuke-nakamura",
+                           "currentReaction":  61,
+                           "generalPopularity":  68,
+                           "momentum":  4,
+                           "positiveHeat":  12,
+                           "negativeHeat":  62,
+                           "fatigue":  20,
+                           "starPower":  68
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "jd-mcdonagh",
+                         "name":  "JD McDonagh",
+                         "skills":  {
+                                        "ringPerformance":  80,
+                                        "psychology":  78,
+                                        "promoAbility":  62,
+                                        "characterWork":  72,
+                                        "athleticism":  82,
+                                        "toughness":  73,
+                                        "professionalism":  82,
+                                        "politicalInstinct":  76
+                                    },
+                         "condition":  90,
+                         "money":  1600,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Unhinged tactician",
+                                         "promoTone":  "nervy",
+                                         "traits":  [
+                                                        "obsessive",
+                                                        "reckless"
+                                                    ],
+                                         "presentation":  "dark faction colors",
+                                         "currentDirection":  "earning respect inside a dangerous group"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "jd-mcdonagh",
+                           "currentReaction":  45,
+                           "generalPopularity":  48,
+                           "momentum":  4,
+                           "positiveHeat":  6,
+                           "negativeHeat":  48,
+                           "fatigue":  15,
+                           "starPower":  48
+                       },
+        "stance":  "cooperate_with_creative"
+    },
+    {
+        "wrestler":  {
+                         "id":  "austin-theory",
+                         "name":  "Austin Theory",
+                         "skills":  {
+                                        "ringPerformance":  75,
+                                        "psychology":  73,
+                                        "promoAbility":  75,
+                                        "characterWork":  80,
+                                        "athleticism":  83,
+                                        "toughness":  70,
+                                        "professionalism":  75,
+                                        "politicalInstinct":  72
+                                    },
+                         "condition":  92,
+                         "money":  1800,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Entitled future star",
+                                         "promoTone":  "cocky",
+                                         "traits":  [
+                                                        "vain",
+                                                        "driven"
+                                                    ],
+                                         "presentation":  "camera-ready arrogance",
+                                         "currentDirection":  "demanding the spotlight he believes he deserves"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "austin-theory",
+                           "currentReaction":  48,
+                           "generalPopularity":  52,
+                           "momentum":  3,
+                           "positiveHeat":  7,
+                           "negativeHeat":  52,
+                           "fatigue":  14,
+                           "starPower":  52
+                       },
+        "stance":  "chase_popularity"
+    },
+    {
+        "wrestler":  {
+                         "id":  "grayson-waller",
+                         "name":  "Grayson Waller",
+                         "skills":  {
+                                        "ringPerformance":  71,
+                                        "psychology":  72,
+                                        "promoAbility":  84,
+                                        "characterWork":  86,
+                                        "athleticism":  74,
+                                        "toughness":  69,
+                                        "professionalism":  73,
+                                        "politicalInstinct":  80
+                                    },
+                         "condition":  89,
+                         "money":  1700,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Talk-show provocateur",
+                                         "promoTone":  "sarcastic",
+                                         "traits":  [
+                                                        "annoying",
+                                                        "clever"
+                                                    ],
+                                         "presentation":  "celebrity host swagger",
+                                         "currentDirection":  "talking his way into bigger opportunities"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "grayson-waller",
+                           "currentReaction":  46,
+                           "generalPopularity":  51,
+                           "momentum":  2,
+                           "positiveHeat":  5,
+                           "negativeHeat":  53,
+                           "fatigue":  12,
+                           "starPower":  51
+                       },
+        "stance":  "chase_popularity"
+    },
+    {
+        "wrestler":  {
+                         "id":  "bronson-reed",
+                         "name":  "Bronson Reed",
+                         "skills":  {
+                                        "ringPerformance":  76,
+                                        "psychology":  74,
+                                        "promoAbility":  65,
+                                        "characterWork":  76,
+                                        "athleticism":  67,
+                                        "toughness":  94,
+                                        "professionalism":  78,
+                                        "politicalInstinct":  60
+                                    },
+                         "condition":  93,
+                         "money":  2000,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Tsunami powerhouse",
+                                         "promoTone":  "menacing",
+                                         "traits":  [
+                                                        "destructive",
+                                                        "unstoppable"
+                                                    ],
+                                         "presentation":  "industrial monster entrance",
+                                         "currentDirection":  "flattening the midcard on the way up"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "bronson-reed",
+                           "currentReaction":  55,
+                           "generalPopularity":  58,
+                           "momentum":  7,
+                           "positiveHeat":  8,
+                           "negativeHeat":  61,
+                           "fatigue":  15,
+                           "starPower":  58
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "solo-sikoa",
+                         "name":  "Solo Sikoa",
+                         "skills":  {
+                                        "ringPerformance":  76,
+                                        "psychology":  71,
+                                        "promoAbility":  60,
+                                        "characterWork":  80,
+                                        "athleticism":  73,
+                                        "toughness":  91,
+                                        "professionalism":  77,
+                                        "politicalInstinct":  73
+                                    },
+                         "condition":  92,
+                         "money":  2400,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Silent bloodline enforcer",
+                                         "promoTone":  "controlled",
+                                         "traits":  [
+                                                        "intimidating",
+                                                        "loyal"
+                                                    ],
+                                         "presentation":  "tribal combat gear",
+                                         "currentDirection":  "leading through fear after a family collapse"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "solo-sikoa",
+                           "currentReaction":  63,
+                           "generalPopularity":  67,
+                           "momentum":  5,
+                           "positiveHeat":  8,
+                           "negativeHeat":  68,
+                           "fatigue":  16,
+                           "starPower":  67
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "jacob-fatu",
+                         "name":  "Jacob Fatu",
+                         "skills":  {
+                                        "ringPerformance":  85,
+                                        "psychology":  77,
+                                        "promoAbility":  69,
+                                        "characterWork":  83,
+                                        "athleticism":  88,
+                                        "toughness":  94,
+                                        "professionalism":  72,
+                                        "politicalInstinct":  61
+                                    },
+                         "condition":  95,
+                         "money":  2400,
+                         "alignment":  "tweener",
+                         "gimmick":  {
+                                         "concept":  "Uncontrollable Samoan werewolf",
+                                         "promoTone":  "wild",
+                                         "traits":  [
+                                                        "feral",
+                                                        "explosive"
+                                                    ],
+                                         "presentation":  "violent tribal intensity",
+                                         "currentDirection":  "refusing to be controlled by any family leader"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "jacob-fatu",
+                           "currentReaction":  72,
+                           "generalPopularity":  70,
+                           "momentum":  14,
+                           "positiveHeat":  38,
+                           "negativeHeat":  50,
+                           "fatigue":  18,
+                           "starPower":  70
+                       },
+        "stance":  "pursue_championships"
+    },
+    {
+        "wrestler":  {
+                         "id":  "jimmy-uso",
+                         "name":  "Jimmy Uso",
+                         "skills":  {
+                                        "ringPerformance":  78,
+                                        "psychology":  77,
+                                        "promoAbility":  74,
+                                        "characterWork":  81,
+                                        "athleticism":  80,
+                                        "toughness":  76,
+                                        "professionalism":  80,
+                                        "politicalInstinct":  73
+                                    },
+                         "condition":  89,
+                         "money":  2700,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Family-first survivor",
+                                         "promoTone":  "passionate",
+                                         "traits":  [
+                                                        "loyal",
+                                                        "resilient"
+                                                    ],
+                                         "presentation":  "Samoan streetwear",
+                                         "currentDirection":  "standing beside Jey while seeking his own identity"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "jimmy-uso",
+                           "currentReaction":  65,
+                           "generalPopularity":  68,
+                           "momentum":  4,
+                           "positiveHeat":  64,
+                           "negativeHeat":  12,
+                           "fatigue":  17,
+                           "starPower":  68
+                       },
+        "stance":  "support_allies"
+    },
+    {
+        "wrestler":  {
+                         "id":  "tama-tonga",
+                         "name":  "Tama Tonga",
+                         "skills":  {
+                                        "ringPerformance":  76,
+                                        "psychology":  75,
+                                        "promoAbility":  65,
+                                        "characterWork":  75,
+                                        "athleticism":  78,
+                                        "toughness":  80,
+                                        "professionalism":  79,
+                                        "politicalInstinct":  70
+                                    },
+                         "condition":  90,
+                         "money":  1900,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Cold bloodline gun for hire",
+                                         "promoTone":  "hostile",
+                                         "traits":  [
+                                                        "aggressive",
+                                                        "unforgiving"
+                                                    ],
+                                         "presentation":  "black tactical gear",
+                                         "currentDirection":  "holding the line for Solo\u0027s faction"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "tama-tonga",
+                           "currentReaction":  46,
+                           "generalPopularity":  50,
+                           "momentum":  3,
+                           "positiveHeat":  5,
+                           "negativeHeat":  52,
+                           "fatigue":  13,
+                           "starPower":  50
+                       },
+        "stance":  "support_allies"
+    },
+    {
+        "wrestler":  {
+                         "id":  "angelo-dawkins",
+                         "name":  "Angelo Dawkins",
+                         "skills":  {
+                                        "ringPerformance":  72,
+                                        "psychology":  72,
+                                        "promoAbility":  69,
+                                        "characterWork":  73,
+                                        "athleticism":  78,
+                                        "toughness":  82,
+                                        "professionalism":  80,
+                                        "politicalInstinct":  60
+                                    },
+                         "condition":  91,
+                         "money":  1800,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "High-energy powerhouse",
+                                         "promoTone":  "upbeat",
+                                         "traits":  [
+                                                        "loyal",
+                                                        "athletic"
+                                                    ],
+                                         "presentation":  "stylish sports-entertainment gear",
+                                         "currentDirection":  "showing he can shine on his own"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "angelo-dawkins",
+                           "currentReaction":  48,
+                           "generalPopularity":  52,
+                           "momentum":  3,
+                           "positiveHeat":  48,
+                           "negativeHeat":  8,
+                           "fatigue":  14,
+                           "starPower":  52
+                       },
+        "stance":  "support_allies"
+    },
+    {
+        "wrestler":  {
+                         "id":  "montez-ford",
+                         "name":  "Montez Ford",
+                         "skills":  {
+                                        "ringPerformance":  82,
+                                        "psychology":  75,
+                                        "promoAbility":  80,
+                                        "characterWork":  82,
+                                        "athleticism":  94,
+                                        "toughness":  70,
+                                        "professionalism":  82,
+                                        "politicalInstinct":  68
+                                    },
+                         "condition":  94,
+                         "money":  2100,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Charismatic aerial athlete",
+                                         "promoTone":  "electric",
+                                         "traits":  [
+                                                        "explosive",
+                                                        "likeable"
+                                                    ],
+                                         "presentation":  "high-flying arena entrance",
+                                         "currentDirection":  "making a singles breakthrough impossible to deny"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "montez-ford",
+                           "currentReaction":  62,
+                           "generalPopularity":  64,
+                           "momentum":  9,
+                           "positiveHeat":  65,
+                           "negativeHeat":  7,
+                           "fatigue":  17,
+                           "starPower":  64
+                       },
+        "stance":  "chase_popularity"
+    },
+    {
+        "wrestler":  {
+                         "id":  "andrade",
+                         "name":  "Andrade",
+                         "skills":  {
+                                        "ringPerformance":  88,
+                                        "psychology":  82,
+                                        "promoAbility":  66,
+                                        "characterWork":  75,
+                                        "athleticism":  84,
+                                        "toughness":  75,
+                                        "professionalism":  83,
+                                        "politicalInstinct":  66
+                                    },
+                         "condition":  90,
+                         "money":  2400,
+                         "alignment":  "tweener",
+                         "gimmick":  {
+                                         "concept":  "Tranquilo elite technician",
+                                         "promoTone":  "cool",
+                                         "traits":  [
+                                                        "proud",
+                                                        "smooth"
+                                                    ],
+                                         "presentation":  "tailored lucha luxury",
+                                         "currentDirection":  "letting superior skill speak for him"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "andrade",
+                           "currentReaction":  58,
+                           "generalPopularity":  61,
+                           "momentum":  4,
+                           "positiveHeat":  35,
+                           "negativeHeat":  32,
+                           "fatigue":  16,
+                           "starPower":  61
+                       },
+        "stance":  "seek_match_quality"
+    },
+    {
+        "wrestler":  {
+                         "id":  "carmelo-hayes",
+                         "name":  "Carmelo Hayes",
+                         "skills":  {
+                                        "ringPerformance":  86,
+                                        "psychology":  79,
+                                        "promoAbility":  78,
+                                        "characterWork":  82,
+                                        "athleticism":  89,
+                                        "toughness":  70,
+                                        "professionalism":  78,
+                                        "politicalInstinct":  70
+                                    },
+                         "condition":  94,
+                         "money":  1900,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Him",
+                                         "promoTone":  "cocky",
+                                         "traits":  [
+                                                        "ambitious",
+                                                        "flashy"
+                                                    ],
+                                         "presentation":  "premium basketball-inspired gear",
+                                         "currentDirection":  "proving the future already belongs to him"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "carmelo-hayes",
+                           "currentReaction":  57,
+                           "generalPopularity":  59,
+                           "momentum":  10,
+                           "positiveHeat":  14,
+                           "negativeHeat":  58,
+                           "fatigue":  15,
+                           "starPower":  59
+                       },
+        "stance":  "chase_popularity"
+    },
+    {
+        "wrestler":  {
+                         "id":  "joe-gacy",
+                         "name":  "Joe Gacy",
+                         "skills":  {
+                                        "ringPerformance":  71,
+                                        "psychology":  73,
+                                        "promoAbility":  70,
+                                        "characterWork":  82,
+                                        "athleticism":  69,
+                                        "toughness":  82,
+                                        "professionalism":  75,
+                                        "politicalInstinct":  68
+                                    },
+                         "condition":  89,
+                         "money":  1500,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "Unsettling cult bruiser",
+                                         "promoTone":  "disturbed",
+                                         "traits":  [
+                                                        "chaotic",
+                                                        "intense"
+                                                    ],
+                                         "presentation":  "warped dark gear",
+                                         "currentDirection":  "dragging the show into his kind of chaos"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "joe-gacy",
+                           "currentReaction":  40,
+                           "generalPopularity":  43,
+                           "momentum":  2,
+                           "positiveHeat":  4,
+                           "negativeHeat":  46,
+                           "fatigue":  12,
+                           "starPower":  43
+                       },
+        "stance":  "protect_character"
+    },
+    {
+        "wrestler":  {
+                         "id":  "dexter-lumis",
+                         "name":  "Dexter Lumis",
+                         "skills":  {
+                                        "ringPerformance":  70,
+                                        "psychology":  72,
+                                        "promoAbility":  45,
+                                        "characterWork":  88,
+                                        "athleticism":  68,
+                                        "toughness":  78,
+                                        "professionalism":  76,
+                                        "politicalInstinct":  55
+                                    },
+                         "condition":  88,
+                         "money":  1500,
+                         "alignment":  "tweener",
+                         "gimmick":  {
+                                         "concept":  "Silent unsettling wildcard",
+                                         "promoTone":  "silent",
+                                         "traits":  [
+                                                        "mysterious",
+                                                        "patient"
+                                                    ],
+                                         "presentation":  "wordless horror-inspired entrance",
+                                         "currentDirection":  "making everybody wonder what he wants"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "dexter-lumis",
+                           "currentReaction":  44,
+                           "generalPopularity":  47,
+                           "momentum":  2,
+                           "positiveHeat":  23,
+                           "negativeHeat":  28,
+                           "fatigue":  10,
+                           "starPower":  47
+                       },
+        "stance":  "avoid_conflict"
+    },
+    {
+        "wrestler":  {
+                         "id":  "erik",
+                         "name":  "Erik",
+                         "skills":  {
+                                        "ringPerformance":  70,
+                                        "psychology":  71,
+                                        "promoAbility":  55,
+                                        "characterWork":  70,
+                                        "athleticism":  73,
+                                        "toughness":  86,
+                                        "professionalism":  82,
+                                        "politicalInstinct":  55
+                                    },
+                         "condition":  88,
+                         "money":  1400,
+                         "alignment":  "face",
+                         "gimmick":  {
+                                         "concept":  "Viking war machine",
+                                         "promoTone":  "battle-ready",
+                                         "traits":  [
+                                                        "tough",
+                                                        "loyal"
+                                                    ],
+                                         "presentation":  "Norse battle gear",
+                                         "currentDirection":  "bringing fight-night intensity to singles competition"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "erik",
+                           "currentReaction":  39,
+                           "generalPopularity":  42,
+                           "momentum":  1,
+                           "positiveHeat":  38,
+                           "negativeHeat":  8,
+                           "fatigue":  11,
+                           "starPower":  42
+                       },
+        "stance":  "cooperate_with_creative"
+    },
+    {
+        "wrestler":  {
+                         "id":  "pete-dunne",
+                         "name":  "Pete Dunne",
+                         "skills":  {
+                                        "ringPerformance":  84,
+                                        "psychology":  81,
+                                        "promoAbility":  62,
+                                        "characterWork":  76,
+                                        "athleticism":  76,
+                                        "toughness":  84,
+                                        "professionalism":  82,
+                                        "politicalInstinct":  64
+                                    },
+                         "condition":  90,
+                         "money":  1800,
+                         "alignment":  "heel",
+                         "gimmick":  {
+                                         "concept":  "The Bruiserweight",
+                                         "promoTone":  "hostile",
+                                         "traits":  [
+                                                        "sadistic",
+                                                        "technical"
+                                                    ],
+                                         "presentation":  "brutalist joint manipulation",
+                                         "currentDirection":  "breaking fingers to force his way upward"
+                                     }
+                     },
+        "popularity":  {
+                           "wrestlerId":  "pete-dunne",
+                           "currentReaction":  49,
+                           "generalPopularity":  53,
+                           "momentum":  5,
+                           "positiveHeat":  7,
+                           "negativeHeat":  55,
+                           "fatigue":  14,
+                           "starPower":  53
+                       },
+        "stance":  "seek_match_quality"
+    }
 ]

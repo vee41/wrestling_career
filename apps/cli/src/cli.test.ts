@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -11,7 +11,7 @@ let ctx: CliContext;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "wrestling-cli-test-"));
-  ctx = { filePath: join(dir, "save.json") };
+  ctx = { filePath: join(dir, "save.json"), sliceReportDirectory: join(dir, "slice-reports") };
 });
 
 afterEach(() => {
@@ -182,12 +182,15 @@ describe("cli tick", () => {
 });
 
 describe("cli slice", () => {
-  it("renders a markdown slice report without mutating the saved world", () => {
+  it("renders a markdown slice report and writes a reviewable HTML report without mutating the saved world", () => {
     const output = runCli(["slice", "--scenario", "wwe-2026", "--seeds", "1", "--weeks", "4"], ctx);
     expect(output).toContain("# Six-month slice validation: WWE 2026");
+    expect(output).toContain("HTML report:");
     expect(output).toContain("| SL-1 |");
     expect(output).toContain("### Title lineages");
     expect(output).toContain("### Popularity trajectories");
+    const reportPath = join(ctx.sliceReportDirectory!, "wwe-2026-1-seed-4-weeks.html");
+    expect(existsSync(reportPath)).toBe(true);
     expect(() => loadSave(ctx.filePath)).toThrow(/no saved world/i);
   });
 });

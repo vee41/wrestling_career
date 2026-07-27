@@ -34,7 +34,7 @@ A scenario is loaded by the CLI (`seed --scenario <scenario-id>`), validated fil
 One entry per wrestler:
 - Identity: id (kebab-case, unique), ring name.
 - The full wrestler block from contracts: 8 skills (0–100), condition, money, alignment, gimmick (concept, promo tone, traits, presentation, current direction).
-- Starting popularity block (all dimensions — this seeds the card hierarchy).
+- Starting popularity block (all dimensions — this seeds the card hierarchy). Includes `starPower`, the earned-status anchor popularity is pulled toward (GDD §10.2); author it equal to `generalPopularity` unless a wrestler starts with a spot they have not yet fully earned (a hot prospect: `starPower` below `generalPopularity`) or established status they are currently under-delivering on (`starPower` above).
 - Starting career stance.
 - `controlledBy` is **not** in the data — every scenario wrestler starts `ai`; human players claim slots at seed time (CLI `--humans N` flag / web onboarding).
 
@@ -55,8 +55,17 @@ The knobs the sim reads instead of hardcoding:
 - `pleIntervalWeeks` (default 4)
 - `tvCardSize` / `pleCardSize` ranges (defaults 4–6 / 6–8)
 - `sliceWeeks` (default 26 — what the `slice` runner uses)
+- `popularity`: the surprise/crowd model: segment weights, fatigue penalty,
+  movement caps, momentum/anchor behaviour, crowd-ignition odds, and
+  `starPower` milestone values. Start by changing `momentumPushFactor`,
+  `crowdIgnitionChance`, `lossEdgeBase`, and `gravityFactor`.
+- `match`: match-outcome and crowd-response inputs: the four primary skill
+  weights, condition, story/intent influence, and performance/crowd variance.
+  `starPower` deliberately does not decide a match; it affects booking and the
+  durable-status/popularity layer instead.
 
-Tuning weights that are properties of the sim's model (not of a scenario) stay in code.
+All tuning fields are optional and schema-defaulted, so a smaller scenario can
+override only the values it needs.
 
 ## 3. Rules
 

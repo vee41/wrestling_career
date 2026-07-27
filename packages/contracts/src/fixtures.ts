@@ -1,4 +1,5 @@
 import { CURRENT_SCHEMA_VERSION } from "./common.js";
+import { DEFAULT_WORLD_CONFIG } from "./config.js";
 import type { WorldState } from "./world.js";
 
 /**
@@ -17,13 +18,7 @@ export const exampleWorldState: WorldState = {
     weeklyTvShowName: "Prototype TV",
     pleCalendar: ["PrototypeMania"],
   },
-  config: {
-    decisionTicksPerWeek: 2,
-    pleIntervalWeeks: 4,
-    tvCardSize: { min: 4, max: 6 },
-    pleCardSize: { min: 6, max: 8 },
-    sliceWeeks: 26,
-  },
+  config: structuredClone(DEFAULT_WORLD_CONFIG),
   wrestlers: [
     {
       id: "ace-steel",
@@ -106,6 +101,7 @@ export const exampleWorldState: WorldState = {
       wrestlerId: "ace-steel",
       currentReaction: 70,
       generalPopularity: 55,
+      starPower: 55,
       momentum: 8,
       positiveHeat: 60,
       negativeHeat: 5,
@@ -115,6 +111,7 @@ export const exampleWorldState: WorldState = {
       wrestlerId: "vic-vendetta",
       currentReaction: 65,
       generalPopularity: 60,
+      starPower: 60,
       momentum: -3,
       positiveHeat: 10,
       negativeHeat: 75,
@@ -124,6 +121,7 @@ export const exampleWorldState: WorldState = {
       wrestlerId: "dusty-cole",
       currentReaction: 40,
       generalPopularity: 38,
+      starPower: 38,
       momentum: 0,
       positiveHeat: 30,
       negativeHeat: 20,

@@ -48,6 +48,7 @@ function resolveIntent(world: WorldState, slot: MatchSlot, wrestlerId: string): 
 }
 
 export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx: TickContext): MatchResult {
+  const tuning = world.config.match;
   const participants = slot.participantWrestlerIds.map((id) => requireWrestler(world, id));
   const story = slot.storyId ? findStory(world, slot.storyId) : undefined;
   const rng = ctx.rng.fork(`match:${slot.id}`);
@@ -70,13 +71,13 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
 
   const rawScores = participants.map((p, i) => {
     const base =
-      p.skills.ringPerformance * 0.35 +
-      p.skills.psychology * 0.25 +
-      p.skills.athleticism * 0.2 +
-      p.condition * 0.2;
-    const storyBonus = story ? story.momentum * 0.08 : 0;
-    const intentBonus = (assertiveness[i] ?? 0) * 8;
-    return base + storyBonus + intentBonus + rng.float(-10, 10);
+      p.skills.ringPerformance * tuning.ringPerformanceWeight +
+      p.skills.psychology * tuning.psychologyWeight +
+      p.skills.athleticism * tuning.athleticismWeight +
+      p.condition * tuning.conditionWeight;
+    const storyBonus = story ? story.momentum * tuning.storyMomentumFactor : 0;
+    const intentBonus = (assertiveness[i] ?? 0) * tuning.intentAssertivenessFactor;
+    return base + storyBonus + intentBonus + rng.float(-tuning.performanceVariance, tuning.performanceVariance);
   });
 
   let winnerIdx = 0;
@@ -109,8 +110,8 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   const chemistry = clampScale100(avgProfessionalism * 0.6 + avgPsychology * 0.4 + rng.int(-5, 5));
 
   const avgRaw = rawScores.reduce((s, v) => s + v, 0) / rawScores.length;
-  const quality = clampScale100(avgRaw * 0.7 + chemistry * 0.3);
-  const crowdResponse = clampScale100(quality * 0.5 + (story ? story.audienceInterest * 0.3 : 10) + rng.int(-8, 8));
+  const quality = clampScale100(avgRaw * tuning.qualityRawScoreWeight + chemistry * tuning.qualityChemistryWeight);
+  const crowdResponse = clampScale100(quality * tuning.crowdQualityWeight + (story ? story.audienceInterest * tuning.crowdStoryInterestWeight : tuning.crowdNoStoryBase) + rng.int(-tuning.crowdVariance, tuning.crowdVariance));
   const storyAdvancement = story ? clampScale100(quality * 0.3 + Math.abs(story.momentum) * 0.1 + rng.int(0, 15)) : 0;
 
   const performances = participants.map((p, i) => {

@@ -35,7 +35,8 @@ Commands:
   stance <wrestlerId> <stance>                             queue a stance change
   tick [--count N]                                         resolve the next tick(s)
   sheet [--limit N]                                        render the dirt sheet
-  slice [--scenario <id>] [--seeds N] [--weeks N]          run Phase 3.7 slice validation`;
+  slice [--scenario <id>] [--seeds N] [--weeks N] [--report <path>]
+                                                        run Phase 3.7 slice validation and save an HTML report`;
 
 export function runCli(argv: readonly string[], ctx: CliContext): string {
   const [command, ...rest] = argv;
