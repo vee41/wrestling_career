@@ -265,6 +265,64 @@ Per **idle tick** (no appearance): keep `currentReaction → generalPopularity` 
 
 **Done when:** contracts/sim/data all typecheck with `starPower`, the popularity unit tests are green, no raw numbers leak into projections, and the 3.7 slice gate still passes (or is closer, with the report showing *why*). Constants remain open for 3.7 tuning.
 
+### Follow-up: reinstate card-position weighting (found in review, 2026-07-27)
+
+The pre-3.7.1 model scaled `REACTION_MAX_STEP`/`POPULARITY_MAX_STEP` by `CARD_POSITION_MULTIPLIER` (main_event 1.3× … opener 0.8×, [match.ts:39](../packages/sim/src/match.ts#L39)) so a bigger spot moved the needle further. The rewrite dropped this: `CARD_POSITION_MULTIPLIER` now only scales appearance pay ([match.ts:172](../packages/sim/src/match.ts#L172)); nothing in `segmentFor`, `reactionMaxStep`, or `popularityMaxStep` considers `slot.position` any more (the only remaining tie is the specific PLE-main-event-at-70+-crowd star-power bonus). A great opener currently moves popularity exactly as much as a great main event, stakes aside — which undersells "the wrestler's current spot on the card" (GDD §10's own description of `generalPopularity`).
+
+Reinstate it against the *segment*, not the raw step caps, to keep the anchored/bounded shape 3.7.1 built: `updatePopularity` needs the resolved `slot` before calling `segmentFor` (currently looked up afterward, at [popularity.ts:172](../packages/sim/src/popularity.ts#L172) — move that lookup earlier), then fold a `positionWeight` (starting point: `main_event 1.2, upper 1.1, mid 1.0, opener 0.9`) into the segment value or into `edge` — a bigger stage should raise the stakes of both over- and under-performing, not just widen the cap. Tune this alongside the SL-1/2/3 gap the direction fix opened up (see the "settles idle popularity" fix committed this session) — a stakes-aware segment may itself help close some of that gap, since main-event swings carry more weight without loosening the per-appearance cap for everyone else.
+
+**Done when:** a scripted test shows the same underlying performance producing a larger `|Δ generalPopularity|` in a main event than in an opener; `slice.test.ts` re-run alongside the SL-1/2/3 retune this follow-up is bundled with.
+
+---
+
+## Phase 3.7.2 — Booking realism: tiered rotation & multi-way matches
+
+**Goal:** Close two booking gaps found in review. (a) `gm.ts`'s rotation scoring lets high-popularity wrestlers dominate every open slot indefinitely — nothing distinguishes "protected star being paced" from "filler getting a look," which is backwards from what a real card looks like. (b) `matchSlotSchema`/`resolveMatch`/`updatePopularity` already generalize cleanly to 3+ participants — no code assumes exactly 2 (`resolveMatch` maps every calculation over `participants`/`rawScores` arrays; `popularity.ts`'s opponent-average calc already filters `participantWrestlerIds` down to "everyone but me") — but `bookShow` never constructs a slot bigger than a pair. Both are additive to the existing booking pipeline, not a rewrite of it.
+
+### 1. Tiered rotation (rest the stars, keep undercard churn)
+
+Today's `rotationScore` ([gm.ts:204-219](../packages/sim/src/gm.ts#L204-L219)) is `bookingScore − appearances·7 + max(0, 3−appearances)·100 + returnBonus`. Since `bookingScore` includes raw `generalPopularity`, a wrestler in the 80-90 popularity range needs on the order of a dozen consecutive appearances before the `-7`/appearance penalty catches up — in practice a top guy not currently absorbed into a story/title slot outranks the rest of `remaining` almost every single week. That's backwards from the ask: a star not tied to an active program should rest *more*, not less; undercard rotation without a story attached is *supposed* to look scattershot, and already does.
+
+- Add a `recentlyAppeared(wrestlerId)` check — did this wrestler work the immediately preceding show (same windowed-scan pattern as `recentPerformanceReaction`/`patience.ts`).
+- Add a popularity-tiered rest penalty to `rotationScore`, applied only within the `remaining` pool — story/title slots are earned appearances and stay exempt, since a star mid-feud should still work every week. If `generalPopularity >= restTierThreshold` (starting point: 65) and `recentlyAppeared`, subtract a `restPenalty` large enough to usually cede the slot to someone else next show (starting point: 150 — bigger than the realistic `bookingScore` gap between two contending stars). No penalty below the threshold, so undercard rotation keeps its existing, intentionally noisy behavior.
+- New config fields (extend `worldConfigSchema` or add a small `bookingTuningSchema` alongside `popularityTuning`/`matchTuning`): `restTierPopularityThreshold`, `restPenalty`.
+
+### 2. Multi-wrestler matches
+
+Scope: triple threats and fatal four-ways (cap at 4 participants), sourced from the undercard rotation pool only — not story or title slots. That keeps this pass additive and sidesteps two larger design questions this phase deliberately defers: a multi-way *title* match (would need `highestScoringContender` to pick more than one contender) and a 3-participant *story* (`director.ts`'s `scanForNewStory` always creates exactly 2-participant stories today, [director.ts:83](../packages/sim/src/director.ts#L83); a 3-way blowoff isn't reachable until/unless that changes). Both are natural follow-ups, not required here.
+
+- Generalize the two `story.participantWrestlerIds.length === 2` filters in `bookShow`'s PLE-blowoff and TV-story loops ([gm.ts:141](../packages/sim/src/gm.ts#L141), [gm.ts:180](../packages/sim/src/gm.ts#L180)) to `>= 2` and stop destructuring `[a, b]`. Free, forward-compatible, zero behavior change today since no story is ever created with 3+ participants yet — but it means the booking side won't silently strand a multi-party story if the director ever grows one.
+- In the `remaining`-pool loop ([gm.ts:220-224](../packages/sim/src/gm.ts#L220-L224)), before falling back to pairing exactly 2, roll a config-driven `multiWayChance` (starting point: 0.15 per TV show) to instead pull 3 or 4 off the top of the ranked `remaining` list (whichever fits the slot budget) into one `slot()` call. `resolveMatch`/`updatePopularity` need no code changes — both already iterate `participantWrestlerIds` generically; this is purely a `gm.ts` construction change.
+- `winnerWrestlerId` stays singular (the existing max-raw-score pick), which is already correct for "won the triple threat" — no schema change needed there.
+- New config: `maxMultiWayParticipants` (default 4), `multiWayChance`.
+
+**Testing:** a scripted test books a multi-way when the roll hits and confirms `resolveMatch` produces correct performances/payouts for 3-4 participants (a regression guard, not new logic — this should already pass); a test confirms a wrestler above `restTierPopularityThreshold` who worked last show is deprioritized this show unless in a story/title slot; re-run `slice.test.ts` — packing more wrestlers per slot changes how many distinct people a show can carry, so verify SL-9 ("nobody appears on every show") still holds alongside the rest-penalty change.
+
+**Done when:** `slice.test.ts` passes (or the report shows why not, same bar as 3.7.1); a 26-week run shows at least one multi-way match and at least one top-5-popularity wrestler sitting out a show it wasn't story-obligated to work; `playtest-notes.md` gets a short section citing the SL ids affected.
+
+---
+
+## Phase 3.8 — Promo, angle, and skit segments
+
+**Goal:** Give the show card a non-match segment type — the promo/interview/angle beat that advances a story or shifts heat without a competitive outcome. This closes a gap the contracts layer already anticipated: `segmentIntentSchema`'s 8 tokens (`build_sympathy`, `generate_hostility`, `promote_opponent`, `escalate_rivalry`, `show_vulnerability`, `protect_mystery`, `seek_controversy`, `stay_controlled` — [intent.ts:20-29](../packages/contracts/src/intent.ts#L20-L29)) and `PlayerTurn.segmentIntents` ([turn.ts:22](../packages/contracts/src/turn.ts#L22)) have existed since Phase 1.5 with nothing to attach them to — Phase 3's post-implementation notes call this out explicitly (above, "the CLI's `intent` command only wires match intents… left for a future pass since there's no segment-slot entity yet to attach them to"). This phase builds that entity.
+
+Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, story engine), and lightly the CLI. Not required to keep the slice gate green, so it doesn't block Phase 4/5; sequenced here (before Phase 4) so the narrative layer's template coverage includes segment jobs from the start instead of retrofitting them later.
+
+**Contracts:**
+1. `show.ts`: introduce a `segmentSlotSchema` (id, `participantWrestlerIds: array(idSchema).min(1)` — a solo interview is valid, unlike matches, which require 2 — `position`, optional `storyId`, `gmIntent`) and change `Show.card` from `array(matchSlotSchema)` to `array(matchSlotSchema | segmentSlotSchema)`, distinguished by a `kind: "match" | "segment"` discriminant added to both. Bump `schemaVersion`, regenerate fixtures.
+2. `match.ts` (or a new `segment.ts`): a `segmentResultSchema` parallel to `matchResultSchema` but with no `winnerWrestlerId` — instead a `dominantWrestlerId` (whose intent carried the segment, spec §6.4) plus per-participant `positiveHeatDelta`/`negativeHeatDelta`/`storyAdvancement` outputs. `intents: Record<wrestlerId, SegmentIntent>` reuses the existing schema as-is.
+
+**Sim:**
+3. `resolveSegment` in a new `segment.ts`, structurally parallel to `resolveMatch`: skills `promoAbility`/`characterWork`/`psychology` (not `ringPerformance`/`athleticism`) drive the raw score. Conflicting segment intents resolve the same way as match intents — spec §6.4 already covers "match or segment," so no new conflict rule is needed, just reuse the dominance contest. Starting-point intent → heat mapping: `build_sympathy`/`show_vulnerability` → `positiveHeatDelta`; `generate_hostility`/`seek_controversy` → `negativeHeatDelta`; `promote_opponent`/`escalate_rivalry` → story-advancement-weighted, small heat either way; `protect_mystery`/`stay_controlled` → minimal heat, minimal risk (the "safe" segment options).
+4. `updatePopularity` ([popularity.ts](../packages/sim/src/popularity.ts)): generalize the `appearances` map (currently built from `matchResults` only, [popularity.ts:111-115](../packages/sim/src/popularity.ts#L111-L115)) to also register segment participants, reusing `segmentFor` for the segment's own performance/crowd/story numbers so a promo'd wrestler hits the existing appearance branch — not the idle-decay branch this session's bugfix touched. Segments must plug into the *same* appearance concept rather than becoming a third parallel code path, or they'll reopen exactly the kind of silent-decay bug just fixed.
+5. `advanceStories`: accept segment results alongside match results so an angle can move a story's `momentum`/`audienceInterest` the way a match does.
+6. `gm.ts` booking: extend the TV story-slot loop ([gm.ts:180-191](../packages/sim/src/gm.ts#L180-L191)) so a `building`-phase story slot is sometimes filled with a segment instead of a match (starting point: `segmentChance` config, e.g. 0.25) — the "go a week with a promo instead of a match to build a feud without spending everyone's condition" beat. A promo costs no `physicalCost`/condition, which is itself a reason for the GM to reach for one when pacing a wrestler (ties naturally into 3.7.2's rest mechanic).
+7. CLI: wire `PlayerTurn.segmentIntents` into whichever segment slot the wrestler is booked into for the tick, mirroring the existing `intent` command's match-slot wiring — closes the Phase-3 gap directly.
+
+**Testing:** segment schemas round-trip through contracts; `resolveSegment` produces heat deltas matching the intent-mapping table above; a segment-only appearance moves `generalPopularity`/`momentum` the same way a match appearance does (no idle-decay leakage); a story advances from a segment result, not just a match result; re-run `slice.test.ts` — a segment competing for TV slot budget changes how many matches a show can carry, so verify SL-6/SL-9's shape still holds.
+
+**Done when:** a 26-week run books at least one segment per week on average; at least one story advances via a segment; `slice.test.ts` still passes; `playtest-notes.md` gets a short section on segment behavior citing the SL ids affected.
+
 ---
 
 ## Phase 4 — Narrative layer

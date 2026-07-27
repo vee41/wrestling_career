@@ -63,6 +63,16 @@ function storyForPair(world: WorldState, a: string, b: string): string | undefin
   )?.id;
 }
 
+/** Whether this wrestler actually worked the most recently aired show. */
+function recentlyAppeared(world: WorldState, wrestlerId: string, targetTick: number): boolean {
+  const previousShow = world.shows
+    .filter((show) => show.tick < targetTick)
+    .sort((a, b) => b.tick - a.tick)[0];
+  return previousShow !== undefined && world.matchResults.some((result) =>
+    result.showId === previousShow.id && result.participantWrestlerIds.includes(wrestlerId),
+  );
+}
+
 function slot(ctx: TickContext, participants: string[], gmIntent: GmObjective, extras: Partial<MatchSlot> = {}): MatchSlot {
   return { id: ctx.ids.next("slot"), participantWrestlerIds: participants, position: "mid", gmIntent, intents: {}, ...extras };
 }
@@ -136,23 +146,23 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   const used = new Set<string>();
   const slots: MatchSlot[] = [];
 
-  // A PLE first reserves a genuine blowoff for every peaking two-person story.
+  // A PLE first reserves a genuine blowoff for every peaking story.
   if (kind === "ple") {
-    for (const story of world.stories.filter((candidate) => candidate.phase === "peaking" && candidate.participantWrestlerIds.length === 2)) {
-      const [a, b] = story.participantWrestlerIds;
-      if (!a || !b || used.has(a) || used.has(b) || !eligible.has(a) || !eligible.has(b)) continue;
-      const title = world.titles.find((candidate) => candidate.holderId !== undefined && [a, b].includes(candidate.holderId));
+    for (const story of world.stories.filter((candidate) => candidate.phase === "peaking" && candidate.participantWrestlerIds.length >= 2)) {
+      const participants = story.participantWrestlerIds;
+      if (participants.some((id) => used.has(id) || !eligible.has(id))) continue;
+      const title = world.titles.find((candidate) => candidate.holderId !== undefined && participants.includes(candidate.holderId));
       // Repeating a title-feud blowoff would lock the same challenger into
       // every PLE main event. Let the mandatory title-contender pass below
       // rotate a fresh opponent while this story waits for TV fallout.
       const pairAlreadyMetForTitle = title !== undefined && world.matchResults.some((result) => {
         const priorShow = world.shows.find((show) => show.id === result.showId);
         const priorSlot = priorShow?.card.find((slot) => slot.id === result.matchSlotId);
-        return priorSlot?.titleId === title.id && result.participantWrestlerIds.includes(a) && result.participantWrestlerIds.includes(b);
+        return priorSlot?.titleId === title.id && participants.every((id) => result.participantWrestlerIds.includes(id));
       });
       if (pairAlreadyMetForTitle) continue;
-      used.add(a); used.add(b);
-      slots.push(slot(ctx, [a, b], world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
+      for (const wrestlerId of participants) used.add(wrestlerId);
+      slots.push(slot(ctx, participants, world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
     }
   }
 
@@ -177,17 +187,17 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   }
 
   const storySlotBudget = kind === "tv" ? Math.min(2, targetSlotCount) : targetSlotCount;
-  const stories = world.stories.filter((story) => story.phase === "building" && story.participantWrestlerIds.length === 2)
+  const stories = world.stories.filter((story) => story.phase === "building" && story.participantWrestlerIds.length >= 2)
     .sort((a, b) => b.audienceInterest - a.audienceInterest);
   for (const story of stories) {
     if (slots.length >= storySlotBudget) break;
-    const [a, b] = story.participantWrestlerIds;
-    if (!a || !b || used.has(a) || used.has(b) || !eligible.has(a) || !eligible.has(b)) continue;
-    used.add(a); used.add(b);
+    const participants = story.participantWrestlerIds;
+    if (participants.some((id) => used.has(id) || !eligible.has(id))) continue;
+    for (const wrestlerId of participants) used.add(wrestlerId);
     // TV title bouts are exceptional and only happen when the story itself justifies one.
     const title = kind === "tv" && ctx.rng.fork(`tv-title:${story.id}`).chance(0.08)
-      ? world.titles.find((candidate) => candidate.tier === "midcard" && (candidate.holderId === a || candidate.holderId === b)) : undefined;
-    slots.push(slot(ctx, [a, b], world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
+      ? world.titles.find((candidate) => candidate.tier === "midcard" && candidate.holderId !== undefined && participants.includes(candidate.holderId)) : undefined;
+    slots.push(slot(ctx, participants, world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
   }
 
   const previousAppearances = new Map<string, number>();
@@ -213,11 +223,28 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
         // The first recovered booking is the visible return beat, so it gets
         // priority over ordinary rotation once the wrestler is cleared.
         const returnBonus = missedShow && !returned ? 500 : 0;
-        return bookingScore(world, wrestler, ctx.tick) - appearances * 7 + Math.max(0, 3 - appearances) * 100 + returnBonus;
+        const popularity = findPopularity(world, wrestler.id);
+        // This applies only to the open rotation pool. Story and title slots
+        // above remain earned appearances, so an active main event program
+        // still works every week while unattached stars are deliberately paced.
+        const restPenalty = popularity.generalPopularity >= world.config.booking.restTierPopularityThreshold && recentlyAppeared(world, wrestler.id, targetTick)
+          ? world.config.booking.restPenalty
+          : 0;
+        return bookingScore(world, wrestler, ctx.tick) - appearances * 7 + Math.max(0, 3 - appearances) * 100 + returnBonus - restPenalty;
       };
       return rotationScore(b) - rotationScore(a);
     });
-  for (let index = 0; slots.length < targetSlotCount && index + 1 < remaining.length; index += 2) {
+  let index = 0;
+  // One TV undercard match may become a triple threat or fatal four-way. It
+  // draws strictly from `remaining`, never consuming a story or title slot.
+  const canBookMultiWay = kind === "tv" && slots.length < targetSlotCount && remaining.length >= 3;
+  if (canBookMultiWay && ctx.rng.fork(`multi-way:${targetTick}`).chance(world.config.booking.multiWayChance)) {
+    const participantCount = Math.min(world.config.booking.maxMultiWayParticipants, remaining.length);
+    const participants = remaining.slice(0, participantCount).map((wrestler) => wrestler.id);
+    slots.push(slot(ctx, participants, world.gmObjective));
+    index = participantCount;
+  }
+  for (; slots.length < targetSlotCount && index + 1 < remaining.length; index += 2) {
     const a = remaining[index]; const b = remaining[index + 1];
     if (!a || !b) break;
     slots.push(slot(ctx, [a.id, b.id], world.gmObjective));

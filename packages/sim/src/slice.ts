@@ -30,6 +30,7 @@ export interface SliceAnalysis {
   pleCards: SlicePleCard[];
   injuryArcs: SliceInjuryArc[];
   trajectories: SliceTrajectory[];
+  popularityLogs: Record<string, SlicePopularityLogEntry[]>;
   topWrestlerId: string;
   ticksPerWeek: number;
 }
@@ -96,6 +97,23 @@ export interface SliceTrajectory {
   samples: number[];
   start: number;
   end: number;
+}
+
+/** One dated, reasoned entry in a wrestler's full popularity history for the slice report's per-wrestler log. */
+export interface SlicePopularityLogEntry {
+  tick: number;
+  kind: "match" | "status";
+  delta: number;
+  before: number;
+  after: number;
+  reason?: PopularityChangeReason;
+  /** Only present for "match" entries. */
+  opponentIds: string[];
+  won?: boolean;
+  titleId?: string;
+  showKind?: "tv" | "ple";
+  /** Only present for "status" entries — the milestone event's own player-visible summary. */
+  summary?: string;
 }
 
 function popularitySample(world: WorldState, week: number): PopularitySample {
@@ -175,6 +193,66 @@ function matchImpacts(result: MatchResult): SliceMatchImpact[] {
         ...(impact.reason ? { reason: impact.reason } : {}),
       };
     });
+}
+
+/**
+ * Every wrestler's complete, reasoned popularity history: one entry per match
+ * appearance that actually moved the needle, plus every earned-status
+ * milestone (title win/loss, PLE main-event bonus, sustained-momentum
+ * threshold). Idle-tick drift is deliberately excluded — GDD §10.3 treats it
+ * as quiet background movement with no discrete reason to report.
+ */
+function popularityLogs(world: WorldState): Record<string, SlicePopularityLogEntry[]> {
+  const logs = new Map<string, SlicePopularityLogEntry[]>();
+  const push = (wrestlerId: string, entry: SlicePopularityLogEntry) => {
+    const list = logs.get(wrestlerId);
+    if (list) list.push(entry);
+    else logs.set(wrestlerId, [entry]);
+  };
+
+  for (const result of world.matchResults) {
+    const show = world.shows.find((candidate) => candidate.id === result.showId);
+    const slot = show?.card.find((candidate) => candidate.id === result.matchSlotId);
+    for (const performance of result.performances) {
+      const impact = performance.popularityImpact;
+      if (!impact || impact.delta === 0) continue;
+      push(performance.wrestlerId, {
+        tick: show?.tick ?? 0,
+        kind: "match",
+        delta: impact.delta,
+        before: impact.before,
+        after: impact.after,
+        ...(impact.reason ? { reason: impact.reason } : {}),
+        opponentIds: result.participantWrestlerIds.filter((id) => id !== performance.wrestlerId),
+        won: result.winnerWrestlerId === performance.wrestlerId,
+        showKind: show?.kind ?? "tv",
+        ...(slot?.titleId ? { titleId: slot.titleId } : {}),
+      });
+    }
+  }
+
+  for (const event of world.events) {
+    if (event.type !== "popularity_changed" || stringData(event, "milestone") !== "status") continue;
+    const wrestlerId = event.wrestlerIds[0];
+    const delta = numberData(event, "delta");
+    const before = numberData(event, "before");
+    const after = numberData(event, "after");
+    if (!wrestlerId || delta === undefined || before === undefined || after === undefined) continue;
+    const reason = stringData(event, "reason");
+    push(wrestlerId, {
+      tick: event.tick,
+      kind: "status",
+      delta,
+      before,
+      after,
+      ...(reason ? { reason: reason as PopularityChangeReason } : {}),
+      opponentIds: [],
+      summary: event.summary,
+    });
+  }
+
+  for (const list of logs.values()) list.sort((a, b) => a.tick - b.tick);
+  return Object.fromEntries(logs);
 }
 
 /** Compute the measurable SL-1...SL-9 criteria for one completed slice. */
@@ -337,6 +415,7 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
 
   return {
     criteria, titleLineages, stories, pleCards, injuryArcs, trajectories,
+    popularityLogs: popularityLogs(finalWorld),
     topWrestlerId: finalRanking[0]?.wrestlerId ?? "unknown",
     ticksPerWeek: finalWorld.config.decisionTicksPerWeek + 1,
   };

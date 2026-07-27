@@ -256,3 +256,22 @@ Sami Zayn program, with the weekly popularity trajectory finishing materially
 below where it began. The feuds build on TV, resolve at PLEs, and their results
 change later card placement; titles feel like anchors rather than random
 match modifiers. **The Phase 3.7 qualitative gate passes.**
+
+## Phase 3.7.2 booking realism (SL-1, SL-2, SL-3, SL-9, SL-10)
+
+The follow-up 26-week gate used the same three fixed `wwe-2026` seeds after
+adding tiered rest and TV undercard multi-way matches. All MUST criteria and
+SL-10 passed. The runs produced 9/8/6 rises for SL-1, 6/10/7 falls for
+SL-2, and 18/20/20 of 44 careers with a 16-point weekly range for SL-3;
+the 18-act first run clears SL-3's 40% threshold exactly. SL-9 still passed
+in every run, so combining several undercard wrestlers into one match did not
+create an every-show act or strand the lower card.
+
+The rotation tuning keeps the rest rule restricted to unattached wrestlers;
+story and title programs remain exempt. The default scenario uses an 85-popularity
+rest tier, which still paces the clear top acts while preserving enough ordinary
+appearances for the slice's rise/fall requirements. To offset that lower
+appearance frequency while retaining a bounded movement model, its
+scenario-owned popularity cap is 4 and crowd-ignition chance is 42%; both are
+explicit tuning values, not new systems. Triple threats and fatal four-ways
+remain TV undercard-only, capped at four participants.

@@ -1,4 +1,4 @@
-import type { MatchResult, PopularityChangeReason, WorldState } from "@wrestling/contracts";
+import type { CardPosition, MatchResult, PopularityChangeReason, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { clampDelta100, clampScale100, moveToward } from "./clamp.js";
 import { findPopularity, requireWrestler } from "./lookups.js";
@@ -8,6 +8,17 @@ const IDLE_FATIGUE_RELIEF = 3;
 const HEAT_MAX_STEP = 12;
 const TWEENER_HEAT_MAX_STEP = 8;
 
+// Card position scales a match's surprise signal without weakening the bounded,
+// anchored popularity model. It intentionally differs from the pay
+// multiplier: an opener is still a meaningful appearance, just a smaller
+// stage for an upset or a damaging loss.
+const CARD_POSITION_POPULARITY_WEIGHT: Record<CardPosition, number> = {
+  main_event: 1.2,
+  upper: 1.1,
+  mid: 1,
+  opener: 0.9,
+};
+
 interface Segment {
   value: number;
   performanceScore: number;
@@ -15,7 +26,13 @@ interface Segment {
   storyAdvancement: number;
 }
 
-function segmentFor(world: WorldState, performanceScore: number, crowdResponse: number, storyAdvancement: number, fatigue = 0): Segment {
+function segmentFor(
+  world: WorldState,
+  performanceScore: number,
+  crowdResponse: number,
+  storyAdvancement: number,
+  fatigue = 0,
+): Segment {
   const tuning = world.config.popularity;
   return {
     value: performanceScore * tuning.segmentPerformanceWeight + crowdResponse * tuning.segmentCrowdWeight + storyAdvancement * tuning.segmentStoryWeight - Math.max(0, fatigue - tuning.overexposureFatigueFloor) * tuning.overexposurePenaltyFactor,
@@ -95,7 +112,7 @@ export function adjustStarPower(
     direction === "rise" ? "status_rise" : "status_fall",
     direction,
     summary,
-    { milestone: "status" },
+    { milestone: "status", delta: popularity.starPower - before, before, after: popularity.starPower },
   );
 }
 
@@ -132,6 +149,12 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     }
 
     const { result, performanceScore, physicalCost } = appearance;
+    // Resolve the booked position before calculating the segment. Historical
+    // expectations below use the same lookup, so a main-event performance is
+    // compared against the right-sized stage rather than a hidden default.
+    const show = world.shows.find((candidate) => candidate.id === result.showId);
+    const slot = show?.card.find((candidate) => candidate.id === result.matchSlotId);
+    const position = slot?.position ?? "mid";
     const beforePopularity = popularity.generalPopularity;
     const beforeMomentum = popularity.momentum;
     popularity.fatigue = clampScale100(popularity.fatigue + physicalCost * 0.3);
@@ -153,14 +176,23 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     const edge = won
       ? Math.max(0, opponentAveragePopularity - beforePopularity) * 0.5
       : -Math.max(0, beforePopularity - opponentAveragePopularity) * 0.5 - world.config.popularity.lossEdgeBase;
-    const surprise = segment - expected + edge;
+    // A higher card position makes the same above- or below-expectation
+    // outcome more consequential. The popularity cap remains unchanged, so
+    // this strengthens the signal rather than widening every appearance's
+    // maximum swing.
+    const positionWeightedEdge = edge * CARD_POSITION_POPULARITY_WEIGHT[position];
+    const surprise = (segment - expected + edge) * CARD_POSITION_POPULARITY_WEIGHT[position];
     popularity.momentum = clampDelta100(popularity.momentum * world.config.popularity.momentumMemoryFactor + surprise * world.config.popularity.momentumSurpriseFactor);
     popularity.currentReaction = moveToward(popularity.currentReaction, segment, world.config.popularity.reactionMaxStep);
 
     const gravity = (popularity.starPower - beforePopularity) * world.config.popularity.gravityFactor;
     const headroom = popularity.momentum >= 0 ? 1 - beforePopularity / 100 : beforePopularity / 100;
     const push = popularity.momentum * world.config.popularity.momentumPushFactor * headroom;
-    popularity.generalPopularity = clampScale100(beforePopularity + Math.max(-world.config.popularity.popularityMaxStep, Math.min(world.config.popularity.popularityMaxStep, Math.round(gravity + push))));
+    // A card position influences both the immediate surprise and the amount
+    // of that momentum that becomes durable popularity. The shared cap still
+    // bounds every appearance, preserving the anchored model's stability.
+    const positionWeightedPush = push * CARD_POSITION_POPULARITY_WEIGHT[position];
+    popularity.generalPopularity = clampScale100(beforePopularity + Math.max(-world.config.popularity.popularityMaxStep, Math.min(world.config.popularity.popularityMaxStep, Math.round(gravity + positionWeightedPush))));
 
     let ignition = false;
     if (ctx.rng.fork(`moment:${wrestler.id}`).chance(world.config.popularity.crowdIgnitionChance)) {
@@ -169,8 +201,6 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
       popularity.currentReaction = clampScale100(popularity.currentReaction + 10);
     }
 
-    const show = world.shows.find((candidate) => candidate.id === result.showId);
-    const slot = show?.card.find((candidate) => candidate.id === result.matchSlotId);
     if (show?.kind === "ple" && slot?.position === "main_event" && result.crowdResponse >= 70) {
       adjustStarPower(world, ctx, wrestler.id, world.config.popularity.pleMainEventStarPowerGain, `${wrestler.name} leaves the major main event with elevated status.`);
     }
@@ -188,8 +218,8 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
       if (ignition) reason = "crowd_ignition";
       else if (crossedNegative) reason = "slump";
       else if (popularity.fatigue >= 65 && (delta < 0 || popularity.momentum < beforeMomentum)) reason = "overexposure";
-      else if (edge >= 15) reason = "upset";
-      else if (edge <= -15) reason = "burial";
+      else if (positionWeightedEdge >= 15) reason = "upset";
+      else if (positionWeightedEdge <= -15) reason = "burial";
       else if (segment - expected >= 15 || delta > 0 || crossedPositive) reason = "breakout";
       else reason = "burial";
       const direction = delta > 0 || (delta === 0 && popularity.momentum >= beforeMomentum) ? "rise" : "fall";
@@ -203,7 +233,7 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
         status_rise: `${wrestler.name}'s status is rising.`,
         status_fall: `${wrestler.name}'s status is falling.`,
       };
-      addPopularityEvent(world, ctx, wrestler.id, reason, direction, summaries[reason], { momentum: popularity.momentum });
+      addPopularityEvent(world, ctx, wrestler.id, reason, direction, summaries[reason], { momentum: popularity.momentum, delta, before: beforePopularity, after: popularity.generalPopularity });
     }
 
     // Attaches the calculation breakdown directly to the match record so the
@@ -217,7 +247,7 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
         after: popularity.generalPopularity,
         segment,
         expectedSegment: expected,
-        edge,
+        edge: positionWeightedEdge,
         momentumBefore: beforeMomentum,
         momentumAfter: popularity.momentum,
         ...(reason ? { reason } : {}),

@@ -282,4 +282,48 @@ describe("updatePopularity", () => {
     }
     expect(ignitionSeen).toBe(true);
   });
+
+  it("gives the same breakout a larger popularity move in the main event than the opener", () => {
+    const mainWorld = createTestWorld({ wrestlerCount: 2, humanCount: 0, seed: "position-popularity" });
+    const openerWorld = createTestWorld({ wrestlerCount: 2, humanCount: 0, seed: "position-popularity" });
+    for (const world of [mainWorld, openerWorld]) {
+      world.config.popularity.crowdIgnitionChance = 0;
+      world.config.popularity.momentumPushFactor = 0.2;
+      for (const wrestlerId of ["wrestler-0", "wrestler-1"]) {
+        const popularity = findPopularity(world, wrestlerId);
+        popularity.generalPopularity = popularity.starPower = popularity.currentReaction = 50;
+        popularity.momentum = 0;
+      }
+      findPopularity(world, "wrestler-1").generalPopularity = findPopularity(world, "wrestler-1").starPower = findPopularity(world, "wrestler-1").currentReaction = 80;
+      world.shows.push({
+        id: "prior-show", tick: 0, kind: "tv",
+        card: [{ id: "prior-slot", participantWrestlerIds: ["wrestler-0", "wrestler-1"], position: "mid", intents: {} }],
+      });
+      world.matchResults.push({
+        id: "prior-match", matchSlotId: "prior-slot", showId: "prior-show", participantWrestlerIds: ["wrestler-0", "wrestler-1"], winnerWrestlerId: "wrestler-0",
+        quality: 50, crowdResponse: 50, chemistry: 50, storyAdvancement: 0,
+        performances: [
+          { wrestlerId: "wrestler-0", performanceScore: 50, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+          { wrestlerId: "wrestler-1", performanceScore: 50, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+        ],
+      });
+    }
+    const breakout: MatchResult = {
+      id: "breakout", matchSlotId: "current-slot", showId: "current-show", participantWrestlerIds: ["wrestler-0", "wrestler-1"], winnerWrestlerId: "wrestler-0",
+      quality: 52, crowdResponse: 52, chemistry: 52, storyAdvancement: 0,
+      performances: [
+        { wrestlerId: "wrestler-0", performanceScore: 52, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+        { wrestlerId: "wrestler-1", performanceScore: 52, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+      ],
+    };
+    mainWorld.shows.push({ id: "current-show", tick: 1, kind: "tv", card: [{ id: "current-slot", participantWrestlerIds: breakout.participantWrestlerIds, position: "main_event", intents: {} }] });
+    openerWorld.shows.push({ id: "current-show", tick: 1, kind: "tv", card: [{ id: "current-slot", participantWrestlerIds: breakout.participantWrestlerIds, position: "opener", intents: {} }] });
+
+    updatePopularity(mainWorld, ctxAt(1), [breakout]);
+    updatePopularity(openerWorld, ctxAt(1), [breakout]);
+
+    const mainDelta = findPopularity(mainWorld, "wrestler-0").generalPopularity - 50;
+    const openerDelta = findPopularity(openerWorld, "wrestler-0").generalPopularity - 50;
+    expect(Math.abs(mainDelta)).toBeGreaterThan(Math.abs(openerDelta));
+  });
 });

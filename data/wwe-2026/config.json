@@ -12,17 +12,17 @@
     "overexposurePenaltyFactor": 0.3,
     "reactionMaxStep": 15,
     "reactionDecayStep": 5,
-    "popularityMaxStep": 3,
-    "momentumDecayFactor": 0.85,
-    "momentumMemoryFactor": 0.35,
-    "momentumSurpriseFactor": 0.65,
-    "momentumPushFactor": 4,
+    "popularityMaxStep": 4,
+    "momentumDecayFactor": 0.95,
+    "momentumMemoryFactor": 0.7,
+    "momentumSurpriseFactor": 1,
+    "momentumPushFactor": 10,
     "gravityFactor": 0.08,
-    "idleGravityFactor": 0.01,
-    "crowdIgnitionChance": 0.18,
+    "idleGravityFactor": 0.003,
+    "crowdIgnitionChance": 0.42,
     "crowdIgnitionMomentumMin": 20,
     "crowdIgnitionMomentumMax": 30,
-    "lossEdgeBase": 8,
+    "lossEdgeBase": 16,
     "pleMainEventStarPowerGain": 2,
     "sustainedMomentumStarPowerChange": 1,
     "worldTitleWinStarPowerGain": 12,
@@ -44,5 +44,11 @@
     "crowdStoryInterestWeight": 0.3,
     "crowdNoStoryBase": 10,
     "crowdVariance": 8
+  },
+  "booking": {
+    "restTierPopularityThreshold": 85,
+    "restPenalty": 150,
+    "maxMultiWayParticipants": 4,
+    "multiWayChance": 0.1
   }
 }

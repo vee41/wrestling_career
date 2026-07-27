@@ -59,6 +59,15 @@ export const matchTuningSchema = z.object({
 });
 export type MatchTuning = z.infer<typeof matchTuningSchema>;
 
+/** Scenario-owned controls for pacing established acts and varying undercard matches. */
+export const bookingTuningSchema = z.object({
+  restTierPopularityThreshold: z.number().min(0).max(100).default(65),
+  restPenalty: z.number().min(0).default(150),
+  maxMultiWayParticipants: z.number().int().min(3).max(4).default(4),
+  multiWayChance: z.number().min(0).max(1).default(0.15),
+});
+export type BookingTuning = z.infer<typeof bookingTuningSchema>;
+
 /** Scenario-owned scheduling and simulation tuning controls. */
 export const worldConfigSchema = z.object({
   decisionTicksPerWeek: z.number().int().min(1).default(2),
@@ -68,6 +77,7 @@ export const worldConfigSchema = z.object({
   sliceWeeks: z.number().int().min(1).default(26),
   popularity: popularityTuningSchema.default({}),
   match: matchTuningSchema.default({}),
+  booking: bookingTuningSchema.default({}),
 });
 export type WorldConfig = z.infer<typeof worldConfigSchema>;
 export const DEFAULT_WORLD_CONFIG: WorldConfig = worldConfigSchema.parse({});
