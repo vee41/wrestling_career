@@ -209,6 +209,17 @@ describe("updatePopularity", () => {
     expect(popularity.generalPopularity).toBe(89);
   });
 
+  it("decays currentReaction toward generalPopularity on idle ticks instead of dragging generalPopularity down", () => {
+    const world = createTestWorld({ wrestlerCount: 1 });
+    const popularity = findPopularity(world, "wrestler-0");
+    popularity.generalPopularity = 89;
+    popularity.starPower = 89;
+    popularity.currentReaction = 74;
+    updatePopularity(world, ctxAt(1), []);
+    expect(popularity.currentReaction).toBe(79);
+    expect(popularity.generalPopularity).toBe(89);
+  });
+
   it("raises star power on a title win and records status facts", () => {
     const world = createTestWorld({ wrestlerCount: 2, humanCount: 0 });
     const title = world.titles.find((candidate) => candidate.id === "world-title")!;

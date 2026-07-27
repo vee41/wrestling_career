@@ -1,4 +1,4 @@
-import type { MatchResult, Show, WorldEvent, WorldState } from "@wrestling/contracts";
+import type { MatchResult, PopularityChangeReason, Show, WorldEvent, WorldState } from "@wrestling/contracts";
 import { isShowTick, weekForTick } from "./booking.js";
 import { runTick } from "./tick.js";
 
@@ -41,6 +41,31 @@ export interface SliceTitleLineage {
   changes: Array<{ tick: number; holderId: string; previousHolderId?: string; defended: boolean }>;
 }
 
+/** The per-wrestler GDD §10 popularity breakdown for one match, surfaced for the slice report's expand-to-explain view. */
+export interface SliceMatchImpact {
+  wrestlerId: string;
+  delta: number;
+  before: number;
+  after: number;
+  segment: number;
+  expectedSegment: number;
+  edge: number;
+  momentumBefore: number;
+  momentumAfter: number;
+  reason?: PopularityChangeReason;
+}
+
+export interface SliceStoryMatch {
+  tick: number;
+  showKind: "tv" | "ple";
+  position: string;
+  participants: string[];
+  winnerWrestlerId: string;
+  quality: number;
+  titleId?: string;
+  impacts: SliceMatchImpact[];
+}
+
 export interface SliceStoryTimeline {
   storyId: string;
   description: string;
@@ -48,12 +73,13 @@ export interface SliceStoryTimeline {
   startTick?: number;
   resolveTick?: number;
   resolvedAtPle: boolean;
+  matches: SliceStoryMatch[];
 }
 
 export interface SlicePleCard {
   week: number;
   showId: string;
-  matches: Array<{ position: string; participants: string[]; titleId?: string; storyId?: string }>;
+  matches: Array<{ position: string; participants: string[]; titleId?: string; storyId?: string; impacts: SliceMatchImpact[] }>;
 }
 
 export interface SliceInjuryArc {
@@ -61,6 +87,7 @@ export interface SliceInjuryArc {
   injuryTicks: number[];
   missedShowTicks: number[];
   returnTicks: number[];
+  events: Array<{ tick: number; summary: string }>;
 }
 
 export interface SliceTrajectory {
@@ -130,6 +157,26 @@ function showForMatch(world: WorldState, matchId: string): Show | undefined {
   return result ? world.shows.find((show) => show.id === result.showId) : undefined;
 }
 
+function matchImpacts(result: MatchResult): SliceMatchImpact[] {
+  return result.performances
+    .filter((performance) => performance.popularityImpact !== undefined)
+    .map((performance) => {
+      const impact = performance.popularityImpact!;
+      return {
+        wrestlerId: performance.wrestlerId,
+        delta: impact.delta,
+        before: impact.before,
+        after: impact.after,
+        segment: impact.segment,
+        expectedSegment: impact.expectedSegment,
+        edge: impact.edge,
+        momentumBefore: impact.momentumBefore,
+        momentumAfter: impact.momentumAfter,
+        ...(impact.reason ? { reason: impact.reason } : {}),
+      };
+    });
+}
+
 /** Compute the measurable SL-1...SL-9 criteria for one completed slice. */
 export function analyzeSlice(run: SliceRun): SliceAnalysis {
   const { initialWorld, finalWorld, weeklyPopularity } = run;
@@ -181,6 +228,23 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
   const storyStarts = finalWorld.events.filter((event) => event.type === "story_started");
   const storyResolutions = finalWorld.events.filter((event) => event.type === "story_resolved");
   const startByStory = new Map(storyStarts.filter((event) => event.storyId).map((event) => [event.storyId!, event]));
+  const storyMatches = (storyId: string): SliceStoryMatch[] => finalWorld.matchResults
+    .filter((result) => result.storyId === storyId)
+    .map((result) => {
+      const show = finalWorld.shows.find((candidate) => candidate.id === result.showId);
+      const slot = show?.card.find((candidate) => candidate.id === result.matchSlotId);
+      return {
+        tick: show?.tick ?? 0,
+        showKind: show?.kind ?? "tv",
+        position: slot?.position ?? "mid",
+        participants: result.participantWrestlerIds,
+        winnerWrestlerId: result.winnerWrestlerId,
+        quality: result.quality,
+        ...(slot?.titleId ? { titleId: slot.titleId } : {}),
+        impacts: matchImpacts(result),
+      };
+    })
+    .sort((a, b) => a.tick - b.tick);
   const stories = [...new Set([...storyStarts, ...storyResolutions].map((event) => event.storyId).filter((id): id is string => id !== undefined))].map((storyId) => {
     const start = startByStory.get(storyId);
     const resolution = storyResolutions.find((event) => event.storyId === storyId);
@@ -193,6 +257,7 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
       ...(start ? { startTick: start.tick } : {}),
       ...(resolution ? { resolveTick: resolution.tick } : {}),
       resolvedAtPle: show?.kind === "ple",
+      matches: storyMatches(storyId),
     };
   });
   const resolvedStories = stories.filter((story) => story.resolveTick !== undefined);
@@ -203,7 +268,16 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
 
   const pleCards = finalWorld.shows.filter((show) => show.kind === "ple").map((show) => ({
     week: weekForTick(show.tick, finalWorld.config), showId: show.id,
-    matches: show.card.map((slot) => ({ position: slot.position, participants: slot.participantWrestlerIds, ...(slot.titleId ? { titleId: slot.titleId } : {}), ...(slot.storyId ? { storyId: slot.storyId } : {}) })),
+    matches: show.card.map((slot) => {
+      const result = finalWorld.matchResults.find((candidate) => candidate.showId === show.id && candidate.matchSlotId === slot.id);
+      return {
+        position: slot.position,
+        participants: slot.participantWrestlerIds,
+        ...(slot.titleId ? { titleId: slot.titleId } : {}),
+        ...(slot.storyId ? { storyId: slot.storyId } : {}),
+        impacts: result ? matchImpacts(result) : [],
+      };
+    }),
   }));
   const pleMainEventers = new Set(pleCards.flatMap((card) => card.matches.filter((match) => match.position === "main_event").flatMap((match) => match.participants)));
   const mainEventerOutsideInitialTopFive = [...pleMainEventers].some((id) => !initialTopFive.has(id));
@@ -215,6 +289,7 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
       injuryTicks: events.filter((event) => event.matchId !== undefined && numberData(event, "condition") !== undefined).map((event) => event.tick),
       missedShowTicks: events.filter((event) => stringData(event, "absence") === "missed_show").map((event) => event.tick),
       returnTicks: events.filter((event) => stringData(event, "absence") === "return").map((event) => event.tick),
+      events: events.map((event) => ({ tick: event.tick, summary: event.summary })),
     };
   }).filter((arc) => arc.injuryTicks.length > 0 || arc.missedShowTicks.length > 0 || arc.returnTicks.length > 0);
   const injuryEvents = injuryArcs.reduce((total, arc) => total + arc.injuryTicks.length, 0);

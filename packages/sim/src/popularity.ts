@@ -119,10 +119,10 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     const appearance = appearances.get(wrestler.id);
 
     if (!appearance) {
-      // The volatile crowd read settles into the general public estimate on
-      // quiet ticks (GDD §10's reaction → popularity timescale), while the
-      // earned-status anchor remains a separate, gentle counterweight.
-      popularity.generalPopularity = moveToward(popularity.generalPopularity, popularity.currentReaction, world.config.popularity.reactionDecayStep);
+      // The volatile crowd read settles back toward the stable baseline on
+      // quiet ticks (GDD §10's reaction → popularity timescale); the
+      // earned-status anchor pulls generalPopularity separately, and gently.
+      popularity.currentReaction = moveToward(popularity.currentReaction, popularity.generalPopularity, world.config.popularity.reactionDecayStep);
       popularity.momentum = clampDelta100(popularity.momentum * world.config.popularity.momentumDecayFactor);
       popularity.fatigue = clampScale100(popularity.fatigue - IDLE_FATIGUE_RELIEF);
       popularity.generalPopularity = clampScale100(
@@ -183,8 +183,8 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     const delta = popularity.generalPopularity - beforePopularity;
     const crossedPositive = beforeMomentum < 25 && popularity.momentum >= 25;
     const crossedNegative = beforeMomentum > -25 && popularity.momentum <= -25;
+    let reason: PopularityChangeReason | undefined;
     if (ignition || Math.abs(delta) >= 2 || crossedPositive || crossedNegative) {
-      let reason: PopularityChangeReason;
       if (ignition) reason = "crowd_ignition";
       else if (crossedNegative) reason = "slump";
       else if (popularity.fatigue >= 65 && (delta < 0 || popularity.momentum < beforeMomentum)) reason = "overexposure";
@@ -204,6 +204,24 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
         status_fall: `${wrestler.name}'s status is falling.`,
       };
       addPopularityEvent(world, ctx, wrestler.id, reason, direction, summaries[reason], { momentum: popularity.momentum });
+    }
+
+    // Attaches the calculation breakdown directly to the match record so the
+    // slice report can explain "why" without re-deriving the model — `result`
+    // here is the same object reference held in `world.matchResults`.
+    const performance = result.performances.find((candidate) => candidate.wrestlerId === wrestler.id);
+    if (performance) {
+      performance.popularityImpact = {
+        delta,
+        before: beforePopularity,
+        after: popularity.generalPopularity,
+        segment,
+        expectedSegment: expected,
+        edge,
+        momentumBefore: beforeMomentum,
+        momentumAfter: popularity.momentum,
+        ...(reason ? { reason } : {}),
+      };
     }
   }
 }

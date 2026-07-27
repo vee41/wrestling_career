@@ -1,8 +1,27 @@
 import { z } from "zod";
 import { deltaScale100Schema, idSchema, scale100Schema } from "./common.js";
+import { popularityChangeReasonSchema } from "./popularity.js";
 
 // Broad pre-match intentions (GDD §14) live in intent.ts (spec §6) — see
 // matchIntentSchema there. This module only covers the match's outcome.
+
+// The GDD §10 popularity-model breakdown for one wrestler's appearance in
+// this match, attached by `updatePopularity` after the fact — this is what
+// the slice report shows when a match is expanded. `reason` is only set when
+// the change was significant enough to also emit a `popularity_changed`
+// event (see popularity.ts); smaller moves still carry the raw factors.
+export const popularityImpactSchema = z.object({
+  delta: deltaScale100Schema,
+  before: scale100Schema,
+  after: scale100Schema,
+  segment: z.number(),
+  expectedSegment: z.number(),
+  edge: z.number(),
+  momentumBefore: deltaScale100Schema,
+  momentumAfter: deltaScale100Schema,
+  reason: popularityChangeReasonSchema.optional(),
+});
+export type PopularityImpact = z.infer<typeof popularityImpactSchema>;
 
 export const participantPerformanceSchema = z.object({
   wrestlerId: idSchema,
@@ -11,6 +30,7 @@ export const participantPerformanceSchema = z.object({
   physicalCost: scale100Schema,
   gmReactionDelta: deltaScale100Schema,
   backstageReactionDelta: deltaScale100Schema,
+  popularityImpact: popularityImpactSchema.optional(),
 });
 export type ParticipantPerformance = z.infer<typeof participantPerformanceSchema>;
 
