@@ -1,5 +1,6 @@
 import {
   CURRENT_SCHEMA_VERSION,
+  DEFAULT_WORLD_CONFIG,
   gmObjectiveSchema,
   skillNameSchema,
   type Alignment,
@@ -256,6 +257,7 @@ export function buildWorld(options: SeedOptions): WorldState {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     tick: 0,
     seed,
+    config: structuredClone(DEFAULT_WORLD_CONFIG),
     wrestlers,
     popularity,
     relationships: [],
@@ -267,6 +269,10 @@ export function buildWorld(options: SeedOptions): WorldState {
     narrativeResults: [],
     gmObjective,
     gmObjectiveSince: 0,
+    titles: [
+      { id: "world-title", name: "World Championship", tier: "world", holderId: wrestlers[0]?.id, since: 0 },
+      { id: "midcard-title", name: "Midcard Championship", tier: "midcard", holderId: wrestlers[1]?.id, since: 0 },
+    ],
     stances,
     pendingProposals: [],
     pendingReactiveDecisions: [],

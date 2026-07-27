@@ -11,6 +11,13 @@ export const exampleWorldState: WorldState = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   tick: 3,
   seed: "prototype-seed-1",
+  config: {
+    decisionTicksPerWeek: 2,
+    pleIntervalWeeks: 4,
+    tvCardSize: { min: 4, max: 6 },
+    pleCardSize: { min: 6, max: 8 },
+    sliceWeeks: 26,
+  },
   wrestlers: [
     {
       id: "ace-steel",
@@ -158,11 +165,13 @@ export const exampleWorldState: WorldState = {
     {
       id: "show-week-3",
       tick: 3,
+      kind: "tv",
       card: [
         {
           id: "slot-main-event",
           participantWrestlerIds: ["ace-steel", "vic-vendetta"],
           storyId: "story-ace-vs-vic",
+          position: "main_event",
           gmIntent: "capitalise_on_rising_star",
           intents: {},
         },
@@ -245,6 +254,10 @@ export const exampleWorldState: WorldState = {
   ],
   gmObjective: "capitalise_on_rising_star",
   gmObjectiveSince: 1,
+  titles: [
+    { id: "world-title", name: "World Championship", tier: "world", holderId: "vic-vendetta", since: 1 },
+    { id: "midcard-title", name: "Heritage Championship", tier: "midcard", holderId: "ace-steel", since: 2 },
+  ],
   stances: [
     { wrestlerId: "ace-steel", stance: "pursue_championships" },
     { wrestlerId: "vic-vendetta", stance: "protect_character" },

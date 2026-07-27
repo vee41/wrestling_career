@@ -17,7 +17,7 @@ import { applyActions } from "./resolve-actions.js";
 import { bookUpcomingShowIfDue, rotateGmObjectiveIfDue } from "./gm.js";
 import { resolveShow } from "./match.js";
 import { updatePopularity } from "./popularity.js";
-import { updateChampionship } from "./title.js";
+import { updateChampionships } from "./title.js";
 import { advanceStories } from "./stories.js";
 import { generateReactiveDecisions, scanForNewStory } from "./director.js";
 import { buildNarrativeJobs } from "./narrative.js";
@@ -82,7 +82,7 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
 
   // Step 6 — crowd & popularity update.
   updatePopularity(draft, ctx, matchResults);
-  updateChampionship(draft, ctx, matchResults);
+  updateChampionships(draft, ctx, matchResults);
 
   // Step 7 — story engine + dramatic director.
   advanceStories(draft, ctx, matchResults);

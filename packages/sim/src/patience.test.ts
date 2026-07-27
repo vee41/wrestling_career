@@ -50,8 +50,8 @@ describe("countRecentInteractions / patienceMultiplier", () => {
 describe("recentPerformanceReaction (tuning gap #3)", () => {
   it("sums gmReactionDelta/backstageReactionDelta from recent matches for one wrestler, via the match's show tick", () => {
     const world = createTestWorld({ wrestlerCount: 2 });
-    world.shows.push({ id: "show-old", tick: 0, card: [{ id: "slot-old", participantWrestlerIds: ["wrestler-0", "wrestler-1"], intents: {} }] });
-    world.shows.push({ id: "show-recent", tick: 5, card: [{ id: "slot-recent", participantWrestlerIds: ["wrestler-0", "wrestler-1"], intents: {} }] });
+    world.shows.push({ id: "show-old", tick: 0, kind: "tv", card: [{ id: "slot-old", participantWrestlerIds: ["wrestler-0", "wrestler-1"], position: "mid", intents: {} }] });
+    world.shows.push({ id: "show-recent", tick: 5, kind: "tv", card: [{ id: "slot-recent", participantWrestlerIds: ["wrestler-0", "wrestler-1"], position: "mid", intents: {} }] });
 
     const perf = (wrestlerId: string, gm: number, backstage: number) => ({
       wrestlerId,

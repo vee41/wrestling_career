@@ -47,8 +47,13 @@ export function renderStatus(world: WorldState, wrestlerId: string, debug: boole
       debug ? wrestler.condition : intensityBand(wrestler.condition)
     } · $${wrestler.money}`,
   );
-  if (world.championId === wrestlerId) lines.push("  ★ Current champion");
-  else if (world.championId) lines.push(`  Champion: ${findName(world, world.championId)}`);
+  const heldTitles = world.titles.filter((title) => title.holderId === wrestlerId);
+  if (heldTitles.length > 0) lines.push(`  ★ Champion: ${heldTitles.map((title) => title.name).join(", ")}`);
+  else {
+    const champions = world.titles.filter((title) => title.holderId !== undefined)
+      .map((title) => `${title.name}: ${findName(world, title.holderId!)}`);
+    if (champions.length > 0) lines.push(`  Champions: ${champions.join(" · ")}`);
+  }
 
   lines.push("  Gimmick:");
   lines.push(`    ${wrestler.gimmick.concept} — ${wrestler.gimmick.promoTone}, ${wrestler.gimmick.presentation}`);

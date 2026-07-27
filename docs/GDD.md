@@ -1,4 +1,4 @@
-# Wrestling Career Simulation — GDD v0.4
+# Wrestling Career Simulation — GDD v0.5
 
 ## Document map and precedence
 
@@ -6,8 +6,10 @@
 | --- | --- |
 | **This GDD** | Vision and simulation systems. Owns the canonical tick pipeline (§4). |
 | [player-decision-loop-spec.md](player-decision-loop-spec.md) | **Authoritative for player-facing choice structure.** On conflict with §5–§6 here, the spec wins. Owns all choice vocabularies (intents, stances, actions, reactive types). |
+| [six-month-slice.md](six-month-slice.md) | **The MVP target.** Defines the believable six-month slice the simulation must produce, with measurable criteria (SL-1…SL-10). Acceptance test for sim tuning. |
+| [scenario-data-spec.md](scenario-data-spec.md) | Data file formats for replaceable game worlds (rosters, titles, calendar, config). |
 | [PLAN.md](PLAN.md) | Execution order for the AI agent building the prototype. |
-| `packages/contracts` | Machine canon for all tokens once PLAN Phase 1.5 lands. |
+| `packages/contracts` | Machine canon for all tokens and data formats. |
 
 ## 1. High concept
 
@@ -20,6 +22,8 @@ Matches and stories are resolved by a timed simulation. Players do not choose in
 The core fantasy:
 
 > Build a wrestling career inside a living promotion that does not revolve around you.
+
+**MVP focus:** before careers can matter, the world must. The MVP bar is that the simulation, running on its own, produces a believable and interesting **six-month slice** of a WWE-shaped promotion — feuds that arc, titles that mean something, acts that rise *and* fall, history that accumulates. That target is specified measurably in [six-month-slice.md](six-month-slice.md). The world itself is data: rosters, titles, and calendars come from replaceable scenario files (§22), with a direct remodel of WWE as the default.
 
 ---
 
@@ -57,14 +61,15 @@ The game should support short visits with only a few meaningful interactions req
 
 The first playable version contains:
 
-* One shared promotion
-* A small number of human players
-* Approximately 20–40 AI wrestlers
+* One shared promotion — a single brand, remodeled directly on WWE via the default scenario dataset (§22)
+* A roster of ~40 wrestlers loaded from data files (men's singles division for the MVP)
+* A small number of human players claiming roster slots; the rest AI
 * One AI general manager
-* Weekly shows
+* Weekly TV show plus a monthly premium live event (PLE) — TV builds, PLEs pay off
+* Two title lines: a world championship and a midcard (Intercontinental) championship
 * Timed simulation ticks
-* Matches, feuds and storylines
-* Crowd response and popularity
+* Matches, feuds and storylines with PLE blowoffs
+* Crowd response and popularity — including falls: overexposure, cold streaks, and depushes
 * Relationships and backstage politics
 * Wrestler development
 * Lightweight gimmick control
@@ -75,7 +80,8 @@ During development, ticks can be triggered manually.
 
 Not initially included:
 
-* Multiple promotions
+* Multiple promotions or a second brand
+* Women's division and tag team division (the data format must not preclude them — see six-month-slice.md §5)
 * Contracts and free agency
 * Drafts
 * Detailed finances
@@ -91,9 +97,9 @@ Not initially included:
 The world advances in fixed ticks. There are two tick types:
 
 * **Decision ticks** — backstage life between shows
-* **Show ticks** — one each in-game week, resolving the weekly show
+* **Show ticks** — one each in-game week, resolving that week's show
 
-Default week: 2 decision ticks + 1 show tick (configurable). Longer-term planning is evaluated over multiple weeks.
+Default week: 2 decision ticks + 1 show tick (configurable via scenario config). Shows come in two kinds: **TV** (the weekly default) and **PLE** (premium live event — every Nth week per scenario config, default every 4th). PLEs carry bigger cards, title matches, and feud blowoffs; TV builds toward them. Longer-term planning is evaluated over multiple weeks.
 
 Every tick — both types — grants each player one interaction slot and one action slot (spec §2). Players submit their turn before the tick deadline. Unused slots expire.
 
@@ -318,6 +324,8 @@ Possible GM objectives:
 * Prepare the next major event
 
 Players can influence the GM but cannot directly control booking. Repeating the same ask or pitch within a short window erodes the GM's patience and trust (spec §4.2).
+
+The GM books to the calendar: TV shows build stories and test acts; PLEs pay off peaking feuds and stake the titles. Title matches concentrate on PLEs, and a wrestler's card position (main event, upper card, midcard, opener) reflects and shapes their standing.
 
 ---
 
@@ -635,3 +643,19 @@ The prototype succeeds when players can describe distinct careers and shared eve
 It fails if careers are mainly described as:
 
 > “I trained my stats until my popularity was high enough to become champion.”
+
+At world level, this question is operationalized by [six-month-slice.md](six-month-slice.md): a headless six-month run must produce feuds that arc, titles that mean something, and acts that rise *and* fall — measured by criteria SL-1…SL-10.
+
+---
+
+## 22. Data-driven scenarios
+
+All world content — promotion identity, roster, titles, show calendar, seed relationships and feuds, cadence config — lives in per-scenario data files that can be replaced for every game. The simulation is scenario-agnostic: no wrestler, title, or show name appears in sim code.
+
+Formats are specified in [scenario-data-spec.md](scenario-data-spec.md) and validated by `packages/contracts`. The default scenario is `wwe-2026`: a direct remodel of WWE as of early 2026 (single brand, ~40 real wrestlers, World Heavyweight + Intercontinental Championships, weekly Raw + a real PLE calendar).
+
+---
+
+## 23. MVP target: the six-month slice
+
+The MVP is judged on whether the simulation alone produces an interesting, wrestling-logical six-month slice of the default scenario — before narrative polish and before UI. The full target, including its measurable validation criteria and required mechanics, is [six-month-slice.md](six-month-slice.md). Simulation tuning against that spec (PLAN Phase 3.7) gates all UI work.

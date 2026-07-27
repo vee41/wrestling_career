@@ -73,11 +73,13 @@ describe("generateReactiveDecisions — tuning gap #1 (dead reactive types)", ()
         world.shows.push({
           id: "show-1",
           tick: 3,
+          kind: "tv",
           card: [
             {
               id: "slot-1",
               participantWrestlerIds: ["wrestler-0", "wrestler-1"],
               storyId: "story-1",
+              position: "mid",
               intents: {},
             },
           ],

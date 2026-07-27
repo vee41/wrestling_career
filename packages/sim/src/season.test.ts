@@ -25,7 +25,7 @@ describe("12-week / 30-wrestler / 0-human season", () => {
     // Title changes hands or is credibly defended at least once.
     const titleEvents = world.events.filter((e) => e.type === "title_change");
     expect(titleEvents.length).toBeGreaterThan(0);
-    expect(world.championId).toBeDefined();
+    expect(world.titles.some((title) => title.holderId !== undefined)).toBe(true);
 
     // At least 5 distinct stories occurred over the season.
     expect(world.stories.length).toBeGreaterThanOrEqual(5);

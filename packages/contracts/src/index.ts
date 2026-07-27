@@ -6,6 +6,8 @@ export * from "./popularity.js";
 export * from "./relationship.js";
 export * from "./story.js";
 export * from "./show.js";
+export * from "./title.js";
+export * from "./config.js";
 export * from "./match.js";
 export * from "./interaction.js";
 export * from "./intent.js";

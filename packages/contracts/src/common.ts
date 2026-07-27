@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 /** An unsigned 0-100 intensity/quality scale used throughout the sim. */
 export const scale100Schema = z.number().int().min(0).max(100);

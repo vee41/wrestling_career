@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CURRENT_SCHEMA_VERSION, idSchema, tickSchema } from "./common.js";
+import { CURRENT_SCHEMA_VERSION, tickSchema } from "./common.js";
 import { wrestlerSchema } from "./wrestler.js";
 import { popularityBlockSchema } from "./popularity.js";
 import { relationshipSchema } from "./relationship.js";
@@ -11,12 +11,15 @@ import { narrativeJobSchema, narrativeResultSchema } from "./narrative.js";
 import { wrestlerStanceSchema } from "./stance.js";
 import { proposalSchema } from "./proposal.js";
 import { reactiveDecisionSchema } from "./reactive.js";
+import { titleSchema } from "./title.js";
+import { worldConfigSchema } from "./config.js";
 
 export const worldStateSchema = z
   .object({
     schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
     tick: tickSchema,
     seed: z.string().min(1),
+    config: worldConfigSchema,
     wrestlers: z.array(wrestlerSchema),
     popularity: z.array(popularityBlockSchema),
     relationships: z.array(relationshipSchema),
@@ -28,10 +31,9 @@ export const worldStateSchema = z
     narrativeResults: z.array(narrativeResultSchema),
     gmObjective: gmObjectiveSchema,
     gmObjectiveSince: tickSchema,
-    // PLAN Phase 2 simplification: "titles as a single championship belt" —
-    // one belt, no injury/title taxonomy. Absent until first crowned.
-    championId: idSchema.optional(),
-    championSince: tickSchema.optional(),
+    // Championship lineage is derived from title_change events; this is the
+    // current title table for booking and status views.
+    titles: z.array(titleSchema).min(2),
     stances: z.array(wrestlerStanceSchema),
     pendingProposals: z.array(proposalSchema),
     pendingReactiveDecisions: z.array(reactiveDecisionSchema),
@@ -39,6 +41,7 @@ export const worldStateSchema = z
   .superRefine((world, ctx) => {
     const wrestlerIds = new Set(world.wrestlers.map((w) => w.id));
     const storyIds = new Set(world.stories.map((s) => s.id));
+    const titleIds = new Set(world.titles.map((t) => t.id));
     const showIds = new Set(world.shows.map((s) => s.id));
     const matchIds = new Set([
       ...world.shows.flatMap((show) => show.card.map((slot) => slot.id)),
@@ -88,6 +91,13 @@ export const worldStateSchema = z
             path: ["shows", i, "card", j, "storyId"],
           });
         }
+        if (slot.titleId !== undefined && !titleIds.has(slot.titleId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `references unknown title id "${slot.titleId}"`,
+            path: ["shows", i, "card", j, "titleId"],
+          });
+        }
       });
     });
 
@@ -115,9 +125,12 @@ export const worldStateSchema = z
       e.wrestlerIds.forEach((id, j) => requireKnownWrestler(id, ["events", i, "wrestlerIds", j]));
     });
 
-    if (world.championId !== undefined) {
-      requireKnownWrestler(world.championId, ["championId"]);
+    if (titleIds.size !== world.titles.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "title ids must be unique", path: ["titles"] });
     }
+    world.titles.forEach((title, i) => {
+      if (title.holderId !== undefined) requireKnownWrestler(title.holderId, ["titles", i, "holderId"]);
+    });
 
     const stanceWrestlerIds = world.stances.map((s) => s.wrestlerId);
     if (new Set(stanceWrestlerIds).size !== wrestlerIds.size) {

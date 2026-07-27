@@ -2,6 +2,12 @@ import { z } from "zod";
 import { idSchema, tickSchema } from "./common.js";
 import { matchIntentSchema } from "./intent.js";
 
+export const showKindSchema = z.enum(["tv", "ple"]);
+export type ShowKind = z.infer<typeof showKindSchema>;
+
+export const cardPositionSchema = z.enum(["main_event", "upper", "mid", "opener"]);
+export type CardPosition = z.infer<typeof cardPositionSchema>;
+
 // GDD §11 — the GM's active creative objective, rotated by the sim every few weeks.
 export const gmObjectiveSchema = z.enum([
   "new_main_eventer",
@@ -17,6 +23,8 @@ export const matchSlotSchema = z.object({
   id: idSchema,
   participantWrestlerIds: z.array(idSchema).min(2),
   storyId: idSchema.optional(),
+  position: cardPositionSchema,
+  titleId: idSchema.optional(),
   gmIntent: gmObjectiveSchema.optional(),
   // PLAN Phase 2: a show's card is booked one tick ahead of airing so
   // players have a decision period to set match intent (spec §6) before it
@@ -29,6 +37,7 @@ export type MatchSlot = z.infer<typeof matchSlotSchema>;
 export const showSchema = z.object({
   id: idSchema,
   tick: tickSchema,
+  kind: showKindSchema,
   card: z.array(matchSlotSchema).min(1),
 });
 export type Show = z.infer<typeof showSchema>;

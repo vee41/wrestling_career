@@ -35,6 +35,13 @@ const APPEARANCE_PAY_BASE = 30;
 const CROWD_PAY_FACTOR = 0.5;
 const INJURY_CONDITION_THRESHOLD = 25;
 
+export const CARD_POSITION_MULTIPLIER = {
+  main_event: 1.3,
+  upper: 1.15,
+  mid: 1,
+  opener: 0.8,
+} as const;
+
 function resolveIntent(world: WorldState, slot: MatchSlot, wrestlerId: string): MatchIntent {
   return slot.intents[wrestlerId] ?? defaultMatchIntent(findStance(world, wrestlerId).stance);
 }
@@ -140,7 +147,7 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   // appearance pay, with a bonus scaled by how hot the crowd was. This is
   // the earn side of the economy; the spend side is the explicit `invest`
   // flag on actions (resolve-actions.ts).
-  const pay = APPEARANCE_PAY_BASE + Math.round(crowdResponse * CROWD_PAY_FACTOR);
+  const pay = Math.round((APPEARANCE_PAY_BASE + crowdResponse * CROWD_PAY_FACTOR) * CARD_POSITION_MULTIPLIER[slot.position]);
   const payouts: Record<string, number> = {};
   for (const p of participants) {
     const perf = performances.find((r) => r.wrestlerId === p.id);
@@ -173,7 +180,7 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     ...(story ? { storyId: story.id } : {}),
     matchId: result.id,
     showId: show.id,
-    data: { quality, crowdResponse, payouts },
+    data: { quality, crowdResponse, position: slot.position, payouts },
   });
 
   return result;

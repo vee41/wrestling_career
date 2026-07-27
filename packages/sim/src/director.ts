@@ -22,7 +22,7 @@ function activeStoryParticipantIds(world: WorldState): Set<string> {
 }
 
 function chooseTension(world: WorldState, a: string, b: string): { tension: TensionType; description: string; stakes: string } {
-  if (world.championId === a || world.championId === b) {
+  if (world.titles.some((title) => title.holderId === a || title.holderId === b)) {
     return {
       tension: "title_pursuit",
       description: `${requireWrestler(world, a).name} and ${requireWrestler(world, b).name} are on a collision course over the championship.`,

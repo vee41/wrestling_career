@@ -16,7 +16,8 @@ describe("resolveShow", () => {
     const show: Show = {
       id: "show-x",
       tick: 0,
-      card: [{ id: "slot-x", participantWrestlerIds: ["wrestler-0", "wrestler-1"], intents: {} }],
+      kind: "tv",
+      card: [{ id: "slot-x", participantWrestlerIds: ["wrestler-0", "wrestler-1"], position: "mid", intents: {} }],
     };
     world.shows.push(show);
     const before = new Map(world.wrestlers.map((w) => [w.id, w.money]));
@@ -42,7 +43,8 @@ describe("resolveShow", () => {
     const show: Show = {
       id: "show-y",
       tick: 0,
-      card: [{ id: "slot-y", participantWrestlerIds: ["wrestler-0", "wrestler-1"], intents: {} }],
+      kind: "tv",
+      card: [{ id: "slot-y", participantWrestlerIds: ["wrestler-0", "wrestler-1"], position: "mid", intents: {} }],
     };
     world.shows.push(show);
 
@@ -61,7 +63,8 @@ describe("resolveShow", () => {
     const show: Show = {
       id: "show-z",
       tick: 0,
-      card: [{ id: "slot-z", participantWrestlerIds: ["wrestler-0", "wrestler-1"], intents: {} }],
+      kind: "tv",
+      card: [{ id: "slot-z", participantWrestlerIds: ["wrestler-0", "wrestler-1"], position: "mid", intents: {} }],
     };
     world.shows.push(show);
 

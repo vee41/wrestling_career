@@ -272,7 +272,8 @@ describe("cli intent", () => {
     save.world.shows.push({
       id: "show-1",
       tick: 2,
-      card: [{ id: "slot-1", participantWrestlerIds: [a!.id, b!.id], intents: {} }],
+      kind: "tv",
+      card: [{ id: "slot-1", participantWrestlerIds: [a!.id, b!.id], position: "mid", intents: {} }],
     });
     writeSave(ctx.filePath, save);
 
@@ -290,7 +291,8 @@ describe("cli intent", () => {
     save.world.shows.push({
       id: "show-1",
       tick: 2,
-      card: [{ id: "slot-1", participantWrestlerIds: [a!.id, b!.id], intents: {} }],
+      kind: "tv",
+      card: [{ id: "slot-1", participantWrestlerIds: [a!.id, b!.id], position: "mid", intents: {} }],
     });
     writeSave(ctx.filePath, save);
 

@@ -1,4 +1,10 @@
-import { CURRENT_SCHEMA_VERSION, careerStanceSchema, type CareerStance, type WorldState } from "@wrestling/contracts";
+import {
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_WORLD_CONFIG,
+  careerStanceSchema,
+  type CareerStance,
+  type WorldState,
+} from "@wrestling/contracts";
 import { createRng } from "./rng.js";
 
 const STANCES = careerStanceSchema.options;
@@ -97,6 +103,7 @@ export function createTestWorld(options: TestWorldOptions = {}): WorldState {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     tick: 0,
     seed,
+    config: structuredClone(DEFAULT_WORLD_CONFIG),
     wrestlers,
     popularity,
     relationships: [],
@@ -108,6 +115,10 @@ export function createTestWorld(options: TestWorldOptions = {}): WorldState {
     narrativeResults: [],
     gmObjective: "new_main_eventer",
     gmObjectiveSince: 0,
+    titles: [
+      ...(wrestlerCount > 0 ? [{ id: "world-title", name: "World Championship", tier: "world" as const, holderId: "wrestler-0", since: 0 }] : [{ id: "world-title", name: "World Championship", tier: "world" as const }]),
+      ...(wrestlerCount > 1 ? [{ id: "midcard-title", name: "Midcard Championship", tier: "midcard" as const, holderId: "wrestler-1", since: 0 }] : [{ id: "midcard-title", name: "Midcard Championship", tier: "midcard" as const }]),
+    ],
     stances,
     pendingProposals: [],
     pendingReactiveDecisions: [],

@@ -1,48 +1,49 @@
-import type { MatchResult, WorldState } from "@wrestling/contracts";
+import type { MatchResult, Title, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { requireWrestler } from "./lookups.js";
 
-// PLAN Phase 2 simplification: "titles as a single championship belt." The
-// belt goes on the line in that show's highest-crowdResponse match (a proxy
-// for "main event") whenever the champion is booked in it, or is decided by
-// the first eligible main event once there is no champion yet.
-const TITLE_ELIGIBLE_QUALITY = 55;
+/** Resolve every booked title match independently; title_change events are the derived lineage. */
+export function updateChampionships(world: WorldState, ctx: TickContext, matchResults: MatchResult[]): void {
+  for (const result of matchResults) {
+    const show = world.shows.find((candidate) => candidate.id === result.showId);
+    const slot = show?.card.find((candidate) => candidate.id === result.matchSlotId);
+    if (!slot?.titleId) continue;
+    const title = world.titles.find((candidate) => candidate.id === slot.titleId);
+    if (!title) continue;
+    resolveTitleMatch(world, ctx, title, result);
+  }
+}
 
-export function updateChampionship(world: WorldState, ctx: TickContext, matchResults: MatchResult[]): void {
-  if (matchResults.length === 0) return;
-  const mainEvent = matchResults.reduce((best, r) => (r.crowdResponse > best.crowdResponse ? r : best));
-
-  if (world.championId === undefined) {
-    if (mainEvent.quality < TITLE_ELIGIBLE_QUALITY) return;
-    crown(world, ctx, mainEvent.winnerWrestlerId, mainEvent.id);
+function resolveTitleMatch(world: WorldState, ctx: TickContext, title: Title, result: MatchResult): void {
+  const previousHolderId = title.holderId;
+  // An uncrowned title can only be established by an explicitly booked title match.
+  if (!previousHolderId) {
+    crown(world, ctx, title, result.winnerWrestlerId, result.id);
     return;
   }
-
-  if (!mainEvent.participantWrestlerIds.includes(world.championId)) return;
-  if (mainEvent.winnerWrestlerId === world.championId) {
+  if (!result.participantWrestlerIds.includes(previousHolderId)) return;
+  if (result.winnerWrestlerId === previousHolderId) {
     addEvent(world, ctx, {
       type: "title_change",
-      summary: `${requireWrestler(world, world.championId).name} successfully defended the championship.`,
-      wrestlerIds: [world.championId],
-      matchId: mainEvent.id,
-      data: { defended: true },
+      summary: `${requireWrestler(world, previousHolderId).name} successfully defended the ${title.name}.`,
+      wrestlerIds: [previousHolderId], matchId: result.id,
+      data: { titleId: title.id, defended: true },
     });
     return;
   }
-  crown(world, ctx, mainEvent.winnerWrestlerId, mainEvent.id);
+  crown(world, ctx, title, result.winnerWrestlerId, result.id);
 }
 
-function crown(world: WorldState, ctx: TickContext, newChampionId: string, matchId: string): void {
-  const previous = world.championId;
-  world.championId = newChampionId;
-  world.championSince = ctx.tick;
+function crown(world: WorldState, ctx: TickContext, title: Title, holderId: string, matchId: string): void {
+  const previousHolderId = title.holderId;
+  title.holderId = holderId;
+  title.since = ctx.tick;
   addEvent(world, ctx, {
     type: "title_change",
-    summary: previous
-      ? `${requireWrestler(world, newChampionId).name} won the championship from ${requireWrestler(world, previous).name}.`
-      : `${requireWrestler(world, newChampionId).name} became the inaugural champion.`,
-    wrestlerIds: previous ? [newChampionId, previous] : [newChampionId],
-    matchId,
-    data: { defended: false },
+    summary: previousHolderId
+      ? `${requireWrestler(world, holderId).name} won the ${title.name} from ${requireWrestler(world, previousHolderId).name}.`
+      : `${requireWrestler(world, holderId).name} became the inaugural ${title.name} champion.`,
+    wrestlerIds: previousHolderId ? [holderId, previousHolderId] : [holderId], matchId,
+    data: { titleId: title.id, defended: false },
   });
 }

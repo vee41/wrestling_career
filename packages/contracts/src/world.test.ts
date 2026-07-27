@@ -15,7 +15,7 @@ describe("worldStateSchema", () => {
 
   it("rejects a wrong schemaVersion", () => {
     expect(() => worldStateSchema.parse({ ...exampleWorldState, schemaVersion: 1 })).toThrow();
-    expect(() => worldStateSchema.parse({ ...exampleWorldState, schemaVersion: 3 })).toThrow();
+    expect(() => worldStateSchema.parse({ ...exampleWorldState, schemaVersion: 4 })).toThrow();
   });
 
   it("rejects a relationship that references a wrestler not in the world", () => {
@@ -102,14 +102,19 @@ describe("worldStateSchema", () => {
     expect(() => worldStateSchema.parse(invalid)).toThrow(/unknown match id/);
   });
 
-  it("accepts a world with a crowned champion", () => {
-    const valid = { ...exampleWorldState, championId: "ace-steel", championSince: 3 };
+  it("accepts titles with holders", () => {
+    const valid = { ...exampleWorldState, titles: exampleWorldState.titles.map((title) => ({ ...title, holderId: "ace-steel" })) };
     expect(() => worldStateSchema.parse(valid)).not.toThrow();
   });
 
-  it("rejects a championId that references an unknown wrestler", () => {
-    const invalid = { ...exampleWorldState, championId: "ghost-wrestler" };
+  it("rejects a title holder that references an unknown wrestler", () => {
+    const invalid = { ...exampleWorldState, titles: [{ ...exampleWorldState.titles[0], holderId: "ghost-wrestler" }, exampleWorldState.titles[1]] };
     expect(() => worldStateSchema.parse(invalid)).toThrow(/unknown wrestler id.*ghost-wrestler/);
+  });
+
+  it("rejects duplicate title ids and unknown title bookings", () => {
+    expect(() => worldStateSchema.parse({ ...exampleWorldState, titles: [exampleWorldState.titles[0], { ...exampleWorldState.titles[1], id: "world-title" }] })).toThrow(/title ids must be unique/);
+    expect(() => worldStateSchema.parse({ ...exampleWorldState, shows: [{ ...exampleWorldState.shows[0], card: [{ ...exampleWorldState.shows[0]!.card[0]!, titleId: "no-title" }] }] })).toThrow(/unknown title id/);
   });
 
   it("accepts a pending reactive decision whose origin match is only a booked slot, not yet resolved", () => {

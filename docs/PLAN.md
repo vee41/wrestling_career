@@ -1,8 +1,8 @@
 # MVP Prototype — AI Agent Execution Plan
 
-Companion to [GDD.md](GDD.md) (v0.4) and the [player decision loop spec](player-decision-loop-spec.md) (v0.2, "the spec"). This plan turns those documents into an ordered set of build phases an AI agent can execute autonomously. Each phase has a goal, concrete tasks, and acceptance criteria that can be verified without human judgement wherever possible.
+Companion to [GDD.md](GDD.md) (v0.5), the [player decision loop spec](player-decision-loop-spec.md) (v0.2, "the spec"), the [six-month slice spec](six-month-slice.md) ("the slice spec"), and the [scenario data spec](scenario-data-spec.md). This plan turns those documents into an ordered set of build phases an AI agent can execute autonomously. Each phase has a goal, concrete tasks, and acceptance criteria that can be verified without human judgement wherever possible.
 
-**Precedence:** GDD owns vision and the canonical tick pipeline (GDD §4); the spec owns the player choice structure and all choice vocabularies (its tokens are normative); this plan owns execution order. Once Phase 1.5 lands, `packages/contracts` is the machine canon for tokens.
+**Precedence:** GDD owns vision and the canonical tick pipeline (GDD §4); the spec owns the player choice structure and all choice vocabularies (its tokens are normative); the slice spec owns the MVP acceptance bar (SL-1…SL-10); the scenario data spec owns world-data formats; this plan owns execution order. `packages/contracts` is the machine canon for tokens and data formats.
 
 ## Guiding decisions (already made — do not re-litigate)
 
@@ -14,6 +14,8 @@ Companion to [GDD.md](GDD.md) (v0.4) and the [player decision loop spec](player-
 6. **Manual ticks only** for the prototype. No schedulers, no cron.
 7. **Persistence is a snapshot, not event sourcing.** Store the full world state as versioned JSON plus an append-only event log for the dirt sheet. Do not build per-entity relational CRUD for sim internals.
 8. **The decision-loop spec is authoritative for player choices.** One interaction slot + one action slot per tick (both tick types), reactive decisions, match/segment intent, persistent stance with next-tick inertia. Stance doubles as the AI utility weighting (spec §7.2). Players see qualitative projections, never raw numbers (spec §8).
+9. **Data-driven scenarios.** All world content — promotion, roster, titles, calendar, seed relationships/feuds, cadence config — comes from replaceable `data/<scenario>/` files per the scenario data spec. The sim is scenario-agnostic: no wrestler/title/show name in `packages/sim` or `packages/contracts` source. The default scenario is `wwe-2026`, a direct remodel of WWE (single brand, men's singles, ~40 real wrestlers, World Heavyweight + Intercontinental titles). *(Decided 2026-07-27.)*
+10. **The MVP bar is the six-month slice.** The simulation must produce an interesting, wrestling-logical 26-week slice headlessly — feuds that arc to PLE blowoffs, meaningful title lineages, acts that rise *and fall*, visible history. Tuning targets the slice spec's SL criteria; that gate (Phase 3.7) blocks all narrative/UI phases. Interesting-and-logical beats feature count.
 
 ## Repository layout
 
@@ -24,6 +26,10 @@ wrestling_career/
     GDD.md
     PLAN.md
     player-decision-loop-spec.md
+    six-month-slice.md
+    scenario-data-spec.md
+  data/
+    wwe-2026/             # default scenario dataset (see scenario-data-spec.md)
   package.json            # pnpm workspaces
   packages/
     contracts/            # shared TypeScript types + zod schemas (world state, turns, events, narrative jobs)
@@ -157,6 +163,59 @@ Minor, address opportunistically during the same pass: feed `fatigue` into crowd
 - `apps/cli` has no build step (matching every other package): its `bin` entry and tests run the TypeScript sources directly. Node's own `.ts` type-stripping doesn't rewrite the `./foo.js`-referencing-`foo.ts` NodeNext import style this monorepo uses, so a `tsx` devDependency plus a `"cli": "tsx src/index.ts"` script is the actual way to run it (`pnpm --filter @wrestling/cli run cli -- <args>`), not `node src/index.ts` directly.
 - The CLI's `intent` command only wires match intents (`matchIntents`); `segmentIntents` remain unconsumed by `runTick` (`mergeMatchIntents` in tick.ts never reads them) — this is a pre-existing Phase 2 gap, not something this phase's gap list called out, and is left for a future pass since there's no segment-slot entity yet to attach them to.
 
+> **Note (2026-07-27):** this gate ran and passed for the generic world. The MVP was then re-targeted at the six-month slice (guiding decisions 9–10), which adds Phases 3.5–3.7 below. **The Phase 3.7 slice gate now supersedes this one as the condition for starting Phases 4–5.**
+
+---
+
+## Phase 3.5 — WWE world structure
+
+**Goal:** Give the world the structural shape the slice spec requires: show kinds with a PLE calendar, two title lines, card positions, blowoff-aware booking, injury absence, and fall mechanics with teeth. Touches contracts + sim. Everything here stays scenario-agnostic — names and calendars arrive in Phase 3.6.
+
+**Contracts changes** (bump `schemaVersion`, regenerate fixtures):
+
+1. **Show kinds:** `showSchema` gains `kind: "tv" | "ple"`. `matchSlotSchema` gains `position` (`main_event | upper | mid | opener`) and optional `titleId`.
+2. **Titles:** replace `championId`/`championSince` with `titles: Title[]` — `titleSchema`: id, name, `tier` (`world | midcard`), optional `holderId`/`since`. Lineage stays derived from `title_change` events (which gain a `titleId` in `data`). World superRefine: holder ids resolve; at most one title per id.
+3. **World config:** `worldStateSchema` gains a `config` block sourced from scenario config: `decisionTicksPerWeek`, `pleIntervalWeeks`, `tvCardSize`/`pleCardSize` ranges, `sliceWeeks`. `booking.ts`'s hardcoded cadence constants move here (defaults preserved).
+
+**Sim changes:**
+
+4. **Calendar-aware booking:** show tick kind derives from week number + `pleIntervalWeeks`. TV cards use `tvCardSize`, PLEs `pleCardSize`. PLE booking priorities: (a) every peaking story gets a **blowoff** slot, (b) each title is defended — world title in the main event, midcard title in an upper slot — against the highest-scoring eligible contender (story participant first, then popularity/momentum/GM-reaction), (c) remaining slots by the existing scoring. TV booking: build story matches (non-blowoff pairings, promos-by-proxy), test lower-card acts, **avoid** title changes: title matches on TV are allowed but rare and story-justified.
+5. **Blowoff resolution:** a peaking story whose participants meet on a PLE resolves after that match (winner takes the momentum; relationship consequences land). High-quality, close blowoffs MAY extend one more PLE (rematch demand) — once. Stories no longer resolve purely by interest decay while their blowoff is booked.
+6. **Card position effects:** popularity/reaction swings and appearance pay scale by position (main event > upper > mid > opener). GM assigns positions from title involvement + popularity; working above your popularity is an opportunity, bombing in the main event costs more.
+7. **Injury absence:** wrestlers below a bookable-condition threshold (~40) are excluded from booking until recovered; the AI brain already prioritizes `recover` when hurt. Emits the absence arc SL-8 needs (injury event exists since the Phase 3 pass; this adds the missed-shows consequence and the return).
+8. **Falls with teeth:** (a) losing streaks (≥3 losses in the window) drag momentum and credibility, (b) sustained overexposure produces net popularity *decline*, not just damped growth, (c) the GM's `cool_down_overexposed_act` objective actively books the act down the card or off shows. Together these must make SL-2/SL-3 achievable.
+
+**Testing:** title lineage per belt; PLE cadence from config; blowoff-at-PLE behavior (peaking story booked and resolved at PLE); position assignment sanity; injured wrestler skips ≥1 show then returns; a scripted losing-streak/overexposure scenario produces net popularity decline.
+
+**Done when:** all tests pass; a 26-week synthetic-world run books 6 PLEs and ~20 TV shows, defends both titles per SL-4/SL-5 shape, and produces at least one blowoff-resolved story at a PLE.
+
+---
+
+## Phase 3.6 — Scenario data & the `wwe-2026` dataset
+
+**Goal:** World content moves out of code into `data/<scenario>/` per the scenario data spec; the default WWE dataset exists and loads.
+
+1. **Contracts:** `scenario.ts` — schemas for scenario.json, promotion.json, roster.json, titles.json, relationships.json, stories.json, config.json exactly per scenario-data-spec.md, plus a combined `scenarioSchema` with cross-file referential-integrity checks (every referenced id resolves to a roster id).
+2. **Sim:** pure `worldFromScenario(scenario, seed) → WorldState` — no file I/O; assigns starting stances/popularity from data; wrestlers all start `ai`.
+3. **CLI:** `seed --scenario <id> [--humans N]` reads `data/<id>/`, validates file-by-file (validation errors name the file and path), converts, persists. The synthetic generator in `test-helpers.ts` remains for unit tests only.
+4. **Author `data/wwe-2026/`:** ~40 real WWE men's singles wrestlers (early-2026 knowledge): judged skills, alignments, gimmicks, stances, starting popularity per the authoring guidance; World Heavyweight + Intercontinental titles with real holders; weekly TV (Raw) + 6-PLE calendar in real order; faction/history relationship seeds; 1–2 hot feuds in stories.json.
+5. **Scenario-agnosticism check:** a test (or lint grep) asserts no `data/` names appear in `packages/` source.
+
+**Done when:** the dataset validates; `seed --scenario wwe-2026` produces a valid world; a 26-week headless run on it completes; the grep check passes.
+
+---
+
+## Phase 3.7 — Slice tuning & validation ⚠ THE GATE
+
+**Goal:** Tune the simulation until the default scenario's six-month slice meets the slice spec — the whole point of the MVP re-target.
+
+1. **CLI `slice` command:** `slice --scenario wwe-2026 --seeds N [--weeks 26]` runs N headless slices, sampling popularity weekly, and emits a markdown report per seed plus a combined verdict: every SL-1…SL-10 criterion computed and marked pass/fail, plus title lineages, story timelines (start → blowoff), PLE cards, injury/return arcs, and each wrestler's popularity trajectory sparkline. The report is the tuning instrument — it must make *why* a criterion failed visible.
+2. **`slice.test.ts` (sim):** encodes the MUST criteria against the default scenario on 3 fixed seeds — the regression net that keeps later phases from silently breaking the slice. Long-running; keep it a single describe block so it can be filtered.
+3. **Tune:** iterate on weights (booking scores, popularity deltas, fall mechanics, story pacing, GM behavior) until all MUSTs pass on the 3 fixed seeds and SHOULDs pass on a majority of 10 seeds. Record every tuning change and its observed effect in `playtest-notes.md` (append a "slice tuning" section, cite SL ids).
+4. **Qualitative gate:** per slice spec §3 — read one full slice end to end; write the verdict in `playtest-notes.md` naming one rise story and one fall story in plain wrestling terms.
+
+**Done when:** `slice.test.ts` is green; the qualitative write-up exists and is positive. **Do not start Phases 4–5 until then.**
+
 ---
 
 ## Phase 4 — Narrative layer
@@ -200,20 +259,21 @@ Minor, address opportunistically during the same pass: feed `fatigue` into crowd
 
 **Goal:** Ready for a small real playtest.
 
-- Seed script for the canonical prototype world (30 AI wrestlers, 1 GM, 4–8 human slots).
-- Multi-tick soak test: 24 simulated weeks through the web stack without state corruption, including proposals expiring and absent players surviving on stance fallback.
+- Canonical prototype world seeded from `data/wwe-2026` (4–8 human slots claimed on top of the AI roster).
+- Multi-tick soak test: a full 26-week slice through the web stack without state corruption, including proposals expiring and absent players surviving on stance fallback.
 - Rate/validity guards on turn submission; graceful handling of ticks with zero human turns.
 - A `README.md` covering setup, seeding, running ticks, and switching narrative providers.
-- Final check against GDD §21 and spec §13: write up one AI-played career as a paragraph. If it reads like "I trained stats until champion," return to Phase 2 tuning — that is a launch blocker, not a nice-to-have.
+- Final check against GDD §21, spec §13, and the slice spec: rerun `slice.test.ts` through the full stack's world, and write up one AI-played career as a paragraph. If it reads like "I trained stats until champion," return to tuning — that is a launch blocker, not a nice-to-have.
 
 ---
 
 ## Cross-cutting rules for the executing agent
 
-- **Order is strict** through Phase 3; Phases 4 and 5a may be parallelized after the Phase 3 gate.
+- **Order is strict** through Phase 3.7; Phases 4 and 5a may be parallelized after the slice gate.
 - **Every phase lands with passing tests** (`pnpm test` + `pnpm typecheck` green at root). Deviations from this plan are recorded in the plan itself: amend the relevant phase section in place.
 - **Tokens are normative.** All enum values in code MUST match the spec's backticked tokens verbatim. If a token must change, update the spec in the same change.
+- **The sim is scenario-agnostic.** No wrestler, title, show, or faction name from any dataset appears in `packages/` source; all world content flows from `data/<scenario>/` through the contracts scenario schemas.
 - **When the GDD or spec offers options** ("possible skills", "useful measures may include"), pick the listed set as-is — do not invent additional systems.
-- **When the docs are silent**, choose the simplest thing that preserves the pillars (GDD §2) and the design rules (spec §11, DL-1…DL-7), note the decision in a code comment or the relevant doc section, and move on. Do not block on questions unless a pillar or a MUST-level rule is at risk.
-- **Scope discipline:** anything in GDD §3 "Not initially included" or tagged *post-prototype* in the spec is out — reject the temptation to add mentors, sponsors, finances, or multiple promotions even if "easy."
-- **The validation questions (GDD §21, spec §13) are the acceptance test for the whole prototype.** Emergent, social, non-linear careers beat feature completeness. When trading off, cut features, not consequence depth.
+- **When the docs are silent**, choose the simplest thing that preserves the pillars (GDD §2), the design rules (spec §11, DL-1…DL-7), and the slice criteria (SL-1…SL-10), note the decision in a code comment or the relevant doc section, and move on. Do not block on questions unless a pillar or a MUST-level rule is at risk.
+- **Scope discipline:** anything in GDD §3 "Not initially included" or tagged *post-prototype* in the spec is out — reject the temptation to add women's/tag divisions, a second brand, mentors, sponsors, finances, or multiple promotions even if "easy." (The scenario data format may anticipate divisions; the sim and booking logic must not implement them yet.)
+- **The validation bars are layered:** the slice spec (SL-1…SL-10) is the acceptance test for the simulation; GDD §21 and spec §13 are the acceptance test for the playable prototype. Emergent, social, non-linear careers beat feature completeness. When trading off, cut features, not consequence depth.
