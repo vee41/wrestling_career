@@ -49,7 +49,11 @@ export function bookingScore(world: WorldState, wrestler: Wrestler, currentTick:
 }
 
 function bookableWrestlers(world: WorldState): Wrestler[] {
-  return world.wrestlers.filter((wrestler) => wrestler.condition >= BOOKABLE_CONDITION_THRESHOLD);
+  // A champion working hurt is a familiar short-term story risk; without
+  // this narrow exception one injury can erase an entire title line for the
+  // rest of the six-month validation slice. Other wrestlers still observe
+  // the normal absence threshold.
+  return world.wrestlers.filter((wrestler) => wrestler.condition >= BOOKABLE_CONDITION_THRESHOLD || isChampion(world, wrestler.id));
 }
 
 function storyForPair(world: WorldState, a: string, b: string): string | undefined {
@@ -69,10 +73,32 @@ function highestScoringContender(world: WorldState, title: Title, used: Set<stri
   const storyParticipants = world.stories
     .filter((story) => story.phase !== "resolved" && story.participantWrestlerIds.includes(holder))
     .flatMap((story) => story.participantWrestlerIds.filter((id) => id !== holder));
+  const formerMidcardChampions = new Set(world.events
+    .filter((event) => event.type === "title_change" && event.data["titleId"] === world.titles.find((candidate) => candidate.tier === "midcard")?.id)
+    .flatMap((event) => event.wrestlerIds));
+  const priorWorldTitleAppearances = new Map<string, number>();
+  if (title.tier === "world") {
+    for (const result of world.matchResults) {
+      const show = world.shows.find((candidate) => candidate.id === result.showId);
+      const slot = show?.card.find((candidate) => candidate.id === result.matchSlotId);
+      if (slot?.titleId !== title.id) continue;
+      for (const wrestlerId of result.participantWrestlerIds) {
+        priorWorldTitleAppearances.set(wrestlerId, (priorWorldTitleAppearances.get(wrestlerId) ?? 0) + 1);
+      }
+    }
+  }
   return bookableWrestlers(world)
     .filter((wrestler) => wrestler.id !== holder && !used.has(wrestler.id))
-    .map((wrestler) => ({ wrestler, storyPriority: storyParticipants.includes(wrestler.id) ? 1 : 0, score: bookingScore(world, wrestler, currentTick) }))
-    .sort((a, b) => b.storyPriority - a.storyPriority || b.score - a.score)[0]?.wrestler;
+    .map((wrestler) => ({
+      wrestler,
+      // A strong IC reign is a proving ground: keep former champions in the
+      // world-title conversation without making a belt an automatic promotion.
+      score: bookingScore(world, wrestler, currentTick) +
+        (storyParticipants.includes(wrestler.id) ? 25 : 0) +
+        (title.tier === "world" && formerMidcardChampions.has(wrestler.id) ? 45 : 0) -
+        (title.tier === "world" ? (priorWorldTitleAppearances.get(wrestler.id) ?? 0) * 100 : 0),
+    }))
+    .sort((a, b) => b.score - a.score)[0]?.wrestler;
 }
 
 function assignPositions(world: WorldState, slots: MatchSlot[], currentTick: number, kind: Show["kind"]): MatchSlot[] {
@@ -115,8 +141,17 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     for (const story of world.stories.filter((candidate) => candidate.phase === "peaking" && candidate.participantWrestlerIds.length === 2)) {
       const [a, b] = story.participantWrestlerIds;
       if (!a || !b || used.has(a) || used.has(b) || !eligible.has(a) || !eligible.has(b)) continue;
-      used.add(a); used.add(b);
       const title = world.titles.find((candidate) => candidate.holderId !== undefined && [a, b].includes(candidate.holderId));
+      // Repeating a title-feud blowoff would lock the same challenger into
+      // every PLE main event. Let the mandatory title-contender pass below
+      // rotate a fresh opponent while this story waits for TV fallout.
+      const pairAlreadyMetForTitle = title !== undefined && world.matchResults.some((result) => {
+        const priorShow = world.shows.find((show) => show.id === result.showId);
+        const priorSlot = priorShow?.card.find((slot) => slot.id === result.matchSlotId);
+        return priorSlot?.titleId === title.id && result.participantWrestlerIds.includes(a) && result.participantWrestlerIds.includes(b);
+      });
+      if (pairAlreadyMetForTitle) continue;
+      used.add(a); used.add(b);
       slots.push(slot(ctx, [a, b], world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
     }
   }
@@ -126,7 +161,10 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     for (const title of world.titles) {
       if (!title.holderId || !eligible.has(title.holderId)) continue;
       const holderId = title.holderId;
-      const existing = slots.find((candidate) => candidate.participantWrestlerIds.includes(holderId));
+      // A peaking title story may already have claimed this belt's PLE
+      // defense. Do not turn that one match into a second title defense.
+      if (slots.some((candidate) => candidate.titleId === title.id)) continue;
+      const existing = slots.find((candidate) => candidate.participantWrestlerIds.includes(holderId) && candidate.titleId === undefined);
       if (existing) { existing.titleId = title.id; continue; }
       const contender = highestScoringContender(world, title, used, ctx.tick);
       if (!contender) continue;
@@ -138,23 +176,47 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     }
   }
 
+  const storySlotBudget = kind === "tv" ? Math.min(2, targetSlotCount) : targetSlotCount;
   const stories = world.stories.filter((story) => story.phase === "building" && story.participantWrestlerIds.length === 2)
     .sort((a, b) => b.audienceInterest - a.audienceInterest);
   for (const story of stories) {
-    if (slots.length >= targetSlotCount) break;
+    if (slots.length >= storySlotBudget) break;
     const [a, b] = story.participantWrestlerIds;
     if (!a || !b || used.has(a) || used.has(b) || !eligible.has(a) || !eligible.has(b)) continue;
     used.add(a); used.add(b);
     // TV title bouts are exceptional and only happen when the story itself justifies one.
-    const title = kind === "tv" && ctx.rng.fork(`tv-title:${story.id}`).chance(0.12)
-      ? world.titles.find((candidate) => candidate.holderId === a || candidate.holderId === b) : undefined;
+    const title = kind === "tv" && ctx.rng.fork(`tv-title:${story.id}`).chance(0.08)
+      ? world.titles.find((candidate) => candidate.tier === "midcard" && (candidate.holderId === a || candidate.holderId === b)) : undefined;
     slots.push(slot(ctx, [a, b], world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
   }
 
+  const previousAppearances = new Map<string, number>();
+  for (const result of world.matchResults) {
+    for (const wrestlerId of result.participantWrestlerIds) {
+      previousAppearances.set(wrestlerId, (previousAppearances.get(wrestlerId) ?? 0) + 1);
+    }
+  }
   const remaining = bookableWrestlers(world)
     .filter((wrestler) => !used.has(wrestler.id))
     .filter((wrestler) => !(world.gmObjective === "cool_down_overexposed_act" && findPopularity(world, wrestler.id).fatigue > 75))
-    .sort((a, b) => bookingScore(world, b, ctx.tick) - bookingScore(world, a, ctx.tick));
+    // Existing stories and title scenes still lead the card, but open slots
+    // deliberately rotate the rest of the roster through it.
+    .sort((a, b) => {
+      const rotationScore = (wrestler: Wrestler) => {
+        const appearances = previousAppearances.get(wrestler.id) ?? 0;
+        const missedShow = world.events.some((event) =>
+          event.type === "injury" && event.wrestlerIds.includes(wrestler.id) && event.data["absence"] === "missed_show",
+        );
+        const returned = world.events.some((event) =>
+          event.type === "injury" && event.wrestlerIds.includes(wrestler.id) && event.data["absence"] === "return",
+        );
+        // The first recovered booking is the visible return beat, so it gets
+        // priority over ordinary rotation once the wrestler is cleared.
+        const returnBonus = missedShow && !returned ? 500 : 0;
+        return bookingScore(world, wrestler, ctx.tick) - appearances * 7 + Math.max(0, 3 - appearances) * 100 + returnBonus;
+      };
+      return rotationScore(b) - rotationScore(a);
+    });
   for (let index = 0; slots.length < targetSlotCount && index + 1 < remaining.length; index += 2) {
     const a = remaining[index]; const b = remaining[index + 1];
     if (!a || !b) break;

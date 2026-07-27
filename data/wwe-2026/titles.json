@@ -1,0 +1,16 @@
+[
+  {
+    "id": "world-heavyweight-championship",
+    "name": "World Heavyweight Championship",
+    "tier": "world",
+    "initialHolderId": "cm-punk",
+    "reignStartNote": "CM Punk entered 2026 as champion."
+  },
+  {
+    "id": "intercontinental-championship",
+    "name": "Intercontinental Championship",
+    "tier": "midcard",
+    "initialHolderId": "dominik-mysterio",
+    "reignStartNote": "Dominik Mysterio carried his established Intercontinental reign into the new year."
+  }
+]

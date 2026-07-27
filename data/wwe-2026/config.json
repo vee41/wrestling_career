@@ -1,0 +1,7 @@
+{
+  "decisionTicksPerWeek": 2,
+  "pleIntervalWeeks": 4,
+  "tvCardSize": { "min": 4, "max": 6 },
+  "pleCardSize": { "min": 6, "max": 8 },
+  "sliceWeeks": 26
+}

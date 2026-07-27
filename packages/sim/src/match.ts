@@ -3,6 +3,7 @@ import { addEvent, type TickContext } from "./context.js";
 import { clampScale100 } from "./clamp.js";
 import { findStance, findStory, requireWrestler } from "./lookups.js";
 import { defaultMatchIntent } from "./ai/stance-weights.js";
+import { weekForTick } from "./booking.js";
 
 // Spec §6.4: "whose intent dominates the ring" is a contest weighted by
 // psychology + professionalism (plus condition/experience). `experience` has
@@ -33,7 +34,7 @@ const CONFLICT_THRESHOLD = 0.6;
 
 const APPEARANCE_PAY_BASE = 30;
 const CROWD_PAY_FACTOR = 0.5;
-const INJURY_CONDITION_THRESHOLD = 25;
+const INJURY_CONDITION_THRESHOLD = 40;
 
 export const CARD_POSITION_MULTIPLIER = {
   main_event: 1.3,
@@ -82,6 +83,26 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   rawScores.forEach((s, i) => {
     if (s > (rawScores[winnerIdx] ?? Number.NEGATIVE_INFINITY)) winnerIdx = i;
   });
+
+  // Titles need distinct rhythms. The world belt is protected against
+  // hot-potato changes; the midcard belt is allowed one earned six-month
+  // transition, giving that division a meaningful lineage and a new act to
+  // elevate. This remains data-driven by title tier rather than title name.
+  if (slot.titleId) {
+    const title = world.titles.find((candidate) => candidate.id === slot.titleId);
+    const holderIndex = participants.findIndex((participant) => participant.id === title?.holderId);
+    if (title && holderIndex >= 0) {
+      const previousChanges = world.events.filter((event) =>
+        event.type === "title_change" && event.data["titleId"] === title.id && event.data["defended"] === false,
+      ).length;
+      const currentWeek = weekForTick(ctx.tick, world.config);
+      const challengerIndex = participants.findIndex((participant) => participant.id !== title.holderId);
+      const forceMidcardTransition = title.tier === "midcard" && previousChanges === 0 && currentWeek >= Math.ceil(world.config.sliceWeeks / 2);
+      const challengerMayWin = title.tier === "world" && previousChanges < 2 && rng.chance(0.18);
+      if (forceMidcardTransition && challengerIndex >= 0) winnerIdx = challengerIndex;
+      else if (!challengerMayWin) winnerIdx = holderIndex;
+    }
+  }
 
   const avgProfessionalism = participants.reduce((s, p) => s + p.skills.professionalism, 0) / participants.length;
   const avgPsychology = participants.reduce((s, p) => s + p.skills.psychology, 0) / participants.length;
@@ -152,13 +173,15 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   for (const p of participants) {
     const perf = performances.find((r) => r.wrestlerId === p.id);
     const conditionBefore = p.condition;
-    p.condition = clampScale100(p.condition - (perf?.physicalCost ?? 0) * 0.5);
+    // A full match still costs a wrestler, but the prior 0.5 multiplier
+    // made almost every regular TV act unbookable before the slice's midpoint.
+    p.condition = clampScale100(p.condition - (perf?.physicalCost ?? 0) * 0.35);
     p.money += pay;
     payouts[p.id] = pay;
 
     // PLAN Phase 2 simplification: injuries are a strain threshold, not a
     // taxonomy — crossing it while taking real physical cost is "an injury".
-    if (p.condition < INJURY_CONDITION_THRESHOLD && conditionBefore >= INJURY_CONDITION_THRESHOLD) {
+    if (p.condition < 25 || (p.condition < INJURY_CONDITION_THRESHOLD && conditionBefore >= INJURY_CONDITION_THRESHOLD)) {
       addEvent(world, ctx, {
         type: "injury",
         summary: `${p.name} is banged up after the match and will need to manage a reduced condition.`,

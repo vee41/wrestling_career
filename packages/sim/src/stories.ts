@@ -52,14 +52,9 @@ function applyPhaseTransition(world: WorldState, ctx: TickContext, story: Story)
   // longer evaporate from passive interest decay while the climax is pending.
   if (story.phase === "peaking") return;
   if (story.audienceInterest < RESOLVE_INTEREST_FLOOR) {
-    story.phase = "resolved";
-    addEvent(world, ctx, {
-      type: "story_resolved",
-      summary: `The story "${story.tensionDescription}" has run its course.`,
-      wrestlerIds: story.participantWrestlerIds,
-      storyId: story.id,
-      data: {},
-    });
+    // A cold program is not abruptly erased mid-week. It is marked for the
+    // next PLE card, where the result can close it with a visible payoff.
+    story.phase = "peaking";
     return;
   }
   if (

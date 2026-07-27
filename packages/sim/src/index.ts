@@ -12,3 +12,5 @@ export { createIdFactory, type IdFactory } from "./ids.js";
 export { isShowTick, nextShowTick, upcomingSlotsFor, DECISION_TICKS_PER_WEEK, WEEK_LENGTH_TICKS } from "./booking.js";
 export { stanceWeights, defaultMatchIntent, defaultSegmentIntent, type StanceWeights } from "./ai/stance-weights.js";
 export { decideFallbackTurn } from "./ai/decide.js";
+export { worldFromScenario } from "./scenario.js";
+export { analyzeSlice, crossSeedCriterion, runHeadlessSlice, type SliceAnalysis, type SliceCriterion, type SliceRun } from "./slice.js";

@@ -13,12 +13,14 @@ import { proposalSchema } from "./proposal.js";
 import { reactiveDecisionSchema } from "./reactive.js";
 import { titleSchema } from "./title.js";
 import { worldConfigSchema } from "./config.js";
+import { promotionSchema } from "./scenario.js";
 
 export const worldStateSchema = z
   .object({
     schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
     tick: tickSchema,
     seed: z.string().min(1),
+    promotion: promotionSchema,
     config: worldConfigSchema,
     wrestlers: z.array(wrestlerSchema),
     popularity: z.array(popularityBlockSchema),

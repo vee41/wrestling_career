@@ -8,6 +8,7 @@ export * from "./story.js";
 export * from "./show.js";
 export * from "./title.js";
 export * from "./config.js";
+export * from "./scenario.js";
 export * from "./match.js";
 export * from "./interaction.js";
 export * from "./intent.js";

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "punk-rollins-world-title",
+    "participantWrestlerIds": ["cm-punk", "seth-rollins"],
+    "tension": "title_pursuit",
+    "tensionDescription": "Seth Rollins insists that CM Punk's reign is built on timing, while Punk calls Rollins a jealous pretender.",
+    "stakes": "the World Heavyweight Championship",
+    "audienceInterest": 84,
+    "momentum": 15,
+    "coherence": 82,
+    "phase": "building",
+    "unresolvedDevelopments": ["Rollins has demanded a title opportunity."]
+  },
+  {
+    "id": "priest-balor-grudge",
+    "participantWrestlerIds": ["damian-priest", "finn-balor"],
+    "tension": "grudge",
+    "tensionDescription": "Former allies Damian Priest and Finn Balor are still settling the damage left by their split.",
+    "stakes": "control of their shared legacy",
+    "audienceInterest": 70,
+    "momentum": 10,
+    "coherence": 76,
+    "phase": "building",
+    "unresolvedDevelopments": ["Neither man will concede that the partnership is over."]
+  }
+]

@@ -185,3 +185,54 @@ The gate passes: careers diverge, stories spread across the whole roster,
 "train stats only" is a losing strategy, and an absent player survives a
 season intact. Phase 2's weights did not need further adjustment beyond the
 four required + three minor tuning items above. Proceeding to Phase 4.
+
+## Phase 3.7 slice tuning (SL-1...SL-10)
+
+The Phase 3.7 gate was run with the default `wwe-2026` scenario, zero humans,
+26 weeks, and fixed seeds `slice-wwe-2026-1` through `slice-wwe-2026-3`.
+The reproducible harness is `slice --scenario wwe-2026 --seeds 3`; the same
+three runs are locked into `packages/sim/src/slice.test.ts`.
+
+All MUST criteria (SL-1 through SL-9) passed on every seed. The cross-seed
+SHOULD, SL-10, also passed: the three runs produced three different final #1
+popularity acts. Across the seed set, 18--21 wrestlers rose by at least 15
+points (SL-1), 11--13 fell by at least 10 (SL-2), and 37--40 of 44 had a
+non-monotonic weekly trajectory (SL-3). The world title changed hands 0 times
+and was defended six times per run, entirely at PLEs (SL-4); the IC title
+changed once with five or six defenses, and its holder/ex-holder subsequently
+entered a world-title match (SL-5). Each run started 26 stories, resolved
+20--21 at PLE blowoffs, and had a 5--7-week median resolved lifespan (SL-6).
+
+### Tuning changes and observed effects
+
+1. **Story cadence and endings (SL-6).** AI wrestlers no longer auto-pitch a
+   feud whenever unpaired; the director starts at most one organic story per
+   weekly show. Cooling stories are held for a PLE resolution rather than
+   evaporating mid-week. This reduced the previous flood of 100+ starts and
+   raised PLE resolutions from 51% to 100% in the fixed-seed validation.
+2. **Title rhythm and card hierarchy (SL-4, SL-5, SL-7).** World-title
+   defenses protect the incumbent and cap changes at two; the midcard title
+   receives one guaranteed late-slice transition. PLE booking now prevents one
+   match from claiming two belts or duplicating a belt defense, rotates prior
+   world-title challengers out, and gives former midcard champions a measured
+   world-scene bonus. The result was six PLE world defenses, 7 distinct PLE
+   main-event wrestlers in every run, and no title hot-potatoing.
+3. **Roster rotation and returns (SL-8, SL-9).** Non-story card slots now
+   strongly prioritize wrestlers below three appearances, while a recovered
+   wrestler receives priority for their first return booking. Every wrestler
+   reached at least three matches, no one worked every show, and every seed
+   produced an injury absence followed by a return.
+
+### Qualitative read-through
+
+Seed `slice-wwe-2026-1` reads as a coherent promotion rather than a flat
+stats race. CM Punk anchored the world-title PLE main events against a changing
+set of challengers while Finn Balor's long program with Dominik Mysterio paid
+off in Balor taking the IC title at week 16, then defending it at the next two
+PLEs. That is a clear rise story: Balor moved from the seeded Priest fallout
+into a championship program and then the world-title conversation. The fall
+story is LA Knight: his early relevance gave way to a long slide through the
+Sami Zayn program, with the weekly popularity trajectory finishing materially
+below where it began. The feuds build on TV, resolve at PLEs, and their results
+change later card placement; titles feel like anchors rather than random
+match modifiers. **The Phase 3.7 qualitative gate passes.**

@@ -11,6 +11,12 @@ export const exampleWorldState: WorldState = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   tick: 3,
   seed: "prototype-seed-1",
+  promotion: {
+    name: "Pro Wrestling Prototype",
+    identityBlurb: "A compact fictional promotion for contracts tests.",
+    weeklyTvShowName: "Prototype TV",
+    pleCalendar: ["PrototypeMania"],
+  },
   config: {
     decisionTicksPerWeek: 2,
     pleIntervalWeeks: 4,

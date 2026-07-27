@@ -8,6 +8,7 @@ import type {
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity, findRelationship, humanWrestlers, requireWrestler } from "./lookups.js";
 import { upcomingSlotsFor } from "./booking.js";
+import { isShowTick } from "./booking.js";
 import type { Rng } from "./rng.js";
 
 // GDD §15 — conditions the dramatic director scans for. The director both
@@ -53,6 +54,9 @@ function chooseTension(world: WorldState, a: string, b: string): { tension: Tens
 
 /** GDD §15: underused popular wrestler, champion lacking a challenger, two wrestlers wanting the same spot. */
 export function scanForNewStory(world: WorldState, ctx: TickContext): void {
+  // One organic catalyst per weekly show keeps feuds legible enough to build
+  // through television instead of flooding the card with same-week programs.
+  if (!isShowTick(ctx.tick, world.config)) return;
   const busy = activeStoryParticipantIds(world);
   const candidates = world.wrestlers
     .filter((w) => !busy.has(w.id))

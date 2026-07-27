@@ -19,30 +19,31 @@ afterEach(() => {
 });
 
 function seedSmallWorld(humans = 2): void {
-  runCli(["seed", "--wrestlers", "6", "--humans", String(humans), "--seed", "test-seed"], ctx);
+  runCli(["seed", "--scenario", "wwe-2026", "--humans", String(humans), "--seed", "test-seed"], ctx);
 }
 
 describe("cli seed", () => {
-  it("creates a save with the requested counts", () => {
-    const output = runCli(["seed", "--wrestlers", "10", "--humans", "2", "--seed", "abc"], ctx);
-    expect(output).toContain("10 wrestlers, 2 human-controlled");
+  it("loads the default scenario with the requested human claims", () => {
+    const output = runCli(["seed", "--scenario", "wwe-2026", "--humans", "2", "--seed", "abc"], ctx);
+    expect(output).toContain("Seeded WWE 2026");
+    expect(output).toContain("44 wrestlers, 2 human-controlled");
 
     const { world } = loadSave(ctx.filePath);
-    expect(world.wrestlers).toHaveLength(10);
+    expect(world.wrestlers).toHaveLength(44);
     expect(world.wrestlers.filter((w) => w.controlledBy === "human")).toHaveLength(2);
     expect(world.tick).toBe(0);
   });
 
   it("is deterministic for the same seed", () => {
-    runCli(["seed", "--wrestlers", "8", "--seed", "same"], ctx);
+    runCli(["seed", "--scenario", "wwe-2026", "--seed", "same"], ctx);
     const first = loadSave(ctx.filePath).world;
-    runCli(["seed", "--wrestlers", "8", "--seed", "same"], ctx);
+    runCli(["seed", "--scenario", "wwe-2026", "--seed", "same"], ctx);
     const second = loadSave(ctx.filePath).world;
     expect(second.wrestlers).toEqual(first.wrestlers);
   });
 
   it("rejects a nonsensical --humans count", () => {
-    expect(() => runCli(["seed", "--wrestlers", "5", "--humans", "9"], ctx)).toThrow(/--humans/);
+    expect(() => runCli(["seed", "--scenario", "wwe-2026", "--humans", "99"], ctx)).toThrow(/--humans/);
   });
 });
 
@@ -146,6 +147,12 @@ describe("cli interact / act / stance", () => {
 });
 
 describe("cli tick", () => {
+  it("runs a complete 26-week default scenario slice", () => {
+    runCli(["seed", "--scenario", "wwe-2026", "--humans", "0", "--seed", "slice-seed"], ctx);
+    runCli(["tick", "--count", "78"], ctx);
+    expect(loadSave(ctx.filePath).world.tick).toBe(78);
+  });
+
   it("resolves queued turns, advances the tick, and clears pending turns", () => {
     seedSmallWorld();
     const { world } = loadSave(ctx.filePath);
@@ -171,6 +178,17 @@ describe("cli tick", () => {
   it("rejects a non-positive --count", () => {
     seedSmallWorld();
     expect(() => runCli(["tick", "--count", "0"], ctx)).toThrow(/--count/);
+  });
+});
+
+describe("cli slice", () => {
+  it("renders a markdown slice report without mutating the saved world", () => {
+    const output = runCli(["slice", "--scenario", "wwe-2026", "--seeds", "1", "--weeks", "4"], ctx);
+    expect(output).toContain("# Six-month slice validation: WWE 2026");
+    expect(output).toContain("| SL-1 |");
+    expect(output).toContain("### Title lineages");
+    expect(output).toContain("### Popularity trajectories");
+    expect(() => loadSave(ctx.filePath)).toThrow(/no saved world/i);
   });
 });
 

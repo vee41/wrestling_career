@@ -150,7 +150,10 @@ function gmInteractionCandidates(
   );
   const subjectRng = ctx.rng.fork(`${wrestler.id}:feud-subject`);
   return Object.entries(GM_INTENT_BASE_SCORE)
-    .filter(([intent]) => intent !== "pitch_feud" || !activeStory)
+    // AI feud pitches formerly let nearly every unpaired wrestler launch one
+    // on the opening tick. The dramatic director supplies the promotion-wide
+    // cadence; human players still retain this proactive option.
+    .filter(([intent]) => intent !== "pitch_feud" && !(intent === "request_opportunity" && activeStory))
     .map(([intent, baseScore]) => {
       const repeats = countRecentInteractions(world, wrestler.id, intent as InteractionIntent, ctx.tick);
       const subjectWrestlerId =

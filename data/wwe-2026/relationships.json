@@ -1,0 +1,10 @@
+[
+  { "fromWrestlerId": "finn-balor", "toWrestlerId": "dominik-mysterio", "affinity": 65, "respect": 48, "trust": 70, "rivalry": 5, "resentment": 0, "influence": 60 },
+  { "fromWrestlerId": "dominik-mysterio", "toWrestlerId": "finn-balor", "affinity": 58, "respect": 35, "trust": 55, "rivalry": 8, "resentment": 4, "influence": 45 },
+  { "fromWrestlerId": "damian-priest", "toWrestlerId": "finn-balor", "affinity": -35, "respect": 45, "trust": -30, "rivalry": 70, "resentment": 60, "influence": 40 },
+  { "fromWrestlerId": "finn-balor", "toWrestlerId": "damian-priest", "affinity": -45, "respect": 38, "trust": -45, "rivalry": 75, "resentment": 65, "influence": 42 },
+  { "fromWrestlerId": "seth-rollins", "toWrestlerId": "cm-punk", "affinity": -55, "respect": 65, "trust": -60, "rivalry": 85, "resentment": 70, "influence": 70 },
+  { "fromWrestlerId": "cm-punk", "toWrestlerId": "seth-rollins", "affinity": -50, "respect": 58, "trust": -55, "rivalry": 82, "resentment": 68, "influence": 65 },
+  { "fromWrestlerId": "jey-uso", "toWrestlerId": "jimmy-uso", "affinity": 82, "respect": 72, "trust": 88, "rivalry": 0, "resentment": 0, "influence": 65 },
+  { "fromWrestlerId": "jimmy-uso", "toWrestlerId": "jey-uso", "affinity": 82, "respect": 72, "trust": 88, "rivalry": 0, "resentment": 0, "influence": 65 }
+]

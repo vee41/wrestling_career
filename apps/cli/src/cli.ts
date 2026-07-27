@@ -4,6 +4,7 @@ import { runIntent } from "./commands/intent.js";
 import { runRespond } from "./commands/respond.js";
 import { runSeed } from "./commands/seed.js";
 import { runSheet } from "./commands/sheet.js";
+import { runSlice } from "./commands/slice.js";
 import { runStance } from "./commands/stance.js";
 import { runStatus } from "./commands/status.js";
 import { runTickCommand } from "./commands/tick.js";
@@ -19,12 +20,13 @@ export const COMMANDS = [
   "stance",
   "tick",
   "sheet",
+  "slice",
 ] as const;
 
 export const USAGE = `wrestling-cli <command> [...args] [--file <path>]
 
 Commands:
-  seed [--wrestlers N] [--humans N] [--seed <string>]     generate a new world
+  seed [--scenario <id>] [--humans N] [--seed <string>]   load a scenario world
   status <wrestlerId> [--debug]                           career view
   interact <wrestlerId> <gm|targetId> <intent> [emphasis] [--about <id>]  fill the interaction slot
   act <wrestlerId> <actionType> [...args] [--invest]       fill the action slot
@@ -32,7 +34,8 @@ Commands:
   intent <wrestlerId> <matchSlotId> <intent>               set a match intent
   stance <wrestlerId> <stance>                             queue a stance change
   tick [--count N]                                         resolve the next tick(s)
-  sheet [--limit N]                                        render the dirt sheet`;
+  sheet [--limit N]                                        render the dirt sheet
+  slice [--scenario <id>] [--seeds N] [--weeks N]          run Phase 3.7 slice validation`;
 
 export function runCli(argv: readonly string[], ctx: CliContext): string {
   const [command, ...rest] = argv;
@@ -55,6 +58,8 @@ export function runCli(argv: readonly string[], ctx: CliContext): string {
       return runTickCommand(rest, ctx);
     case "sheet":
       return runSheet(rest, ctx);
+    case "slice":
+      return runSlice(rest, ctx);
     case undefined:
     case "help":
     case "--help":

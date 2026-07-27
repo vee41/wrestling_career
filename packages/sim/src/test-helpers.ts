@@ -103,6 +103,12 @@ export function createTestWorld(options: TestWorldOptions = {}): WorldState {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     tick: 0,
     seed,
+    promotion: {
+      name: "Test Wrestling",
+      identityBlurb: "A synthetic promotion used only by simulation tests.",
+      weeklyTvShowName: "Test TV",
+      pleCalendar: ["Test PLE"],
+    },
     config: structuredClone(DEFAULT_WORLD_CONFIG),
     wrestlers,
     popularity,

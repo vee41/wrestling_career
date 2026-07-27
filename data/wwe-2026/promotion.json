@@ -1,0 +1,13 @@
+{
+  "name": "WWE Raw",
+  "identityBlurb": "A global sports-entertainment promotion built around star power, spectacle, and weekly rivalries.",
+  "weeklyTvShowName": "Raw",
+  "pleCalendar": [
+    "Royal Rumble",
+    "Elimination Chamber",
+    "WrestleMania 42",
+    "Backlash",
+    "King and Queen of the Ring",
+    "Money in the Bank"
+  ]
+}
