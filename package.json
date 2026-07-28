@@ -6,7 +6,8 @@
   "scripts": {
     "test": "pnpm -r --workspace-concurrency=1 run test",
     "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "tune": "pnpm --filter @wrestling/tuner dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
