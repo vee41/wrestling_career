@@ -28,7 +28,20 @@
     "worldTitleWinStarPowerGain": 12,
     "worldTitleLossStarPowerLoss": 10,
     "midcardTitleWinStarPowerGain": 8,
-    "midcardTitleLossStarPowerLoss": 6
+    "midcardTitleLossStarPowerLoss": 6,
+    "scarcityCrowdBonusMax": 18,
+    "scarcityStarPowerFloor": 55,
+    "relevanceGraceWeeks": 3,
+    "relevanceDecayRatePerWeek": 2,
+    "relevanceDecayCap": 20,
+    "relevanceHardFloor": 10,
+    "rubStarPowerGain": 3
+  },
+  "roles": {
+    "legend": { "idealGapWeeks": 8, "scarcityMagnitude": 1, "overexposureSensitivity": 2, "relevanceDecay": false, "storyGated": true, "titleEligibility": "none" },
+    "part_timer": { "idealGapWeeks": 3, "scarcityMagnitude": 0.6, "overexposureSensitivity": 1.4, "relevanceDecay": false, "storyGated": true, "titleEligibility": "all" },
+    "regular": { "idealGapWeeks": 1, "scarcityMagnitude": 0.15, "overexposureSensitivity": 1, "relevanceDecay": true, "storyGated": false, "titleEligibility": "all" },
+    "prospect": { "idealGapWeeks": 2, "scarcityMagnitude": 0.15, "overexposureSensitivity": 0.8, "relevanceDecay": false, "storyGated": false, "titleEligibility": "midcard" }
   },
   "match": {
     "ringPerformanceWeight": 0.35,

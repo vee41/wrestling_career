@@ -32,6 +32,12 @@ export type ControlledBy = z.infer<typeof controlledBySchema>;
 export const alignmentSchema = z.enum(["face", "heel", "tweener"]);
 export type Alignment = z.infer<typeof alignmentSchema>;
 
+// GDD §10.5 — status and usage are independent axes. This authored role
+// controls cadence and eligibility; it is deliberately not derived from
+// popularity or skills.
+export const roleSchema = z.enum(["legend", "part_timer", "regular", "prospect"]);
+export type Role = z.infer<typeof roleSchema>;
+
 // GDD §9 — lightweight, player-adjustable character block.
 export const gimmickSchema = z.object({
   concept: z.string().min(1),
@@ -50,6 +56,7 @@ export const wrestlerSchema = z.object({
   condition: scale100Schema,
   money: z.number().int().nonnegative(),
   alignment: alignmentSchema,
+  role: roleSchema,
   gimmick: gimmickSchema,
 });
 export type Wrestler = z.infer<typeof wrestlerSchema>;

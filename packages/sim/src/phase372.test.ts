@@ -34,8 +34,10 @@ describe("Phase 3.7.2 booking realism", () => {
     const world = createTestWorld({ wrestlerCount: 10, humanCount: 0, seed: "rest-tier" });
     world.config.tvCardSize = { min: 1, max: 1 };
     world.config.booking.multiWayChance = 0;
+    world.config.booking.restPenalty = 300;
     for (const wrestler of world.wrestlers) findPopularity(world, wrestler.id).generalPopularity = 10;
     findPopularity(world, "wrestler-2").generalPopularity = 95;
+    world.wrestlers.find((wrestler) => wrestler.id === "wrestler-2")!.role = "prospect";
     priorAppearance(world);
 
     const show = bookShow(world, ctxAt(4, "rest-tier"), 5);

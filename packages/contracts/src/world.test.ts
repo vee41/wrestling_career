@@ -15,7 +15,7 @@ describe("worldStateSchema", () => {
 
   it("rejects a wrong schemaVersion", () => {
     expect(() => worldStateSchema.parse({ ...exampleWorldState, schemaVersion: 1 })).toThrow();
-    expect(() => worldStateSchema.parse({ ...exampleWorldState, schemaVersion: 4 })).toThrow();
+    expect(() => worldStateSchema.parse({ ...exampleWorldState, schemaVersion: 5 })).toThrow();
   });
 
   it("rejects a relationship that references a wrestler not in the world", () => {

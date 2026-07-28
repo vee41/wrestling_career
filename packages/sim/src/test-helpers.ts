@@ -79,6 +79,7 @@ export function createTestWorld(options: TestWorldOptions = {}): WorldState {
       condition: rng.int(70, 100),
       money: rng.int(200, 2000),
       alignment: rng.pick(["face", "heel", "tweener"] as const),
+      role: "regular",
       gimmick: {
         concept: "Generated archetype",
         promoTone: rng.pick(["earnest", "arrogant", "menacing", "goofy", "controlled"]),

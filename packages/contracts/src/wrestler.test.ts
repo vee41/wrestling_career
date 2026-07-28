@@ -18,6 +18,7 @@ const validWrestler = {
   condition: 82,
   money: 1200,
   alignment: "face",
+  role: "prospect",
   gimmick: {
     concept: "Underdog technician",
     promoTone: "earnest",
@@ -42,6 +43,11 @@ describe("wrestlerSchema", () => {
   it("rejects an unknown alignment", () => {
     const invalid = { ...validWrestler, alignment: "villain" };
     expect(() => wrestlerSchema.parse(invalid)).toThrow();
+  });
+
+  it("requires one authored roster role", () => {
+    const { role: _role, ...withoutRole } = validWrestler;
+    expect(() => wrestlerSchema.parse(withoutRole)).toThrow();
   });
 
   it("rejects negative money", () => {

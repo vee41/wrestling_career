@@ -35,6 +35,13 @@ export const popularityTuningSchema = z.object({
   worldTitleLossStarPowerLoss: z.number().int().min(0).max(100).default(10),
   midcardTitleWinStarPowerGain: z.number().int().min(0).max(100).default(8),
   midcardTitleLossStarPowerLoss: z.number().int().min(0).max(100).default(6),
+  scarcityCrowdBonusMax: z.number().min(0).max(100).default(18),
+  scarcityStarPowerFloor: z.number().min(0).max(100).default(55),
+  relevanceGraceWeeks: z.number().int().min(0).default(3),
+  relevanceDecayRatePerWeek: z.number().min(0).default(2),
+  relevanceDecayCap: z.number().min(0).max(100).default(20),
+  relevanceHardFloor: z.number().min(0).max(100).default(10),
+  rubStarPowerGain: z.number().int().min(0).max(100).default(3),
 }).refine((tuning) => tuning.crowdIgnitionMomentumMax >= tuning.crowdIgnitionMomentumMin, {
   message: "crowd ignition momentum max must be at least min",
   path: ["crowdIgnitionMomentumMax"],
@@ -59,6 +66,40 @@ export const matchTuningSchema = z.object({
 });
 export type MatchTuning = z.infer<typeof matchTuningSchema>;
 
+export const titleEligibilitySchema = z.enum(["none", "all", "midcard"]);
+export type TitleEligibility = z.infer<typeof titleEligibilitySchema>;
+
+/** Scenario-owned cadence and eligibility for each authored GDD §10.5 role. */
+export const roleTuningSchema = z.object({
+  idealGapWeeks: z.number().positive().default(1),
+  scarcityMagnitude: z.number().min(0).default(0.15),
+  overexposureSensitivity: z.number().min(0).default(1),
+  relevanceDecay: z.boolean().default(false),
+  storyGated: z.boolean().default(false),
+  titleEligibility: titleEligibilitySchema.default("all"),
+});
+export type RoleTuning = z.infer<typeof roleTuningSchema>;
+
+export const rolesTuningSchema = z.object({
+  legend: roleTuningSchema.default({
+    idealGapWeeks: 8, scarcityMagnitude: 1, overexposureSensitivity: 2,
+    relevanceDecay: false, storyGated: true, titleEligibility: "none",
+  }),
+  part_timer: roleTuningSchema.default({
+    idealGapWeeks: 3, scarcityMagnitude: 0.6, overexposureSensitivity: 1.4,
+    relevanceDecay: false, storyGated: true, titleEligibility: "all",
+  }),
+  regular: roleTuningSchema.default({
+    idealGapWeeks: 1, scarcityMagnitude: 0.15, overexposureSensitivity: 1,
+    relevanceDecay: true, storyGated: false, titleEligibility: "all",
+  }),
+  prospect: roleTuningSchema.default({
+    idealGapWeeks: 2, scarcityMagnitude: 0.15, overexposureSensitivity: 0.8,
+    relevanceDecay: false, storyGated: false, titleEligibility: "midcard",
+  }),
+});
+export type RolesTuning = z.infer<typeof rolesTuningSchema>;
+
 /** Scenario-owned controls for pacing established acts and varying undercard matches. */
 export const bookingTuningSchema = z.object({
   restTierPopularityThreshold: z.number().min(0).max(100).default(65),
@@ -77,6 +118,7 @@ export const worldConfigSchema = z.object({
   sliceWeeks: z.number().int().min(1).default(26),
   popularity: popularityTuningSchema.default({}),
   match: matchTuningSchema.default({}),
+  roles: rolesTuningSchema.default({}),
   booking: bookingTuningSchema.default({}),
 });
 export type WorldConfig = z.infer<typeof worldConfigSchema>;

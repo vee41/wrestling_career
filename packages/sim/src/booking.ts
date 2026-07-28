@@ -54,3 +54,22 @@ export function upcomingSlotsFor(
 export function isBookedForTick(world: WorldState, tick: number): boolean {
   return world.shows.some((s) => s.tick === tick);
 }
+
+/**
+ * Appearance history remains derived from resolved matches. Undefined means
+ * this is an untested act, not someone returning from time away, so callers
+ * should treat it as their role's normal cadence rather than scarcity.
+ */
+export function weeksSinceLastAppearance(
+  world: WorldState,
+  wrestlerId: string,
+  targetTick: number,
+  excludeMatchResultId?: string,
+): number | undefined {
+  const priorTicks = world.matchResults
+    .filter((result) => result.id !== excludeMatchResultId && result.participantWrestlerIds.includes(wrestlerId))
+    .map((result) => world.shows.find((show) => show.id === result.showId)?.tick)
+    .filter((tick): tick is number => tick !== undefined && tick < targetTick);
+  if (priorTicks.length === 0) return undefined;
+  return Math.max(0, weekForTick(targetTick, world.config) - weekForTick(Math.max(...priorTicks), world.config));
+}

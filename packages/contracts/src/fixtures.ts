@@ -37,6 +37,7 @@ export const exampleWorldState: WorldState = {
       condition: 82,
       money: 1200,
       alignment: "face",
+      role: "prospect",
       gimmick: {
         concept: "Underdog technician",
         promoTone: "earnest",
@@ -62,6 +63,7 @@ export const exampleWorldState: WorldState = {
       condition: 90,
       money: 4300,
       alignment: "heel",
+      role: "regular",
       gimmick: {
         concept: "Arrogant former champion",
         promoTone: "condescending",
@@ -87,6 +89,7 @@ export const exampleWorldState: WorldState = {
       condition: 75,
       money: 600,
       alignment: "tweener",
+      role: "regular",
       gimmick: {
         concept: "Journeyman brawler",
         promoTone: "blunt",

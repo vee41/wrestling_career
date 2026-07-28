@@ -302,6 +302,80 @@ Scope: triple threats and fatal four-ways (cap at 4 participants), sourced from 
 
 ---
 
+## Phase 3.7.3 — Roster roles: status vs usage, scarcity & absence ⚙ within the gate
+
+**Goal:** 3.7.1 captures *how big* a wrestler is (`starPower`) but not *how the promotion uses them*. A full-time champion and a semi-retired legend can share `starPower` 92 yet must be booked in opposite rhythms — weekly vs rarely-but-huge — so usage cannot be derived from status; it is an authored **`role`** axis (GDD §10.5). This phase adds that field, makes the popularity curve role-aware (scarcity rewards rare big stars, overexposure punishes them, absence stops uniformly eroding everyone), and gates booking by role. Additive to 3.7.1/3.7.2. **Every new number is a scenario-tunable knob in `config.ts` — nothing inline** (the slice loop must retune without editing sim code). Stays scenario-agnostic.
+
+### Tokens & schema (contracts)
+1. **`role`** — add `roleSchema = z.enum(["legend", "part_timer", "regular", "prospect"])` and a required `role` on `wrestlerSchema` ([wrestler.ts](../packages/contracts/src/wrestler.ts)). Bump `schemaVersion`; regenerate `fixtures.ts`.
+2. **`rolesTuningSchema`** — a per-role parameter block in [config.ts](../packages/contracts/src/config.ts), keyed by role token, `.default({})` at each level, added to `worldConfigSchema` as `roles`. Starting-point defaults:
+
+   | param | legend | part_timer | regular | prospect |
+   | --- | --- | --- | --- | --- |
+   | `idealGapWeeks` | 8 | 3 | 1 | 2 |
+   | `scarcityMagnitude` | 1.0 | 0.6 | 0.15 | 0.15 |
+   | `overexposureSensitivity` | 2.0 | 1.4 | 1.0 | 0.8 |
+   | `relevanceDecay` (bool) | false | false | **true** | false |
+   | `storyGated` (bool) | true | true | false | false |
+   | `titleEligibility` | `none` | `all` | `all` | `midcard` |
+
+3. **New top-level `popularityTuning` knobs** (scarcity + absence — add to `popularityTuningSchema`, all defaulted): `scarcityCrowdBonusMax` (18), `scarcityStarPowerFloor` (55 — below this `starPower`, scarcity pays ~nothing), `relevanceGraceWeeks` (3 — absence within this is free for everyone), `relevanceDecayRatePerWeek` (2), `relevanceDecayCap` (20), `relevanceHardFloor` (10), `rubStarPowerGain` (3).
+
+### Sim — popularity ([popularity.ts](../packages/sim/src/popularity.ts))
+4. **Scarcity ↔ overexposure (one axis).** Derive `gapRatio = weeksSinceLastAppearance / roles[role].idealGapWeeks` from match-result history (same derive-don't-store pattern as `expectedSegment`, [popularity.ts:46](../packages/sim/src/popularity.ts#L46)). Fold a two-sided modifier into `segmentFor` ([popularity.ts:38](../packages/sim/src/popularity.ts#L38)): `gapRatio > 1` adds a scarcity bonus `min(scarcityCrowdBonusMax, (gapRatio−1)·k) · roles[role].scarcityMagnitude · clamp01((starPower − scarcityStarPowerFloor)/(100 − scarcityStarPowerFloor))`; `gapRatio < 1` scales the existing `overexposureFatigueFloor` penalty by `roles[role].overexposureSensitivity`. This subsumes the current flat overexposure term.
+5. **Absence = heat decay + bounded relevance dip (regulars only).** In the idle branch ([popularity.ts:138-148](../packages/sim/src/popularity.ts#L138-L148)) replace the `starPower`-only gravity target with `effectiveAnchor`:
+   ```
+   relevancePenalty = (roles[role].relevanceDecay && weeksOut > relevanceGraceWeeks)
+       ? min(relevanceDecayCap, (weeksOut − relevanceGraceWeeks)·relevanceDecayRatePerWeek) : 0
+   effectiveAnchor  = max(relevanceHardFloor, starPower − relevancePenalty)
+   ```
+   Gravity pulls `generalPopularity` toward `effectiveAnchor` (still bounded by `idleGravityFactor`, ±1/tick). It **asymptotes at a floored anchor rather than subtracting each tick** — the property whose absence caused the pre-3.7.1 crash-to-zero. `starPower` is never touched by absence. Non-`regular` roles have `relevanceDecay:false` ⇒ anchor stays `starPower` ⇒ absence is pure heat decay, as their scarcity requires.
+6. **The rub.** When `won` and any opponent's `role` is `legend`/`part_timer`, `adjustStarPower(winner, rubStarPowerGain, …)` and emit `status_rise` — the legend's mechanical output is making the other act. (Beating a ceiling-pinned opponent already boosts `edge` at [popularity.ts:176](../packages/sim/src/popularity.ts#L176); this adds the durable step.)
+
+### Sim — booking ([gm.ts](../packages/sim/src/gm.ts))
+7. **Story-gate rare roles.** Filter `roles[role].storyGated` wrestlers out of the open `remaining` pool ([gm.ts:209](../packages/sim/src/gm.ts#L209)) entirely; they reach the card only through the story-slot and PLE/title passes that run earlier ([gm.ts:141-201](../packages/sim/src/gm.ts#L141-L201)). "Every appearance has meaning" becomes an eligibility rule.
+8. **Role-relative cadence.** Generalize the 3.7.2 rest penalty ([gm.ts:230](../packages/sim/src/gm.ts#L230)) from a single popularity threshold to a `gapRatio < 1` penalty scaled by role, so a `part_timer` slipping into an open slot is still paced (mostly relevant to `regular`/`prospect`, since gated roles never enter this pool).
+9. **Title eligibility.** `highestScoringContender` and the title passes respect `roles[role].titleEligibility`: exclude `legend` (`none`), cap `prospect` to `midcard`.
+10. **Prospect investment.** Ensure prospects win a fair share of undercard slots (rides the existing `capitalise_on_rising_star`/`new_main_eventer` objectives) so their `starPower` actually climbs — this is what an SL-1 rise looks like for a built-from-below act.
+
+### Data
+11. Author `role` on every wrestler in `data/<scenario>/roster.json` (wwe-2026: a couple `legend`/`part_timer`, the youngest as `prospect`, the rest `regular`). `scenario.ts` validation carries the field once the schema has it; scenario-data-spec updated.
+
+### Testing
+12. `popularity.test.ts`: a fresh `legend` appearance beats its baseline via scarcity → big momentum, ceiling-pinned pop; the same legend booked again next week eats an overexposure penalty; a `regular` gone past grace drifts toward `starPower − cap` and no further (never 0) while a `legend` gone the same span holds flat; beating a legend fires `rubStarPowerGain` + `status_rise`.
+13. Booking test: a `legend` never appears in an open rotation slot or a `titleId` slot; a `part_timer` only books when story-attached.
+14. Re-run `slice`. **Known weak joint: SL-9 (everyone ≥3 matches, nobody every show) vs rare roles — `legend.idealGapWeeks` must keep them at ≥3 matches / 26 weeks. Tune it explicitly and record the margin.** Log SL-1/2/3/7/9 effects in `playtest-notes.md`.
+
+**Done when:** contracts/sim/data typecheck with `role`; popularity + booking unit tests green; a 26-week run shows legends/part-timers appearing rarely-but-meaningfully, no wrestler crashing from absence, SL-9 intact; every constant introduced lives in `config.ts` tuning, none inline.
+
+---
+
+## Phase 3.7.4 — Heat-ranked card builder: decouple the main event from the belt ⚙ within the gate
+
+**Goal:** The card is organized *around belts* — three hard rules in [gm.ts](../packages/sim/src/gm.ts) make every PLE feel stamped from a template: mandatory title defences ([gm.ts:170-187](../packages/sim/src/gm.ts#L170-L187)), the world title pinned to `main_event` at every PLE (`assignPositions`, [gm.ts:127](../packages/sim/src/gm.ts#L127)), and an anti-rematch guard that forbids a title feud from continuing ([gm.ts:158-163](../packages/sim/src/gm.ts#L158-L163)). Reorganize booking **around programs (feuds) ranked by heat**, with a title as one kind of *stakes* a program carries, not the skeleton of the show. This is a contained, additive change to three spots — not a rewrite of `bookShow`'s slot-assembly passes. Every new number is a `bookingTuning` config knob. Stays scenario-agnostic.
+
+### The reframe
+A **program** ≈ an active story (or a champion-vs-contender pairing). Its **heat** decides where it lands on the card; the hottest closes the show, belt or not. This *helps* SL-7 (main-event variety) and, with a staleness clock, preserves SL-4/SL-5 (defence counts).
+
+### Tuning (contracts — extend `bookingTuningSchema`, [config.ts](../packages/contracts/src/config.ts), all defaulted)
+1. Heat weights: `heatStoryMomentumWeight` (0.5), `heatParticipantMomentumWeight` (0.3), `heatParticipantPopularityWeight` (0.1), `grudgeHeatBonus` (15 — story `tensionType` is a personal/rivalry kind).
+2. Stakes: `worldTitleStakesHeatBonus` (30), `midcardTitleStakesHeatBonus` (12). These usually keep a world-title match on top (it's normally the hottest) without *forcing* it there.
+3. Title-defence policy: `titleDefenseStalenessWeeks` (8 — a belt not defended in this long *must* be defended, the SL-4/5 floor), `contenderReadyMomentumThreshold` (20 — a challenger this hot earns a shot).
+
+### Sim — [gm.ts](../packages/sim/src/gm.ts)
+4. **`programHeat(slot)` helper.** `story ? story.audienceInterest + story.momentum·heatStoryMomentumWeight : 0` + `Σ participant.momentum·heatParticipantMomentumWeight` + `Σ participant.generalPopularity·heatParticipantPopularityWeight` + title-stakes bonus (by tier) + grudge bonus. Rotation matches (no story, no title) score low and settle to the undercard naturally.
+5. **Rewrite `assignPositions`** ([gm.ts:114-132](../packages/sim/src/gm.ts#L114-L132)): rank by `programHeat` **descending**, for both `tv` and `ple`; assign `index 0 → main_event`, `1 → upper`, `last → opener`, else `mid`. Delete the `titleWeight`-first sort and the `title?.tier === "world" && kind === "ple" → main_event` hard override ([gm.ts:127](../packages/sim/src/gm.ts#L127)) — world-title placement now comes from its stakes bonus, so it usually still main-events but a hotter grudge can win the spot.
+6. **Conditional title defences** — replace the mandatory pass ([gm.ts:170-187](../packages/sim/src/gm.ts#L170-L187)). For each title at a PLE not already staked by the peaking-blowoff pass: defend iff a contender is *ready* (a bookable non-holder with `momentum ≥ contenderReadyMomentumThreshold`, or a holder story participant) **or** the belt is *stale* (weeks since its last defence, derived from `title_change`/match history, `≥ titleDefenseStalenessWeeks`). Otherwise leave it undefended this PLE — the champion falls through to the story/rotation passes (works a non-title match, or, once Phase 3.8 lands, a promo). Keep world-title matches PLE-only (don't let the contender-ready branch put one on TV) so SL-4's "≥80 % at PLEs" holds.
+7. **Soften the rematch guard** ([gm.ts:158-163](../packages/sim/src/gm.ts#L158-L163)): allow a peaking title feud to repeat when its `programHeat` is top-of-card (a genuine trilogy main event); otherwise keep rotating a fresh challenger as today. Full stipulation-escalation of rematches is the separate "match finishes" thread — this only stops *forbidding* the continuation.
+
+### Testing
+8. `gm`/booking tests: a high-heat non-title story outranks a low-heat title defence for `main_event`; a belt with no ready contender and within the staleness window goes undefended at a PLE; a stale belt is force-defended; a hot peaking title feud can rematch.
+9. Re-run `slice`. Watch the criteria this most affects: **SL-7** (expect main-event variety to improve), **SL-4/SL-5** (tune `titleDefenseStalenessWeeks` so world defences ≥4 and IC ≥5 still clear — this is the joint to verify), **SL-6** unaffected. Record the SL deltas and the staleness value chosen in `playtest-notes.md`.
+
+**Done when:** booking tests green; a 26-week run shows at least one PLE main-evented by a non-title program and at least one PLE where a title goes undefended, while SL-4/5/7/9 all still pass; every constant lives in `config.ts` tuning, none inline.
+
+---
+
 ## Phase 3.8 — Promo, angle, and skit segments
 
 **Goal:** Give the show card a non-match segment type — the promo/interview/angle beat that advances a story or shifts heat without a competitive outcome. This closes a gap the contracts layer already anticipated: `segmentIntentSchema`'s 8 tokens (`build_sympathy`, `generate_hostility`, `promote_opponent`, `escalate_rivalry`, `show_vulnerability`, `protect_mystery`, `seek_controversy`, `stay_controlled` — [intent.ts:20-29](../packages/contracts/src/intent.ts#L20-L29)) and `PlayerTurn.segmentIntents` ([turn.ts:22](../packages/contracts/src/turn.ts#L22)) have existed since Phase 1.5 with nothing to attach them to — Phase 3's post-implementation notes call this out explicitly (above, "the CLI's `intent` command only wires match intents… left for a future pass since there's no segment-slot entity yet to attach them to"). This phase builds that entity.

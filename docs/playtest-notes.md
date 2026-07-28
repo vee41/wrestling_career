@@ -275,3 +275,21 @@ appearance frequency while retaining a bounded movement model, its
 scenario-owned popularity cap is 4 and crowd-ignition chance is 42%; both are
 explicit tuning values, not new systems. Triple threats and fatal four-ways
 remain TV undercard-only, capped at four participants.
+
+## Phase 3.7.3 roster roles (SL-1, SL-2, SL-3, SL-7, SL-9)
+
+The three fixed 26-week `wwe-2026` seeds pass every MUST criterion and SL-10
+after separating roster status from authored usage. SL-1 recorded 9/7/6 rises,
+SL-2 recorded 5/7/6 falls, and SL-3 recorded 20/18/19 of 44 acts with a
+16-point weekly range. SL-7 produced seven distinct PLE main-eventers in each
+run, including an act from outside the initial top five.
+
+SL-9 held at a three-match floor in every run, with no act working every show.
+The rare roles are assigned to meaningful programs (a `legend` and a
+`part_timer`), while prospects remain available for the undercard and may only
+challenge for the midcard title. A PLE story involving a world champion and an
+ineligible prospect now defers to the title-defense reservation, so role-based
+eligibility cannot strand a world championship defense. Unit coverage confirms
+that rare returns gain scarcity, immediate repeats incur overexposure, regular
+absence asymptotes at its bounded relevance anchor, and a win over a rare act
+awards durable status rather than passive absence decay.

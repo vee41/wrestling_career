@@ -2,7 +2,7 @@ import type { CardPosition, MatchResult, PopularityChangeReason, WorldState } fr
 import { addEvent, type TickContext } from "./context.js";
 import { clampDelta100, clampScale100, moveToward } from "./clamp.js";
 import { findPopularity, requireWrestler } from "./lookups.js";
-import { weekForTick } from "./booking.js";
+import { weekForTick, weeksSinceLastAppearance } from "./booking.js";
 
 const IDLE_FATIGUE_RELIEF = 3;
 const HEAT_MAX_STEP = 12;
@@ -31,15 +31,43 @@ function segmentFor(
   performanceScore: number,
   crowdResponse: number,
   storyAdvancement: number,
-  fatigue = 0,
+  cadenceModifier = 0,
 ): Segment {
   const tuning = world.config.popularity;
   return {
-    value: performanceScore * tuning.segmentPerformanceWeight + crowdResponse * tuning.segmentCrowdWeight + storyAdvancement * tuning.segmentStoryWeight - Math.max(0, fatigue - tuning.overexposureFatigueFloor) * tuning.overexposurePenaltyFactor,
+    value: performanceScore * tuning.segmentPerformanceWeight + crowdResponse * tuning.segmentCrowdWeight + storyAdvancement * tuning.segmentStoryWeight + cadenceModifier,
     performanceScore,
     crowdResponse,
     storyAdvancement,
   };
+}
+
+/** Scarcity and overexposure are one role-defined cadence axis (GDD §10.5). */
+function cadenceModifier(
+  world: WorldState,
+  wrestlerId: string,
+  resultId: string,
+  tick: number,
+  fatigue: number,
+): number {
+  const wrestler = requireWrestler(world, wrestlerId);
+  const role = world.config.roles[wrestler.role];
+  const weeksOut = weeksSinceLastAppearance(world, wrestlerId, tick, resultId);
+  const gapRatio = (weeksOut ?? role.idealGapWeeks) / role.idealGapWeeks;
+  const tuning = world.config.popularity;
+
+  if (gapRatio > 1) {
+    const starPower = findPopularity(world, wrestlerId).starPower;
+    const starHeadroom = 100 - tuning.scarcityStarPowerFloor;
+    const starScale = starHeadroom === 0
+      ? (starPower === 100 ? 1 : 0)
+      : Math.max(0, Math.min(1, (starPower - tuning.scarcityStarPowerFloor) / starHeadroom));
+    return Math.min(tuning.scarcityCrowdBonusMax, (gapRatio - 1) * tuning.scarcityCrowdBonusMax) * role.scarcityMagnitude * starScale;
+  }
+  if (gapRatio < 1) {
+    return -Math.max(0, fatigue - tuning.overexposureFatigueFloor) * tuning.overexposurePenaltyFactor * role.overexposureSensitivity * (1 - gapRatio);
+  }
+  return 0;
 }
 
 /** The history is intentionally derived from results rather than becoming a new persisted stat. */
@@ -142,8 +170,14 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
       popularity.currentReaction = moveToward(popularity.currentReaction, popularity.generalPopularity, world.config.popularity.reactionDecayStep);
       popularity.momentum = clampDelta100(popularity.momentum * world.config.popularity.momentumDecayFactor);
       popularity.fatigue = clampScale100(popularity.fatigue - IDLE_FATIGUE_RELIEF);
+      const role = world.config.roles[wrestler.role];
+      const weeksOut = weeksSinceLastAppearance(world, wrestler.id, ctx.tick) ?? 0;
+      const relevancePenalty = role.relevanceDecay && weeksOut > world.config.popularity.relevanceGraceWeeks
+        ? Math.min(world.config.popularity.relevanceDecayCap, (weeksOut - world.config.popularity.relevanceGraceWeeks) * world.config.popularity.relevanceDecayRatePerWeek)
+        : 0;
+      const effectiveAnchor = Math.max(world.config.popularity.relevanceHardFloor, popularity.starPower - relevancePenalty);
       popularity.generalPopularity = clampScale100(
-        popularity.generalPopularity + Math.max(-1, Math.min(1, Math.round((popularity.starPower - popularity.generalPopularity) * world.config.popularity.idleGravityFactor))),
+        popularity.generalPopularity + Math.max(-1, Math.min(1, Math.round((effectiveAnchor - popularity.generalPopularity) * world.config.popularity.idleGravityFactor))),
       );
       continue;
     }
@@ -168,7 +202,13 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
       popularity.negativeHeat = moveToward(popularity.negativeHeat, result.crowdResponse * 0.4, TWEENER_HEAT_MAX_STEP);
     }
 
-    const segment = segmentFor(world, performanceScore, result.crowdResponse, result.storyAdvancement, popularity.fatigue).value;
+    const segment = segmentFor(
+      world,
+      performanceScore,
+      result.crowdResponse,
+      result.storyAdvancement,
+      cadenceModifier(world, wrestler.id, result.id, ctx.tick, popularity.fatigue),
+    ).value;
     const expected = expectedSegment(world, wrestler.id, result.id, segment);
     const opponents = result.participantWrestlerIds.filter((id) => id !== wrestler.id);
     const opponentAveragePopularity = opponents.reduce((sum, id) => sum + (popularityAtStart.get(id) ?? 0), 0) / Math.max(1, opponents.length);
@@ -203,6 +243,12 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
 
     if (show?.kind === "ple" && slot?.position === "main_event" && result.crowdResponse >= 70) {
       adjustStarPower(world, ctx, wrestler.id, world.config.popularity.pleMainEventStarPowerGain, `${wrestler.name} leaves the major main event with elevated status.`);
+    }
+    if (won && opponents.some((opponentId) => {
+      const opponentRole = requireWrestler(world, opponentId).role;
+      return opponentRole === "legend" || opponentRole === "part_timer";
+    })) {
+      adjustStarPower(world, ctx, wrestler.id, world.config.popularity.rubStarPowerGain, `${wrestler.name} gained lasting status by defeating a rare-appearance star.`);
     }
     if (popularity.momentum >= 25 && heldMomentumForThreeWeeks(world, wrestler.id, ctx.tick, "rise")) {
       adjustStarPower(world, ctx, wrestler.id, world.config.popularity.sustainedMomentumStarPowerChange, `${wrestler.name}'s sustained momentum is turning into lasting status.`);

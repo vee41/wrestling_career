@@ -3,6 +3,7 @@
         "wrestler":  {
                          "id":  "cm-punk",
                          "name":  "CM Punk",
+                         "role":  "part_timer",
                          "skills":  {
                                         "ringPerformance":  90,
                                         "psychology":  94,
@@ -43,6 +44,7 @@
         "wrestler":  {
                          "id":  "seth-rollins",
                          "name":  "Seth Rollins",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  93,
                                         "psychology":  91,
@@ -83,6 +85,7 @@
         "wrestler":  {
                          "id":  "roman-reigns",
                          "name":  "Roman Reigns",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  88,
                                         "psychology":  92,
@@ -123,6 +126,7 @@
         "wrestler":  {
                          "id":  "gunther",
                          "name":  "Gunther",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  94,
                                         "psychology":  93,
@@ -163,6 +167,7 @@
         "wrestler":  {
                          "id":  "jey-uso",
                          "name":  "Jey Uso",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  82,
                                         "psychology":  80,
@@ -203,6 +208,7 @@
         "wrestler":  {
                          "id":  "bron-breakker",
                          "name":  "Bron Breakker",
+                         "role":  "prospect",
                          "skills":  {
                                         "ringPerformance":  84,
                                         "psychology":  75,
@@ -243,6 +249,7 @@
         "wrestler":  {
                          "id":  "drew-mcintyre",
                          "name":  "Drew McIntyre",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  87,
                                         "psychology":  85,
@@ -283,6 +290,7 @@
         "wrestler":  {
                          "id":  "damian-priest",
                          "name":  "Damian Priest",
+                         "role":  "legend",
                          "skills":  {
                                         "ringPerformance":  82,
                                         "psychology":  81,
@@ -323,6 +331,7 @@
         "wrestler":  {
                          "id":  "finn-balor",
                          "name":  "Finn Balor",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  88,
                                         "psychology":  86,
@@ -363,6 +372,7 @@
         "wrestler":  {
                          "id":  "dominik-mysterio",
                          "name":  "Dominik Mysterio",
+                         "role":  "prospect",
                          "skills":  {
                                         "ringPerformance":  73,
                                         "psychology":  72,
@@ -403,6 +413,7 @@
         "wrestler":  {
                          "id":  "penta",
                          "name":  "Penta",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  91,
                                         "psychology":  83,
@@ -443,6 +454,7 @@
         "wrestler":  {
                          "id":  "aj-styles",
                          "name":  "AJ Styles",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  94,
                                         "psychology":  88,
@@ -483,6 +495,7 @@
         "wrestler":  {
                          "id":  "sami-zayn",
                          "name":  "Sami Zayn",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  88,
                                         "psychology":  90,
@@ -523,6 +536,7 @@
         "wrestler":  {
                          "id":  "sheamus",
                          "name":  "Sheamus",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  84,
                                         "psychology":  83,
@@ -563,6 +577,7 @@
         "wrestler":  {
                          "id":  "la-knight",
                          "name":  "LA Knight",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  76,
                                         "psychology":  76,
@@ -603,6 +618,7 @@
         "wrestler":  {
                          "id":  "rusev",
                          "name":  "Rusev",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  80,
                                         "psychology":  77,
@@ -643,6 +659,7 @@
         "wrestler":  {
                          "id":  "dragon-lee",
                          "name":  "Dragon Lee",
+                         "role":  "prospect",
                          "skills":  {
                                         "ringPerformance":  88,
                                         "psychology":  78,
@@ -683,6 +700,7 @@
         "wrestler":  {
                          "id":  "rey-mysterio",
                          "name":  "Rey Mysterio",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  86,
                                         "psychology":  88,
@@ -723,6 +741,7 @@
         "wrestler":  {
                          "id":  "chad-gable",
                          "name":  "Chad Gable",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  90,
                                         "psychology":  88,
@@ -763,6 +782,7 @@
         "wrestler":  {
                          "id":  "otis",
                          "name":  "Otis",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  65,
                                         "psychology":  65,
@@ -803,6 +823,7 @@
         "wrestler":  {
                          "id":  "karrion-kross",
                          "name":  "Karrion Kross",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  72,
                                         "psychology":  75,
@@ -843,6 +864,7 @@
         "wrestler":  {
                          "id":  "kofi-kingston",
                          "name":  "Kofi Kingston",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  82,
                                         "psychology":  80,
@@ -883,6 +905,7 @@
         "wrestler":  {
                          "id":  "xavier-woods",
                          "name":  "Xavier Woods",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  78,
                                         "psychology":  77,
@@ -923,6 +946,7 @@
         "wrestler":  {
                          "id":  "the-miz",
                          "name":  "The Miz",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  70,
                                         "psychology":  81,
@@ -963,6 +987,7 @@
         "wrestler":  {
                          "id":  "r-truth",
                          "name":  "R-Truth",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  62,
                                         "psychology":  70,
@@ -1003,6 +1028,7 @@
         "wrestler":  {
                          "id":  "ludwig-kaiser",
                          "name":  "Ludwig Kaiser",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  78,
                                         "psychology":  76,
@@ -1043,6 +1069,7 @@
         "wrestler":  {
                          "id":  "ilja-dragunov",
                          "name":  "Ilja Dragunov",
+                         "role":  "prospect",
                          "skills":  {
                                         "ringPerformance":  91,
                                         "psychology":  86,
@@ -1083,6 +1110,7 @@
         "wrestler":  {
                          "id":  "shinsuke-nakamura",
                          "name":  "Shinsuke Nakamura",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  85,
                                         "psychology":  84,
@@ -1123,6 +1151,7 @@
         "wrestler":  {
                          "id":  "jd-mcdonagh",
                          "name":  "JD McDonagh",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  80,
                                         "psychology":  78,
@@ -1163,6 +1192,7 @@
         "wrestler":  {
                          "id":  "austin-theory",
                          "name":  "Austin Theory",
+                         "role":  "prospect",
                          "skills":  {
                                         "ringPerformance":  75,
                                         "psychology":  73,
@@ -1203,6 +1233,7 @@
         "wrestler":  {
                          "id":  "grayson-waller",
                          "name":  "Grayson Waller",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  71,
                                         "psychology":  72,
@@ -1243,6 +1274,7 @@
         "wrestler":  {
                          "id":  "bronson-reed",
                          "name":  "Bronson Reed",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  76,
                                         "psychology":  74,
@@ -1283,6 +1315,7 @@
         "wrestler":  {
                          "id":  "solo-sikoa",
                          "name":  "Solo Sikoa",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  76,
                                         "psychology":  71,
@@ -1323,6 +1356,7 @@
         "wrestler":  {
                          "id":  "jacob-fatu",
                          "name":  "Jacob Fatu",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  85,
                                         "psychology":  77,
@@ -1363,6 +1397,7 @@
         "wrestler":  {
                          "id":  "jimmy-uso",
                          "name":  "Jimmy Uso",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  78,
                                         "psychology":  77,
@@ -1403,6 +1438,7 @@
         "wrestler":  {
                          "id":  "tama-tonga",
                          "name":  "Tama Tonga",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  76,
                                         "psychology":  75,
@@ -1443,6 +1479,7 @@
         "wrestler":  {
                          "id":  "angelo-dawkins",
                          "name":  "Angelo Dawkins",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  72,
                                         "psychology":  72,
@@ -1483,6 +1520,7 @@
         "wrestler":  {
                          "id":  "montez-ford",
                          "name":  "Montez Ford",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  82,
                                         "psychology":  75,
@@ -1523,6 +1561,7 @@
         "wrestler":  {
                          "id":  "andrade",
                          "name":  "Andrade",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  88,
                                         "psychology":  82,
@@ -1563,6 +1602,7 @@
         "wrestler":  {
                          "id":  "carmelo-hayes",
                          "name":  "Carmelo Hayes",
+                         "role":  "prospect",
                          "skills":  {
                                         "ringPerformance":  86,
                                         "psychology":  79,
@@ -1603,6 +1643,7 @@
         "wrestler":  {
                          "id":  "joe-gacy",
                          "name":  "Joe Gacy",
+                         "role":  "prospect",
                          "skills":  {
                                         "ringPerformance":  71,
                                         "psychology":  73,
@@ -1643,6 +1684,7 @@
         "wrestler":  {
                          "id":  "dexter-lumis",
                          "name":  "Dexter Lumis",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  70,
                                         "psychology":  72,
@@ -1683,6 +1725,7 @@
         "wrestler":  {
                          "id":  "erik",
                          "name":  "Erik",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  70,
                                         "psychology":  71,
@@ -1723,6 +1766,7 @@
         "wrestler":  {
                          "id":  "pete-dunne",
                          "name":  "Pete Dunne",
+                         "role":  "regular",
                          "skills":  {
                                         "ringPerformance":  84,
                                         "psychology":  81,

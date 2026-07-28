@@ -36,6 +36,7 @@ One entry per wrestler:
 - The full wrestler block from contracts: 8 skills (0–100), condition, money, alignment, gimmick (concept, promo tone, traits, presentation, current direction).
 - Starting popularity block (all dimensions — this seeds the card hierarchy). Includes `starPower`, the earned-status anchor popularity is pulled toward (GDD §10.2); author it equal to `generalPopularity` unless a wrestler starts with a spot they have not yet fully earned (a hot prospect: `starPower` below `generalPopularity`) or established status they are currently under-delivering on (`starPower` above).
 - Starting career stance.
+- `role` (GDD §10.5): `legend` | `part_timer` | `regular` | `prospect` — the usage axis, independent of `starPower`. Drives booking cadence, scarcity/overexposure sensitivity, absence handling, story-gating, and title eligibility. Author most of the roster `regular`; reserve `legend`/`part_timer` for genuine rare-appearance stars and `prospect` for young acts being built. The per-role numeric parameters (ideal cadence, scarcity magnitude, etc.) live in config tuning, not here — the roster only picks each wrestler's role.
 - `controlledBy` is **not** in the data — every scenario wrestler starts `ai`; human players claim slots at seed time (CLI `--humans N` flag / web onboarding).
 
 Authoring guidance for the starting hierarchy: established main eventers ~70–90 general popularity, upper midcard ~55–70, midcard ~40–55, lower card ~20–40. Skills and popularity are hand-judged from the real-world source material; accuracy is an authoring concern, not a schema concern.
@@ -63,6 +64,10 @@ The knobs the sim reads instead of hardcoding:
   weights, condition, story/intent influence, and performance/crowd variance.
   `starPower` deliberately does not decide a match; it affects booking and the
   durable-status/popularity layer instead.
+- `roles`: per-role cadence, scarcity/overexposure, relevance-decay,
+  story-gating, and title-eligibility controls. Keep these numeric treatments
+  here rather than deriving usage from a wrestler's popularity; the roster's
+  `role` only selects one of these authored policies.
 
 All tuning fields are optional and schema-defaulted, so a smaller scenario can
 override only the values it needs.
