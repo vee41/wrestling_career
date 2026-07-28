@@ -23,6 +23,8 @@ export const popularityTuningSchema = z.object({
   momentumMemoryFactor: z.number().min(0).max(1).default(0.35),
   momentumSurpriseFactor: z.number().min(0).max(1).default(0.65),
   momentumPushFactor: z.number().min(0).default(4),
+  /** Maximum hot-streak lift above the durable earned-status anchor. */
+  popularityBand: z.number().positive().max(100).default(12),
   gravityFactor: z.number().min(0).default(0.08),
   idleGravityFactor: z.number().min(0).default(0.01),
   crowdIgnitionChance: z.number().min(0).max(1).default(0.18),

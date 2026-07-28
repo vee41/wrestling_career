@@ -209,6 +209,16 @@ describe("updatePopularity", () => {
     expect(popularity.generalPopularity).toBe(89);
   });
 
+  it("keeps an established top star at their earned-status anchor through an off month", () => {
+    const world = createTestWorld({ wrestlerCount: 1 });
+    const popularity = findPopularity(world, "wrestler-0");
+    popularity.generalPopularity = popularity.starPower = popularity.currentReaction = 92;
+
+    for (let tick = 1; tick <= 12; tick++) updatePopularity(world, ctxAt(tick), []);
+
+    expect(popularity.generalPopularity).toBe(92);
+  });
+
   it("decays currentReaction toward generalPopularity on idle ticks instead of dragging generalPopularity down", () => {
     const world = createTestWorld({ wrestlerCount: 1 });
     const popularity = findPopularity(world, "wrestler-0");
@@ -235,10 +245,11 @@ describe("updatePopularity", () => {
     const before = findPopularity(world, "wrestler-1").starPower;
     updateChampionships(world, ctxAt(1), [result]);
     expect(findPopularity(world, "wrestler-1").starPower).toBe(before + 12);
+    expect(findPopularity(world, "wrestler-1").generalPopularity).toBe(findPopularity(world, "wrestler-1").starPower);
     expect(world.events.some((event) => event.type === "popularity_changed" && event.data.reason === "status_rise")).toBe(true);
   });
 
-  it("turns a three-week momentum hold into a durable status milestone", () => {
+  it("keeps sustained positive momentum temporary instead of grinding durable status from routine wins", () => {
     const world = createTestWorld({ wrestlerCount: 2, humanCount: 0 });
     const popularity = findPopularity(world, "wrestler-0");
     popularity.momentum = 100;
@@ -257,8 +268,54 @@ describe("updatePopularity", () => {
     };
     const before = popularity.starPower;
     updatePopularity(world, ctxAt(8), [result]);
-    expect(popularity.starPower).toBe(before + 1);
-    expect(world.events.some((event) => event.data.milestone === "status" && event.data.reason === "status_rise")).toBe(true);
+    expect(popularity.starPower).toBe(before);
+    expect(world.events.some((event) => event.data.milestone === "status" && event.data.reason === "status_rise")).toBe(false);
+  });
+
+  it("tethers a long hot streak to the earned-status band until a title win raises it", () => {
+    const world = createTestWorld({ wrestlerCount: 2, humanCount: 0 });
+    world.config.popularity.crowdIgnitionChance = 0;
+    world.config.popularity.momentumMemoryFactor = 1;
+    world.config.popularity.momentumSurpriseFactor = 0;
+    world.config.popularity.momentumPushFactor = 0.15;
+    world.config.popularity.popularityBand = 12;
+    for (const wrestlerId of ["wrestler-0", "wrestler-1"]) {
+      const popularity = findPopularity(world, wrestlerId);
+      popularity.generalPopularity = popularity.starPower = popularity.currentReaction = 70;
+      popularity.momentum = wrestlerId === "wrestler-0" ? 100 : 0;
+    }
+    const streakResult = (id: string): MatchResult => ({
+      id, matchSlotId: `slot-${id}`, showId: `show-${id}`, participantWrestlerIds: ["wrestler-0", "wrestler-1"], winnerWrestlerId: "wrestler-0",
+      quality: 50, crowdResponse: 50, chemistry: 50, storyAdvancement: 0,
+      performances: [
+        { wrestlerId: "wrestler-0", performanceScore: 50, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+        { wrestlerId: "wrestler-1", performanceScore: 50, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+      ],
+    });
+    const runStreak = (startTick: number, count: number): void => {
+      for (let index = 0; index < count; index++) {
+        const result = streakResult(`streak-${startTick + index}`);
+        updatePopularity(world, ctxAt(startTick + index), [result]);
+        world.matchResults.push(result);
+      }
+    };
+
+    runStreak(1, 30);
+    const beforeTitle = findPopularity(world, "wrestler-0");
+    expect(beforeTitle.generalPopularity).toBeLessThanOrEqual(83);
+    expect(beforeTitle.generalPopularity).toBeLessThan(95);
+
+    const title = world.titles.find((candidate) => candidate.id === "world-title")!;
+    title.holderId = "wrestler-1";
+    const titleResult = streakResult("title-win");
+    world.shows.push({ id: titleResult.showId, tick: 31, kind: "ple", card: [{ id: titleResult.matchSlotId, participantWrestlerIds: titleResult.participantWrestlerIds, position: "main_event", titleId: title.id, intents: {} }] });
+    updateChampionships(world, ctxAt(31), [{ ...titleResult, winnerWrestlerId: "wrestler-0" }]);
+    expect(beforeTitle.starPower).toBe(82);
+
+    beforeTitle.momentum = 100;
+    runStreak(32, 30);
+    expect(beforeTitle.generalPopularity).toBeGreaterThan(90);
+    expect(beforeTitle.generalPopularity).toBeLessThanOrEqual(95);
   });
 
   it("surfaces a seeded crowd ignition but keeps quiet drift out of the event log", () => {

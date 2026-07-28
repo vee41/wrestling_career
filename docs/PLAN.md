@@ -376,6 +376,46 @@ A **program** ≈ an active story (or a champion-vs-contender pairing). Its **he
 
 ---
 
+## Phase 3.7.5 — Tether popularity to earned status; make getting over scarce ⚙ within the gate
+
+**Goal:** Fix a runaway that lets an initially-midcard act ride a win streak to the top of the company (observed: a 67-`starPower` wrestler reaching `generalPopularity` 100 in a 26-week slice, above his own earned status of 77). Two causes: (a) a **correctness bug** — `generalPopularity`'s gain ceiling is measured against 100 instead of against `starPower`, so momentum can push the meter arbitrarily far above earned status; (b) **swing-amplifying tuning** in `wwe-2026/config.json`. Also make "getting over" (`starPower`) hard and achievement-gated so the top tier stays **scarce — not everyone can be over** (GDD §10.2). This is a stability/correctness fix; **sequence it early**, before further slice tuning, since it changes the shape of every popularity trajectory. Scenario-agnostic; the one new number is a config knob.
+
+### Tuning knob (contracts — [config.ts](../packages/contracts/src/config.ts))
+1. Add `popularityBand` to `popularityTuningSchema` (default 12): how far a hot streak may lift `generalPopularity` above `starPower` before gains flatten.
+
+### Sim — the tether ([popularity.ts](../packages/sim/src/popularity.ts))
+2. **Redefine the gain ceiling.** Replace the headroom term at [popularity.ts:229](../packages/sim/src/popularity.ts#L229) for the gain case (`momentum ≥ 0`):
+   ```
+   ceiling  = min(100, starPower + popularityBand)
+   headroom = clamp((ceiling − beforePopularity) / popularityBand, 0, 1)
+   ```
+   Push then vanishes as the meter approaches `starPower + band`, and the existing gravity term (`(starPower − pop)·gravityFactor`, already negative when the meter is above earned status) actively pulls it back. Net: `generalPopularity` can sit at most ~`band` above `starPower`. Leave the loss case (`momentum < 0`) as-is (`beforePopularity/100`) so active falls — burials, slumps — still have room below the anchor.
+
+### Sim — achievement-gate `starPower` ([popularity.ts](../packages/sim/src/popularity.ts))
+3. **Close the "grind status from wins" loophole.** The sustained-momentum → `starPower` *gain* at [popularity.ts:250-254](../packages/sim/src/popularity.ts#L250-L254) lets any hot act accrue permanent status from ordinary matches. Either drop the gain side, or gate it behind the wrestler being in a title/main-event program. Keep the **slump** side (sustained negative momentum can still cost status — that's an active fall). After this, the real `starPower` routes are **title wins, PLE main events, and the rub** (beating a `legend`/`part_timer`, per 3.7.3) — all scarce, which is what makes the top tier scarce: with two titles and a handful of main-event spots, only a few wrestlers can ever reach ~80+ `starPower`, and therefore ~90+ popularity.
+
+### Data — reset the swing tuning ([data/wwe-2026/config.json](../data/wwe-2026/config.json))
+4. Walk the `popularity` block back from swing-maximizing to stable (starting points, re-tune in the slice loop):
+
+   | knob | current | target |
+   | --- | --- | --- |
+   | `crowdIgnitionChance` | 0.42 | 0.06 |
+   | `momentumPushFactor` | 10 | 5 |
+   | `momentumDecayFactor` | 0.95 | 0.85 |
+   | `momentumMemoryFactor` | 0.7 | 0.4 |
+   | `momentumSurpriseFactor` | 1.0 | 0.6 |
+   | `popularityMaxStep` | 6 | 3 |
+   | `idleGravityFactor` | 0.003 | 0.01 |
+   | `popularityBand` (new) | — | 12 |
+
+### Testing
+5. `popularity.test.ts`: a wrestler with `starPower` 70 on a long win streak converges near ~82 (`starPower + band`) and **cannot** reach 95 without `starPower` rising first; winning a title raises `starPower`, which raises the ceiling, which lets the meter climb further; a top star (`starPower` 92) recovers toward ~92 after an off-month rather than bleeding out.
+6. Re-run `slice`. This is the joint to verify: **SL-1 (≥3 rise ≥15) must still pass — but now a 15-point rise should require a title win or main-event run, not a TV streak.** Confirm the top tier is not crowded (few wrestlers above ~88) and that the #1 act is a title-holder / main-eventer, not a hot midcarder. Record which risers earned it, and the retuned constants, in `playtest-notes.md`.
+
+**Done when:** `popularityBand` exists in config; the tether and `starPower` gating are in `popularity.ts`; `wwe-2026/config.json` is reset; a 26-week run shows no meter running far above earned status, a scarce top tier, and SL-1/2/3/7/10 intact; every constant lives in config, none inline.
+
+---
+
 ## Phase 3.8 — Promo, angle, and skit segments
 
 **Goal:** Give the show card a non-match segment type — the promo/interview/angle beat that advances a story or shifts heat without a competitive outcome. This closes a gap the contracts layer already anticipated: `segmentIntentSchema`'s 8 tokens (`build_sympathy`, `generate_hostility`, `promote_opponent`, `escalate_rivalry`, `show_vulnerability`, `protect_mystery`, `seek_controversy`, `stay_controlled` — [intent.ts:20-29](../packages/contracts/src/intent.ts#L20-L29)) and `PlayerTurn.segmentIntents` ([turn.ts:22](../packages/contracts/src/turn.ts#L22)) have existed since Phase 1.5 with nothing to attach them to — Phase 3's post-implementation notes call this out explicitly (above, "the CLI's `intent` command only wires match intents… left for a future pass since there's no segment-slot entity yet to attach them to"). This phase builds that entity.

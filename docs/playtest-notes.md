@@ -311,3 +311,27 @@ peaking story to strand a required title match. The card-ordering change made
 weekly popularity movement slightly less volatile, so the scenario's existing
 bounded `popularityMaxStep` was tuned from 4 to 6; SL-3 remains green across
 the same seed set.
+
+## Phase 3.7.5 earned-status popularity tether (SL-1, SL-2, SL-3, SL-7, SL-10)
+
+The fixed three-seed, 26-week gate passes every MUST criterion and SL-10 after
+adding `popularityBand: 12`. Positive momentum now flattens at
+`min(100, starPower + popularityBand)` and gravity pulls a hot meter back to
+its earned-status anchor. Sustained positive momentum no longer raises
+`starPower`; titles, PLE main events, and rare-opponent rubs are the only
+positive status routes.
+
+The low-swing starting values in the execution plan made SL-1 and SL-3 fail,
+so the final `wwe-2026` constants retain the proven movement cadence
+(`popularityMaxStep` 6, momentum decay/memory/surprise/push 0.95/0.7/1/10,
+and crowd ignition 0.42) behind the new bounded ceiling. Earned milestones
+are more meaningful: PLE main events award 8 `starPower`, world-title wins
+20, and midcard-title wins 16; a positive status gain immediately brings
+general popularity up to that newly earned anchor, never into the extra
+12-point hot-streak band.
+
+The three runs recorded 3/4/5 rises for SL-1, 5/11/6 falls for SL-2, and
+26/33/29 careers with a 16-point weekly range for SL-3. Their #1 acts were
+three different title/main-event performers, satisfying SL-10. The tether
+keeps ordinary hot streaks temporary while championship and major-show
+outcomes create the limited, legible climbs required by the slice.

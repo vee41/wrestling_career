@@ -133,6 +133,13 @@ export function adjustStarPower(
   popularity.starPower = clampScale100(before + delta);
   if (popularity.starPower === before) return;
   const direction = popularity.starPower > before ? "rise" : "fall";
+  // A genuinely earned status milestone is immediately legible to the
+  // audience. This only closes an existing gap up to the new earned-status
+  // floor; it never grants the extra hot-streak band, which remains earned
+  // through subsequent performances.
+  if (direction === "rise") {
+    popularity.generalPopularity = Math.max(popularity.generalPopularity, popularity.starPower);
+  }
   addPopularityEvent(
     world,
     ctx,
@@ -226,7 +233,14 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     popularity.currentReaction = moveToward(popularity.currentReaction, segment, world.config.popularity.reactionMaxStep);
 
     const gravity = (popularity.starPower - beforePopularity) * world.config.popularity.gravityFactor;
-    const headroom = popularity.momentum >= 0 ? 1 - beforePopularity / 100 : beforePopularity / 100;
+    // A hot crowd response can temporarily outrun a wrestler's established
+    // status, but it cannot turn an ordinary win streak into permanent top
+    // of card popularity. The band is scenario-owned so a promotion can tune
+    // how much short-term buzz it permits above earned status.
+    const popularityCeiling = Math.min(100, popularity.starPower + world.config.popularity.popularityBand);
+    const headroom = popularity.momentum >= 0
+      ? Math.max(0, Math.min(1, (popularityCeiling - beforePopularity) / world.config.popularity.popularityBand))
+      : beforePopularity / 100;
     const push = popularity.momentum * world.config.popularity.momentumPushFactor * headroom;
     // A card position influences both the immediate surprise and the amount
     // of that momentum that becomes durable popularity. The shared cap still
@@ -250,9 +264,11 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     })) {
       adjustStarPower(world, ctx, wrestler.id, world.config.popularity.rubStarPowerGain, `${wrestler.name} gained lasting status by defeating a rare-appearance star.`);
     }
-    if (popularity.momentum >= 25 && heldMomentumForThreeWeeks(world, wrestler.id, ctx.tick, "rise")) {
-      adjustStarPower(world, ctx, wrestler.id, world.config.popularity.sustainedMomentumStarPowerChange, `${wrestler.name}'s sustained momentum is turning into lasting status.`);
-    } else if (popularity.momentum <= -25 && heldMomentumForThreeWeeks(world, wrestler.id, ctx.tick, "fall")) {
+    // Sustained positive momentum is deliberately temporary: durable status
+    // must be earned through a title, major main event, or rare-opponent rub.
+    // A sustained slump still damages status, because falling remains an
+    // active career outcome rather than merely a reversal of a hot streak.
+    if (popularity.momentum <= -25 && heldMomentumForThreeWeeks(world, wrestler.id, ctx.tick, "fall")) {
       adjustStarPower(world, ctx, wrestler.id, -world.config.popularity.sustainedMomentumStarPowerChange, `${wrestler.name}'s sustained slump is costing lasting status.`);
     }
 
