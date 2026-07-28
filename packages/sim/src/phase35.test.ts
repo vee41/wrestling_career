@@ -34,7 +34,7 @@ function result(id: string, winnerWrestlerId: string, loserWrestlerId: string): 
 }
 
 describe("Phase 3.5 world structure", () => {
-  it("derives TV/PLE cadence from config and reserves both PLE title defences", () => {
+  it("derives TV/PLE cadence from config without forcing fresh belts onto the card", () => {
     const world = createTestWorld({ wrestlerCount: 16, humanCount: 0, seed: "ple-booking" });
     world.config.pleIntervalWeeks = 2;
     world.config.pleCardSize = { min: 6, max: 6 };
@@ -44,8 +44,7 @@ describe("Phase 3.5 world structure", () => {
     expect(tv.kind).toBe("tv");
     expect(ple.kind).toBe("ple");
     expect(ple.card).toHaveLength(6);
-    expect(ple.card.find((slot) => slot.titleId === "world-title")?.position).toBe("main_event");
-    expect(ple.card.find((slot) => slot.titleId === "midcard-title")?.position).toBe("upper");
+    expect(ple.card.some((slot) => slot.titleId !== undefined)).toBe(false);
   });
 
   it("books and resolves a peaking story at its PLE blowoff", () => {

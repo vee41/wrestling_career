@@ -12,7 +12,7 @@
     "overexposurePenaltyFactor": 0.3,
     "reactionMaxStep": 15,
     "reactionDecayStep": 5,
-    "popularityMaxStep": 4,
+    "popularityMaxStep": 6,
     "momentumDecayFactor": 0.95,
     "momentumMemoryFactor": 0.7,
     "momentumSurpriseFactor": 1,
@@ -62,6 +62,14 @@
     "restTierPopularityThreshold": 85,
     "restPenalty": 150,
     "maxMultiWayParticipants": 4,
-    "multiWayChance": 0.1
+    "multiWayChance": 0.1,
+    "heatStoryMomentumWeight": 0.5,
+    "heatParticipantMomentumWeight": 0.3,
+    "heatParticipantPopularityWeight": 0.1,
+    "grudgeHeatBonus": 15,
+    "worldTitleStakesHeatBonus": 30,
+    "midcardTitleStakesHeatBonus": 12,
+    "titleDefenseStalenessWeeks": 4,
+    "contenderReadyMomentumThreshold": 20
   }
 }

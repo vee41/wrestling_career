@@ -293,3 +293,21 @@ eligibility cannot strand a world championship defense. Unit coverage confirms
 that rare returns gain scarcity, immediate repeats incur overexposure, regular
 absence asymptotes at its bounded relevance anchor, and a win over a rare act
 awards durable status rather than passive absence decay.
+
+## Phase 3.7.4 heat-ranked card builder (SL-4, SL-5, SL-7, SL-9)
+
+PLE cards now rank active programs by heat rather than forcing the world title
+into the main event. Championship stakes add heat (30 for world, 12 for
+midcard), so title programs normally remain prominent while a hotter grudge can
+close the card. The three fixed 26-week seeds remain green for SL-4, SL-5,
+SL-7, and SL-9: title defenses stay PLE-led and clear their required counts,
+while non-title programs can take the main event.
+
+The default scenario uses a four-week title-defense staleness floor. Stale
+belts reserve a viable challenger before other PLE programs consume the card;
+champions are also kept out of a different title match when their own defense
+is due. That preserves conditional defenses without allowing an unrelated
+peaking story to strand a required title match. The card-ordering change made
+weekly popularity movement slightly less volatile, so the scenario's existing
+bounded `popularityMaxStep` was tuned from 4 to 6; SL-3 remains green across
+the same seed set.

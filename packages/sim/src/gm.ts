@@ -1,7 +1,7 @@
 import type { GmObjective, MatchSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
-import { isBookedForTick, isShowTick, showKindForTick, weeksSinceLastAppearance } from "./booking.js";
+import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
 import { recentPerformanceReaction } from "./patience.js";
 
 const ALL_OBJECTIVES: GmObjective[] = [
@@ -73,14 +73,12 @@ function participantsTitleEligible(world: WorldState, participantIds: readonly s
   return participantIds.every((id) => titleEligible(world, world.wrestlers.find((wrestler) => wrestler.id === id) as Wrestler, tier));
 }
 
-/**
- * A PLE cannot spend a champion in a non-title story match against someone
- * ineligible for that belt: doing so would make the mandatory title pass
- * impossible without double-booking the holder.
- */
-function blocksRequiredTitleDefense(world: WorldState, participantIds: readonly string[]): boolean {
+/** A stale belt takes priority over a non-title story that cannot carry it. */
+function blocksStaleTitleDefense(world: WorldState, participantIds: readonly string[], targetTick: number): boolean {
   return world.titles.some((title) =>
-    title.holderId !== undefined && participantIds.includes(title.holderId) && !participantsTitleEligible(world, participantIds, title.tier),
+    title.holderId !== undefined && participantIds.includes(title.holderId) &&
+    !participantsTitleEligible(world, participantIds, title.tier) &&
+    weeksSinceLastTitleDefense(world, title, targetTick) >= world.config.booking.titleDefenseStalenessWeeks,
   );
 }
 
@@ -109,7 +107,10 @@ function highestScoringContender(world: WorldState, title: Title, used: Set<stri
     }
   }
   return bookableWrestlers(world)
-    .filter((wrestler) => wrestler.id !== holder && !used.has(wrestler.id) && titleEligible(world, wrestler, title.tier))
+    // A champion should defend their own belt rather than be double-booked
+    // into a different title scene on the same PLE. Once they lose it they
+    // remain eligible for the next tier, preserving the ex-champion pathway.
+    .filter((wrestler) => wrestler.id !== holder && !isChampion(world, wrestler.id) && !used.has(wrestler.id) && titleEligible(world, wrestler, title.tier))
     .map((wrestler) => ({
       wrestler,
       // A strong IC reign is a proving ground: keep former champions in the
@@ -122,24 +123,78 @@ function highestScoringContender(world: WorldState, title: Title, used: Set<stri
     .sort((a, b) => b.score - a.score)[0]?.wrestler;
 }
 
-function assignPositions(world: WorldState, slots: MatchSlot[], currentTick: number, kind: Show["kind"]): MatchSlot[] {
-  const ranked = slots.slice().sort((a, b) => {
-    const titleWeight = (slot: MatchSlot) => {
-      const title = slot.titleId ? world.titles.find((candidate) => candidate.id === slot.titleId) : undefined;
-      return title?.tier === "world" ? 2 : title?.tier === "midcard" ? 1 : 0;
-    };
-    const score = (slot: MatchSlot) => slot.participantWrestlerIds.reduce(
-      (sum, id) => sum + bookingScore(world, world.wrestlers.find((w) => w.id === id) as Wrestler, currentTick), 0,
-    );
-    return titleWeight(b) - titleWeight(a) || score(b) - score(a);
-  });
+/**
+ * The card is ordered around programs, not championships. A belt contributes
+ * stakes heat, but a hotter personal story may still close the show.
+ */
+export function programHeat(world: WorldState, booked: MatchSlot): number {
+  const tuning = world.config.booking;
+  const story = booked.storyId ? world.stories.find((candidate) => candidate.id === booked.storyId) : undefined;
+  const participantHeat = booked.participantWrestlerIds.reduce((sum, wrestlerId) => {
+    const popularity = findPopularity(world, wrestlerId);
+    return sum + popularity.momentum * tuning.heatParticipantMomentumWeight +
+      popularity.generalPopularity * tuning.heatParticipantPopularityWeight;
+  }, 0);
+  const title = booked.titleId ? world.titles.find((candidate) => candidate.id === booked.titleId) : undefined;
+  const stakesHeat = title?.tier === "world"
+    ? tuning.worldTitleStakesHeatBonus
+    : title?.tier === "midcard" ? tuning.midcardTitleStakesHeatBonus : 0;
+  const grudgeHeat = story && (story.tension === "grudge" || story.tension === "betrayal")
+    ? tuning.grudgeHeatBonus
+    : 0;
+  return (story ? story.audienceInterest + story.momentum * tuning.heatStoryMomentumWeight : 0) +
+    participantHeat + stakesHeat + grudgeHeat;
+}
+
+function titleForStory(world: WorldState, storyId: string): Title | undefined {
+  const story = world.stories.find((candidate) => candidate.id === storyId);
+  return story
+    ? world.titles.find((title) => title.holderId !== undefined && story.participantWrestlerIds.includes(title.holderId) && participantsTitleEligible(world, story.participantWrestlerIds, title.tier))
+    : undefined;
+}
+
+function isTopOfCardProgram(world: WorldState, booked: MatchSlot): boolean {
+  const candidateHeat = programHeat(world, booked);
+  const hottestActiveStory = Math.max(0, ...world.stories
+    .filter((story) => story.phase !== "resolved" && story.participantWrestlerIds.length >= 2)
+    .map((story) => programHeat(world, {
+      id: `heat-${story.id}`,
+      participantWrestlerIds: story.participantWrestlerIds,
+      position: "mid",
+      storyId: story.id,
+      ...(titleForStory(world, story.id) ? { titleId: titleForStory(world, story.id)!.id } : {}),
+      intents: {},
+    })));
+  return candidateHeat >= hottestActiveStory;
+}
+
+function assignPositions(world: WorldState, slots: MatchSlot[]): MatchSlot[] {
+  const ranked = slots.slice().sort((a, b) => programHeat(world, b) - programHeat(world, a));
   return ranked.map((booked, index) => {
-    const title = booked.titleId ? world.titles.find((candidate) => candidate.id === booked.titleId) : undefined;
-    const position = title?.tier === "world" && kind === "ple" ? "main_event"
-      : title?.tier === "midcard" && kind === "ple" ? "upper"
-      : index === 0 ? "main_event" : index === 1 ? "upper" : index === ranked.length - 1 ? "opener" : "mid";
+    const position = index === 0 ? "main_event" : index === 1 ? "upper" : index === ranked.length - 1 ? "opener" : "mid";
     return { ...booked, position };
   });
+}
+
+function weeksSinceLastTitleDefense(world: WorldState, title: Title, targetTick: number): number {
+  const lastDefenseTick = Math.max(
+    title.since ?? 0,
+    ...world.events
+      .filter((event) => event.type === "title_change" && event.data["titleId"] === title.id)
+      .map((event) => event.tick),
+  );
+  return Math.max(0, weekForTick(targetTick, world.config) - weekForTick(lastDefenseTick, world.config));
+}
+
+function hasReadyContender(world: WorldState, title: Title, used: Set<string>): boolean {
+  if (!title.holderId) return false;
+  const holderHasActiveStory = world.stories.some((story) =>
+    story.phase !== "resolved" && story.participantWrestlerIds.includes(title.holderId!),
+  );
+  return holderHasActiveStory || bookableWrestlers(world).some((wrestler) =>
+    wrestler.id !== title.holderId && !used.has(wrestler.id) && titleEligible(world, wrestler, title.tier) &&
+    findPopularity(world, wrestler.id).momentum >= world.config.booking.contenderReadyMomentumThreshold,
+  );
 }
 
 export function bookShow(world: WorldState, ctx: TickContext, targetTick: number): Show {
@@ -156,31 +211,50 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   }
   const used = new Set<string>();
   const slots: MatchSlot[] = [];
+  // A stale championship has a hard defence floor. Reserve one viable
+  // challenger before the program pass so unrelated peaking stories cannot
+  // consume the entire pool and accidentally strand that defence.
+  const reservedStaleContenders = new Set<string>();
+  if (kind === "ple") {
+    for (const title of world.titles) {
+      if (!title.holderId || !eligible.has(title.holderId)) continue;
+      const holder = world.wrestlers.find((wrestler) => wrestler.id === title.holderId) as Wrestler;
+      if (!titleEligible(world, holder, title.tier)) continue;
+      const stale = weeksSinceLastTitleDefense(world, title, targetTick) >= world.config.booking.titleDefenseStalenessWeeks;
+      if (!stale) continue;
+      const contender = highestScoringContender(world, title, reservedStaleContenders, ctx.tick);
+      if (contender) reservedStaleContenders.add(contender.id);
+    }
+  }
 
   // A PLE first reserves a genuine blowoff for every peaking story.
   if (kind === "ple") {
     for (const story of world.stories.filter((candidate) => candidate.phase === "peaking" && candidate.participantWrestlerIds.length >= 2)) {
       const participants = story.participantWrestlerIds;
       if (participants.some((id) => used.has(id) || !eligible.has(id))) continue;
-      if (blocksRequiredTitleDefense(world, participants)) continue;
+      if (blocksStaleTitleDefense(world, participants, targetTick)) continue;
       const title = world.titles.find((candidate) =>
         candidate.holderId !== undefined && participants.includes(candidate.holderId) && participantsTitleEligible(world, participants, candidate.tier),
       );
-      // Repeating a title-feud blowoff would lock the same challenger into
-      // every PLE main event. Let the mandatory title-contender pass below
-      // rotate a fresh opponent while this story waits for TV fallout.
+      if (participants.some((id) => reservedStaleContenders.has(id)) && !title) continue;
+      // A title program can earn a trilogy when it is genuinely the hottest
+      // program on the card; ordinary repeat title pairings still rotate out.
       const pairAlreadyMetForTitle = title !== undefined && world.matchResults.some((result) => {
         const priorShow = world.shows.find((show) => show.id === result.showId);
         const priorSlot = priorShow?.card.find((slot) => slot.id === result.matchSlotId);
         return priorSlot?.titleId === title.id && participants.every((id) => result.participantWrestlerIds.includes(id));
       });
-      if (pairAlreadyMetForTitle) continue;
+      const potentialSlot = slot(ctx, participants, world.gmObjective, {
+        storyId: story.id, ...(title ? { titleId: title.id } : {}),
+      });
+      if (pairAlreadyMetForTitle && !isTopOfCardProgram(world, potentialSlot)) continue;
       for (const wrestlerId of participants) used.add(wrestlerId);
-      slots.push(slot(ctx, participants, world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
+      slots.push(potentialSlot);
     }
   }
 
-  // PLE title defences are mandatory. A story participant is preferred as challenger.
+  // Titles defend on a credible challenger or their configured staleness clock;
+  // a championship is stakes for a program, not the PLE's skeleton.
   if (kind === "ple") {
     for (const title of world.titles) {
       if (!title.holderId || !eligible.has(title.holderId)) continue;
@@ -191,6 +265,9 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       // defense. Do not turn that one match into a second title defense.
       if (slots.some((candidate) => candidate.titleId === title.id)) continue;
       const existing = slots.find((candidate) => candidate.participantWrestlerIds.includes(holderId) && candidate.titleId === undefined);
+      const stale = weeksSinceLastTitleDefense(world, title, targetTick) >= world.config.booking.titleDefenseStalenessWeeks;
+      const ready = hasReadyContender(world, title, used);
+      if (!stale && !ready) continue;
       if (existing && participantsTitleEligible(world, existing.participantWrestlerIds, title.tier)) { existing.titleId = title.id; continue; }
       if (used.has(holderId)) continue;
       const contender = highestScoringContender(world, title, used, ctx.tick);
@@ -273,7 +350,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     slots.push(slot(ctx, [a.id, b.id], world.gmObjective));
   }
 
-  const show: Show = { id: ctx.ids.next("show"), tick: targetTick, kind, card: assignPositions(world, slots, ctx.tick, kind) };
+  const show: Show = { id: ctx.ids.next("show"), tick: targetTick, kind, card: assignPositions(world, slots) };
   world.shows.push(show);
   for (const wrestlerId of slots.flatMap((booked) => booked.participantWrestlerIds)) {
     const hasUnreturnedAbsence = world.events.some((event) =>

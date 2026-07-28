@@ -106,6 +106,16 @@ export const bookingTuningSchema = z.object({
   restPenalty: z.number().min(0).default(150),
   maxMultiWayParticipants: z.number().int().min(3).max(4).default(4),
   multiWayChance: z.number().min(0).max(1).default(0.15),
+  // Phase 3.7.4: rank programs by their heat, with a championship as
+  // meaningful stakes rather than a forced card position.
+  heatStoryMomentumWeight: z.number().min(0).default(0.5),
+  heatParticipantMomentumWeight: z.number().min(0).default(0.3),
+  heatParticipantPopularityWeight: z.number().min(0).default(0.1),
+  grudgeHeatBonus: z.number().min(0).default(15),
+  worldTitleStakesHeatBonus: z.number().min(0).default(30),
+  midcardTitleStakesHeatBonus: z.number().min(0).default(12),
+  titleDefenseStalenessWeeks: z.number().int().min(0).default(8),
+  contenderReadyMomentumThreshold: z.number().min(-100).max(100).default(20),
 });
 export type BookingTuning = z.infer<typeof bookingTuningSchema>;
 
