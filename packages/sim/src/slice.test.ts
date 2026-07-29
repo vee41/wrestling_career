@@ -44,6 +44,12 @@ describe("slice gate", () => {
     for (const analysis of analyses) {
       const failedMusts = analysis.criteria.filter((criterion) => criterion.strength === "MUST" && !criterion.pass);
       expect(failedMusts).toEqual([]);
+      expect(analysis.popularityTotals.gains).toBeGreaterThanOrEqual(0);
+      expect(analysis.popularityTotals.losses).toBeLessThanOrEqual(0);
+      expect(analysis.popularityTotals.net).toBe(analysis.trajectories.reduce(
+        (total, trajectory) => total + trajectory.end - trajectory.start,
+        0,
+      ));
     }
     expect(crossSeedCriterion(analyses).pass).toBe(true);
   });

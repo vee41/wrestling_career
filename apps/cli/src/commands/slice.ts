@@ -60,7 +60,14 @@ function seedReport(seed: string, analysis: SliceAnalysis): string[] {
   for (const arc of analysis.injuryArcs) {
     lines.push(`- ${wrestlerName(analysis, arc.wrestlerId)}: injuries ${arc.injuryTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}; missed shows ${arc.missedShowTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}; returns ${arc.returnTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}.`);
   }
-  lines.push("", "### Popularity trajectories", "", "| Wrestler | Start | End | Weekly trajectory |", "| --- | ---: | ---: | --- |");
+  const { gains, losses, net } = analysis.popularityTotals;
+  const signed = (value: number) => `${value > 0 ? "+" : ""}${value}`;
+  lines.push(
+    "", "### Popularity quick stats", "",
+    "| Gained | Lost | Net |", "| ---: | ---: | ---: |",
+    `| ${signed(gains)} | ${signed(losses)} | ${signed(net)} |`,
+    "", "### Popularity trajectories", "", "| Wrestler | Start | End | Weekly trajectory |", "| --- | ---: | ---: | --- |",
+  );
   for (const trajectory of analysis.trajectories.slice().sort((a, b) => b.end - a.end)) {
     lines.push(`| ${trajectory.wrestlerName} | ${trajectory.start} | ${trajectory.end} | ${sparkline(trajectory.samples)} |`);
   }

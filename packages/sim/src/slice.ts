@@ -11,6 +11,15 @@ export interface SliceRun {
   initialWorld: WorldState;
   finalWorld: WorldState;
   weeklyPopularity: PopularitySample[];
+  /** Roster-wide general-popularity movement across every simulation tick. */
+  popularityTotals: SlicePopularityTotals;
+}
+
+export interface SlicePopularityTotals {
+  gains: number;
+  /** Negative, so net movement is gains + losses. */
+  losses: number;
+  net: number;
 }
 
 export interface SliceCriterion {
@@ -31,6 +40,7 @@ export interface SliceAnalysis {
   injuryArcs: SliceInjuryArc[];
   trajectories: SliceTrajectory[];
   popularityLogs: Record<string, SlicePopularityLogEntry[]>;
+  popularityTotals: SlicePopularityTotals;
   topWrestlerId: string;
   ticksPerWeek: number;
 }
@@ -133,17 +143,26 @@ function popularitySample(world: WorldState, week: number): PopularitySample {
 export function runHeadlessSlice(initialWorld: WorldState, seed: string, weeks = initialWorld.config.sliceWeeks): SliceRun {
   let world = initialWorld;
   const weeklyPopularity = [popularitySample(world, 0)];
+  let priorPopularity = new Map(world.popularity.map((popularity) => [popularity.wrestlerId, popularity.generalPopularity]));
+  let gains = 0;
+  let losses = 0;
   const ticks = weeks * (world.config.decisionTicksPerWeek + 1);
 
   for (let index = 0; index < ticks; index++) {
     const startingTick = world.tick;
     world = runTick(world, [], seed).world;
+    for (const popularity of world.popularity) {
+      const delta = popularity.generalPopularity - (priorPopularity.get(popularity.wrestlerId) ?? popularity.generalPopularity);
+      if (delta > 0) gains += delta;
+      if (delta < 0) losses += delta;
+    }
+    priorPopularity = new Map(world.popularity.map((popularity) => [popularity.wrestlerId, popularity.generalPopularity]));
     if (isShowTick(startingTick, world.config)) {
       weeklyPopularity.push(popularitySample(world, weekForTick(startingTick, world.config)));
     }
   }
 
-  return { initialWorld, finalWorld: world, weeklyPopularity };
+  return { initialWorld, finalWorld: world, weeklyPopularity, popularityTotals: { gains, losses, net: gains + losses } };
 }
 
 function numberData(event: WorldEvent, key: string): number | undefined {
@@ -257,7 +276,7 @@ function popularityLogs(world: WorldState): Record<string, SlicePopularityLogEnt
 
 /** Compute the measurable SL-1...SL-9 criteria for one completed slice. */
 export function analyzeSlice(run: SliceRun): SliceAnalysis {
-  const { initialWorld, finalWorld, weeklyPopularity } = run;
+  const { initialWorld, finalWorld, weeklyPopularity, popularityTotals } = run;
   const rosterSize = initialWorld.wrestlers.length;
   const names = new Map(initialWorld.wrestlers.map((wrestler) => [wrestler.id, wrestler.name]));
   const trajectories = initialWorld.wrestlers.map((wrestler) => {
@@ -416,6 +435,7 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
   return {
     criteria, titleLineages, stories, pleCards, injuryArcs, trajectories,
     popularityLogs: popularityLogs(finalWorld),
+    popularityTotals,
     topWrestlerId: finalRanking[0]?.wrestlerId ?? "unknown",
     ticksPerWeek: finalWorld.config.decisionTicksPerWeek + 1,
   };

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -188,9 +188,16 @@ describe("cli slice", () => {
     expect(output).toContain("HTML report:");
     expect(output).toContain("| SL-1 |");
     expect(output).toContain("### Title lineages");
+    expect(output).toContain("| Gained | Lost | Net |");
     expect(output).toContain("### Popularity trajectories");
     const reportPath = join(ctx.sliceReportDirectory!, "wwe-2026-1-seed-4-weeks.html");
     expect(existsSync(reportPath)).toBe(true);
+    const report = readFileSync(reportPath, "utf8");
+    expect(report).toContain("<span>Gained</span>");
+    expect(report).toContain("<span>Lost</span>");
+    expect(report).toContain("<span>Net</span>");
+    expect(report).toContain('data-sort="end"');
+    expect(report).toContain('aria-sort="descending"');
     expect(() => loadSave(ctx.filePath)).toThrow(/no saved world/i);
   });
 });
