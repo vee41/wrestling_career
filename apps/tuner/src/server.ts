@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { popularityTuningSchema, type PopularityTuning } from "@wrestling/contracts";
+import { CROSS_SEED_INTRO, crossSeedSignals, SIGNAL_DESCRIPTIONS, SL_CRITERION_DESCRIPTIONS } from "@wrestling/sim";
 import { loadScenario, popularityTotals, runTuning } from "./tuning.js";
 
 const APP_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -36,10 +37,14 @@ function dashboardResult(popularity: PopularityTuning, seedCount: number) {
     config: result.config,
     mustPass: result.mustPass,
     crossSeed: result.crossSeed,
+    volatility: crossSeedSignals(result.runs.map(({ analysis }) => analysis)),
+    signalDescriptions: SIGNAL_DESCRIPTIONS,
+    criterionDescriptions: SL_CRITERION_DESCRIPTIONS,
+    crossSeedIntro: CROSS_SEED_INTRO,
     runs: result.runs.map(({ seed, analysis }) => ({
       seed,
       criteria: analysis.criteria,
-      topTierCount: analysis.trajectories.filter((trajectory) => trajectory.end >= 88).length,
+      signals: analysis.signals,
       popularityTotals: popularityTotals(analysis),
       wrestlers: analysis.trajectories.slice().sort((a, b) => a.wrestlerName.localeCompare(b.wrestlerName)).map((trajectory) => ({
         id: trajectory.wrestlerId,

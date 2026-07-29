@@ -12,7 +12,9 @@ describe("tuning runner", () => {
     expect(result.runs).toHaveLength(1);
     expect(result.runs[0]?.analysis.criteria).toHaveLength(9);
     expect(Object.keys(result.runs[0]?.analysis.popularityLogs ?? {})).not.toHaveLength(0);
-    expect(result.config.popularityBand).toBe(12);
+    // Config values are a tuning knob, not a contract — assert it round-trips
+    // rather than hardcoding a specific constant that drifts every retune.
+    expect(result.config.popularityBand).toBe(scenario.config.popularity.popularityBand);
   });
 
   it("reconciles roster popularity gains and losses to the net change", () => {

@@ -13,4 +13,8 @@ export { isShowTick, nextShowTick, upcomingSlotsFor, DECISION_TICKS_PER_WEEK, WE
 export { stanceWeights, defaultMatchIntent, defaultSegmentIntent, type StanceWeights } from "./ai/stance-weights.js";
 export { decideFallbackTurn } from "./ai/decide.js";
 export { worldFromScenario } from "./scenario.js";
-export { analyzeSlice, crossSeedCriterion, runHeadlessSlice, type SliceAnalysis, type SliceCriterion, type SliceMatchImpact, type SlicePopularityLogEntry, type SlicePopularityTotals, type SliceRun } from "./slice.js";
+export {
+  analyzeSlice, CROSS_SEED_INTRO, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, SL_CRITERION_DESCRIPTIONS,
+  type CrossSeedSignals, type SliceAnalysis, type SliceCriterion, type SliceMatchImpact,
+  type SlicePopularityLogEntry, type SlicePopularityTotals, type SliceRun, type SliceSignals,
+} from "./slice.js";

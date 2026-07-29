@@ -132,9 +132,45 @@ function sortHeader(key, text) {
   const arrow = active ? (sortDirection === 1 ? ' ▲' : ' ▼') : '';
   return `<button class="sort-header" type="button" data-sort-key="${key}" aria-sort="${active ? (sortDirection === 1 ? 'ascending' : 'descending') : 'none'}">${text}${arrow}</button>`;
 }
-function criterionRows(criteria) { return criteria.map(item => `<tr><td>${item.id}</td><td><span class="pill ${item.pass ? 'pass':'fail'}">${item.pass ? 'PASS':'FAIL'}</span></td><td>${item.observed}</td></tr>`).join(''); }
+function criterionCards(criteria, descriptions) {
+  return criteria.map(item => {
+    const tooltip = descriptions?.[item.id] ?? '';
+    return `<article class="stat signal-stat"><span class="option-label">${item.id} <small>[${item.strength}]</small><span class="tooltip" tabindex="0" role="img" aria-label="${escapeHtml(tooltip)}" data-tooltip="${escapeHtml(tooltip)}">?</span></span><b class="${item.pass ? 'pass' : 'fail'}">${item.pass ? 'PASS' : 'FAIL'}</b><small>${escapeHtml(item.observed)}${item.detail ? `<br>${escapeHtml(item.detail)}` : ''}</small></article>`;
+  }).join('');
+}
+function crossSeedCard(label, value, tooltip, tone) {
+  return `<article class="stat signal-stat"><span class="option-label">${label}<span class="tooltip" tabindex="0" role="img" aria-label="${escapeHtml(tooltip)}" data-tooltip="${escapeHtml(tooltip)}">?</span></span><b${tone ? ` class="${tone}"` : ''}>${value}</b></article>`;
+}
+function crossSeedCards(crossSeed, volatility, criterionDescriptions, signalDescriptions) {
+  return [
+    crossSeedCard('Winner variety (SL-10)', crossSeed.pass ? 'PASS' : 'FAIL', `${criterionDescriptions?.['SL-10'] ?? ''} Observed: ${crossSeed.observed}`, crossSeed.pass ? 'pass' : 'fail'),
+    crossSeedCard('Rise-count spread (SL-1)', volatility.risesRange.join('-'), signalDescriptions?.risesRange ?? ''),
+    crossSeedCard('Fall-count spread (SL-2)', volatility.fallsRange.join('-'), signalDescriptions?.fallsRange ?? ''),
+    crossSeedCard('Swing-share spread (SL-3)', volatility.nonMonotonicShareRange.map(v => `${Math.round(v * 100)}%`).join('-'), signalDescriptions?.nonMonotonicShareRange ?? ''),
+  ].join('');
+}
+const SIGNAL_ROWS = [
+  ['topTierCount', 'Top tier (88+)', v => String(v)],
+  ['popularitySpreadStdDev', 'Popularity spread', v => v.toFixed(1)],
+  ['rankStability', 'Rank stability', v => v.toFixed(2)],
+  ['skillPopularityCorrelation', 'Skill/popularity corr.', v => v.toFixed(2)],
+  ['starPowerRunningHotCount', 'Running hot', v => String(v)],
+  ['starPowerSuppressedCount', 'Suppressed', v => String(v)],
+  ['unresolvedStoryCount', 'Unresolved stories', v => String(v)],
+];
+function signalCards(signals, descriptions) {
+  return SIGNAL_ROWS.map(([key, label, format]) => `<article class="stat signal-stat"><span class="option-label">${label}<span class="tooltip" tabindex="0" role="img" aria-label="${escapeHtml(descriptions[key] ?? '')}" data-tooltip="${escapeHtml(descriptions[key] ?? '')}">?</span></span><b>${format(signals[key])}</b></article>`).join('');
+}
+function attachTooltips(container) {
+  for (const tooltip of container.querySelectorAll('.tooltip')) {
+    tooltip.addEventListener('mouseenter', () => showTooltip(tooltip));
+    tooltip.addEventListener('mouseleave', dismissTooltip);
+    tooltip.addEventListener('focus', () => showTooltip(tooltip));
+    tooltip.addEventListener('blur', dismissTooltip);
+  }
+}
 function appendPopularityTotals(totals) {
-  const summary = results.querySelector('.summary');
+  const summary = results.querySelector('#popularity-totals');
   const statistics = [
     ['Popularity gained', delta(totals.gains), 'pass', 'Roster weekly increases'],
     ['Popularity lost', delta(totals.losses), 'fail', 'Roster weekly decreases'],
@@ -177,11 +213,12 @@ function render(data) {
     const change = wrestler.end - wrestler.start;
     return `<tr class="wrestler-row ${wrestler.id === selectedWrestlerId ? 'selected' : ''}" data-wrestler-id="${wrestler.id}"><td><button type="button" data-wrestler-id="${wrestler.id}">${escapeHtml(wrestler.name)}</button></td><td>${wrestler.start}</td><td>${wrestler.end}</td><td class="delta ${change > 0 ? 'positive' : change < 0 ? 'negative' : ''}">${delta(change)}</td><td>${wrestler.range}</td><td><svg class="mini-chart" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline fill="none" stroke="#85b8ff" stroke-width="2" points="${spark(wrestler.samples)}"/></svg></td></tr>`;
   }).join('');
-  results.innerHTML = `<div class="summary"><div class="stat"><span>Required gates</span><b class="${data.mustPass ? 'pass':'fail'}">${data.mustPass ? 'PASS':'TUNING'}</b><small>${data.runs.length} seed${data.runs.length === 1 ? '' : 's'} simulated</small></div><div class="stat"><span>SL-10</span><b class="${data.crossSeed.pass ? 'pass':'fail'}">${data.crossSeed.pass ? 'PASS':'FAIL'}</b><small>${data.crossSeed.observed}</small></div><div class="stat"><span>Hot-streak ceiling</span><b>${values.popularityBand}</b><small>points above earned status</small></div></div><div class="seed-picker"><h2>Slice results</h2><label>Seed <select id="seed-select">${data.runs.map((candidate,index) => `<option value="${index}" ${index === selectedSeedIndex ? 'selected' : ''}>${candidate.seed}</option>`).join('')}</select></label></div><article class="panel criterion-panel"><p>Acts ending at 88+: <b>${run.topTierCount}</b></p><table><thead><tr><th>Gate</th><th>Result</th><th>Observed</th></tr></thead><tbody>${criterionRows(run.criteria)}</tbody></table></article><div class="roster-layout"><article class="panel"><h2>All wrestlers</h2><p>Click a row to inspect every reported popularity and status change.</p><div class="table-wrap"><table class="roster-table"><thead><tr><th>${sortHeader('name', 'Wrestler')}</th><th>${sortHeader('start', 'Start')}</th><th>${sortHeader('end', 'End')}</th><th>${sortHeader('delta', 'Δ')}</th><th>${sortHeader('range', 'Range')}</th><th>Trend</th></tr></thead><tbody>${rows}</tbody></table></div></article><article class="panel detail" id="wrestler-detail">${detailView(selected)}</article></div>`;
+  results.innerHTML = `<article class="panel criterion-panel"><h2>Popularity totals (this seed)</h2><div class="summary" id="popularity-totals"></div></article><article class="panel criterion-panel"><h2>Cross-seed <small class="hint">(across all simulated seeds, advisory)</small></h2><p class="cross-seed-intro">${escapeHtml(data.crossSeedIntro ?? '')}</p><div class="summary signal-summary">${crossSeedCards(data.crossSeed, data.volatility, data.criterionDescriptions ?? {}, data.signalDescriptions ?? {})}</div></article><div class="seed-picker"><h2>Slice results</h2><label>Seed <select id="seed-select">${data.runs.map((candidate,index) => `<option value="${index}" ${index === selectedSeedIndex ? 'selected' : ''}>${candidate.seed}</option>`).join('')}</select></label></div><article class="panel criterion-panel"><h2>Criteria <small class="hint">(this seed, advisory)</small></h2><div class="summary signal-summary">${criterionCards(run.criteria, data.criterionDescriptions ?? {})}</div></article><article class="panel criterion-panel"><h2>Health signals</h2><div class="summary signal-summary">${signalCards(run.signals, data.signalDescriptions ?? {})}</div></article><div class="roster-layout"><article class="panel"><h2>All wrestlers</h2><p>Click a row to inspect every reported popularity and status change.</p><div class="table-wrap"><table class="roster-table"><thead><tr><th>${sortHeader('name', 'Wrestler')}</th><th>${sortHeader('start', 'Start')}</th><th>${sortHeader('end', 'End')}</th><th>${sortHeader('delta', 'Δ')}</th><th>${sortHeader('range', 'Range')}</th><th>Trend</th></tr></thead><tbody>${rows}</tbody></table></div></article><article class="panel detail" id="wrestler-detail">${detailView(selected)}</article></div>`;
   appendPopularityTotals(run.popularityTotals);
   document.querySelector('#seed-select').addEventListener('change', event => { selectedSeedIndex = Number(event.target.value); selectedWrestlerId = undefined; render(latestData); });
   for (const button of results.querySelectorAll('button[data-sort-key]')) button.addEventListener('click', event => { const nextKey = event.currentTarget.dataset.sortKey; if (sortKey === nextKey) sortDirection *= -1; else { sortKey = nextKey; sortDirection = nextKey === 'name' ? 1 : -1; } render(latestData); });
   for (const button of results.querySelectorAll('button[data-wrestler-id]')) button.addEventListener('click', event => { selectedWrestlerId = event.currentTarget.dataset.wrestlerId; render(latestData); });
+  attachTooltips(results);
 }
 async function run(seedCount) {
   const active = ++requestId; status.textContent = `Simulating ${seedCount} seed${seedCount === 1 ? '' : 's'}…`; verify.disabled = true; results.classList.add('loading');

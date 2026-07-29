@@ -2,6 +2,11 @@ import type { MatchResult, PopularityChangeReason, Show, WorldEvent, WorldState 
 import { isShowTick, weekForTick } from "./booking.js";
 import { runTick } from "./tick.js";
 
+/** Signal thresholds — advisory framing only (see `SliceSignals`), tunable here without touching scenario config. */
+const TOP_TIER_POPULARITY_THRESHOLD = 88;
+const RUNNING_HOT_CEILING_MARGIN = 3;
+const SUPPRESSED_STAR_POWER_GAP = 15;
+
 export interface PopularitySample {
   week: number;
   generalPopularityByWrestlerId: Record<string, number>;
@@ -32,6 +37,20 @@ export interface SliceCriterion {
   shouldPass?: boolean;
 }
 
+/** What each criterion actually asks for (six-month-slice.md §3), for card tooltips — a single source of truth alongside `SIGNAL_DESCRIPTIONS`. */
+export const SL_CRITERION_DESCRIPTIONS: Record<string, string> = {
+  "SL-1": "Rises: at least 3 wrestlers end the slice 15+ general-popularity points above where they started.",
+  "SL-2": "Falls: at least 3 wrestlers end the slice 10+ points below where they started.",
+  "SL-3": "Non-monotonic careers: at least 40% of the roster shows a 16+ point swing somewhere in their weekly popularity series.",
+  "SL-4": "World title: 0-2 changes over the slice; the champion defends 4+ times; 80%+ of world-title matches happen at PLEs.",
+  "SL-5": "IC title: 1-3 changes; 5+ defenses; at least one IC champion or ex-champion enters the world-title scene.",
+  "SL-6": "Feud lifecycle: 8+ stories start; 5+ resolve; median active lifespan 3-9 weeks; 60%+ of resolutions land on a PLE week.",
+  "SL-7": "Card mobility: the 6 PLE main events feature 6+ distinct wrestlers; at least one PLE main-eventer started outside the top-5 popularity.",
+  "SL-8": "Injuries and returns: 2+ injury events occur; at least one injured wrestler misses a show and then returns.",
+  "SL-9": "Spread: every roster member wrestles 3+ matches; nobody appears on every single show.",
+  "SL-10": "No script: across the seed set, at least 2 different wrestlers finish as the #1 popularity act.",
+};
+
 export interface SliceAnalysis {
   criteria: SliceCriterion[];
   titleLineages: SliceTitleLineage[];
@@ -43,7 +62,70 @@ export interface SliceAnalysis {
   popularityTotals: SlicePopularityTotals;
   topWrestlerId: string;
   ticksPerWeek: number;
+  /** Raw SL-1/2/3 counts, exposed alongside the criteria strings so callers (cross-seed volatility) can reuse them without re-parsing `observed`. */
+  rises: number;
+  falls: number;
+  nonMonotonicCount: number;
+  rosterSize: number;
+  signals: SliceSignals;
 }
+
+/**
+ * Health signals beyond the SL-1...SL-10 pass/fail bar. These are advisory,
+ * not gates: they're meant to be watched over time (via the CLI slice report
+ * and the tuning dashboard) so a human can decide whether a drift is worth
+ * reacting to, rather than blocking a phase on a fixed numeric threshold.
+ */
+export interface SliceSignals {
+  /** Wrestlers ending the slice at or above the top-tier popularity threshold. */
+  topTierCount: number;
+  /** Standard deviation of ending general popularity across the roster. */
+  popularitySpreadStdDev: number;
+  /** Spearman rank correlation between each wrestler's starting and ending popularity rank. */
+  rankStability: number;
+  /** Pearson correlation between a wrestler's mechanical skill average and their popularity change this slice. */
+  skillPopularityCorrelation: number;
+  /** Wrestlers whose general popularity sits at or near their earned star-power ceiling. */
+  starPowerRunningHotCount: number;
+  /** Wrestlers sitting well below their earned star power. */
+  starPowerSuppressedCount: number;
+  /** Stories still open (not resolved) at the end of the slice. */
+  unresolvedStoryCount: number;
+}
+
+/** Cross-seed spread of the headline movement counts, alongside SL-10's distinct-#1-act check. */
+export interface CrossSeedSignals {
+  distinctTopActs: number;
+  risesRange: [number, number];
+  fallsRange: [number, number];
+  /** Fraction (0..1) of the roster with a 16+ point weekly range, min/max across seeds. */
+  nonMonotonicShareRange: [number, number];
+}
+
+/**
+ * A "cross-seed" check reruns the exact same tuning constants against several
+ * different random seeds. Everything in this section answers one question:
+ * do these results hold up because of the tuning, or did we just get lucky
+ * with one seed? A one-line intro shown above the cross-seed cards in both
+ * the CLI report and the tuning dashboard.
+ */
+export const CROSS_SEED_INTRO =
+  "These cards compare the same tuning across every simulated seed (same dials, different random rolls). " +
+  "A tight range or a clear pass means the result is coming from the tuning itself, not from one lucky seed.";
+
+/** Shared, human-facing explanations for every signal — the single source of truth for CLI/report/dashboard tooltips. */
+export const SIGNAL_DESCRIPTIONS: Record<keyof SliceSignals | keyof Omit<CrossSeedSignals, "distinctTopActs">, string> = {
+  topTierCount: `Wrestlers ending at ${TOP_TIER_POPULARITY_THRESHOLD}+ general popularity. Low is healthy — the top stays scarce; a rising count means the ceiling isn't holding and too many acts are crowding the very top.`,
+  popularitySpreadStdDev: "Standard deviation of ending general popularity across the roster. Low means the whole roster is converging toward the middle (a flat, undifferentiated card); very high can mean the gap between the top and everyone else has blown open.",
+  rankStability: "Spearman rank correlation between each wrestler's starting and ending popularity rank, from -1 to 1. Near 1 means the card barely reshuffled; near 0 or negative means a lot of movement (a permeable card, acts trading places).",
+  skillPopularityCorrelation: "Correlation between a wrestler's mechanical skill average (ring performance, psychology, athleticism, professionalism) and their popularity change this slice, from -1 to 1. High means outcomes are still mostly a stat race; low means booking, stories, and title runs are doing more of the work.",
+  starPowerRunningHotCount: "Wrestlers whose general popularity sits at or near their earned star-power ceiling — running as hot as their current status allows.",
+  starPowerSuppressedCount: "Wrestlers sitting well below their earned star power — established acts the booking isn't currently using.",
+  unresolvedStoryCount: "Stories still open (not resolved) at the end of the slice. A growing number means feuds are piling up instead of paying off.",
+  risesRange: "How many wrestlers rose 15+ popularity points (SL-1), lowest to highest across every simulated seed. Same tuning, different random seeds — a wide range means how many big risers you get depends on luck of the seed as much as your dial settings; a narrow range means the tuning itself is what's driving it.",
+  fallsRange: "How many wrestlers fell 10+ popularity points (SL-2), lowest to highest across every simulated seed. A wide range means fall counts are seed-luck-dependent rather than tuning-driven.",
+  nonMonotonicShareRange: "Share of the roster with a 16+ point swing somewhere in their weekly popularity (SL-3), lowest to highest across every simulated seed. A wide range means this is inconsistent from seed to seed.",
+};
 
 export interface SliceTitleLineage {
   titleId: string;
@@ -178,6 +260,51 @@ function stringData(event: WorldEvent, key: string): string | undefined {
 function boolData(event: WorldEvent, key: string): boolean | undefined {
   const value = event.data[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function stdDev(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const mean = values.reduce((total, value) => total + value, 0) / values.length;
+  const variance = values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+/** 1-based ranks with ties averaged (standard Spearman tie handling). */
+function ranks(values: readonly number[]): number[] {
+  const order = values.map((_, index) => index).sort((a, b) => values[a]! - values[b]!);
+  const result = new Array<number>(values.length);
+  let i = 0;
+  while (i < order.length) {
+    let j = i;
+    while (j + 1 < order.length && values[order[j + 1]!] === values[order[i]!]) j += 1;
+    const averageRank = (i + j) / 2 + 1;
+    for (let k = i; k <= j; k += 1) result[order[k]!] = averageRank;
+    i = j + 1;
+  }
+  return result;
+}
+
+function pearson(xs: readonly number[], ys: readonly number[]): number {
+  const n = xs.length;
+  if (n === 0) return 0;
+  const meanX = xs.reduce((total, value) => total + value, 0) / n;
+  const meanY = ys.reduce((total, value) => total + value, 0) / n;
+  let numerator = 0;
+  let denomX = 0;
+  let denomY = 0;
+  for (let i = 0; i < n; i += 1) {
+    const dx = xs[i]! - meanX;
+    const dy = ys[i]! - meanY;
+    numerator += dx * dy;
+    denomX += dx * dx;
+    denomY += dy * dy;
+  }
+  const denom = Math.sqrt(denomX * denomY);
+  return denom === 0 ? 0 : numerator / denom;
+}
+
+function spearman(xs: readonly number[], ys: readonly number[]): number {
+  return pearson(ranks(xs), ranks(ys));
 }
 
 function median(values: readonly number[]): number {
@@ -432,12 +559,38 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
     { id: "SL-9", strength: "MUST", pass: minimumMatches >= 3 && !appearsEveryShow, observed: `minimum ${minimumMatches} matches (${leastBooked}); anyone on every show: ${appearsEveryShow ? "yes" : "no"}` },
   ];
 
+  const endPopularities = trajectories.map((trajectory) => trajectory.end);
+  const skillAverages = initialWorld.wrestlers.map((wrestler) =>
+    (wrestler.skills.ringPerformance + wrestler.skills.psychology + wrestler.skills.athleticism + wrestler.skills.professionalism) / 4,
+  );
+  const popularityDeltas = trajectories.map((trajectory) => trajectory.end - trajectory.start);
+  const popularityBand = finalWorld.config.popularity.popularityBand;
+  let starPowerRunningHotCount = 0;
+  let starPowerSuppressedCount = 0;
+  for (const popularity of finalWorld.popularity) {
+    const ceiling = Math.min(100, popularity.starPower + popularityBand);
+    if (ceiling - popularity.generalPopularity <= RUNNING_HOT_CEILING_MARGIN) starPowerRunningHotCount += 1;
+    if (popularity.starPower - popularity.generalPopularity >= SUPPRESSED_STAR_POWER_GAP) starPowerSuppressedCount += 1;
+  }
+
+  const signals: SliceSignals = {
+    topTierCount: endPopularities.filter((value) => value >= TOP_TIER_POPULARITY_THRESHOLD).length,
+    popularitySpreadStdDev: stdDev(endPopularities),
+    rankStability: spearman(trajectories.map((trajectory) => trajectory.start), endPopularities),
+    skillPopularityCorrelation: pearson(skillAverages, popularityDeltas),
+    starPowerRunningHotCount,
+    starPowerSuppressedCount,
+    unresolvedStoryCount: finalWorld.stories.filter((story) => story.phase !== "resolved").length,
+  };
+
   return {
     criteria, titleLineages, stories, pleCards, injuryArcs, trajectories,
     popularityLogs: popularityLogs(finalWorld),
     popularityTotals,
     topWrestlerId: finalRanking[0]?.wrestlerId ?? "unknown",
     ticksPerWeek: finalWorld.config.decisionTicksPerWeek + 1,
+    rises, falls, nonMonotonicCount: nonMonotonic, rosterSize,
+    signals,
   };
 }
 
@@ -445,4 +598,18 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
 export function crossSeedCriterion(analyses: readonly SliceAnalysis[]): SliceCriterion {
   const topActs = new Set(analyses.map((analysis) => analysis.topWrestlerId));
   return { id: "SL-10", strength: "SHOULD", pass: topActs.size >= 2, observed: `${topActs.size} distinct #1 popularity acts across ${analyses.length} seed(s)` };
+}
+
+function range(values: readonly number[]): [number, number] {
+  return [Math.min(...values), Math.max(...values)];
+}
+
+/** Advisory companion to `crossSeedCriterion`: how much the headline movement counts swing across the three fixed seeds. */
+export function crossSeedSignals(analyses: readonly SliceAnalysis[]): CrossSeedSignals {
+  return {
+    distinctTopActs: new Set(analyses.map((analysis) => analysis.topWrestlerId)).size,
+    risesRange: range(analyses.map((analysis) => analysis.rises)),
+    fallsRange: range(analyses.map((analysis) => analysis.falls)),
+    nonMonotonicShareRange: range(analyses.map((analysis) => analysis.nonMonotonicCount / analysis.rosterSize)),
+  };
 }

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { analyzeSlice, crossSeedCriterion, runHeadlessSlice, worldFromScenario, type SliceAnalysis } from "@wrestling/sim";
+import { analyzeSlice, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, worldFromScenario, type SliceAnalysis } from "@wrestling/sim";
 import { extractOption, parsePositiveInt } from "../args.js";
 import type { CliContext } from "../context.js";
 import { loadScenario } from "../scenario.js";
@@ -33,8 +33,29 @@ function criteriaTable(criteria: readonly { id: string; strength: string; pass: 
   ];
 }
 
+function signalsTable(signals: SliceAnalysis["signals"]): string[] {
+  const rows: Array<[string, number | string, keyof typeof SIGNAL_DESCRIPTIONS]> = [
+    ["Top-tier count (88+)", signals.topTierCount, "topTierCount"],
+    ["Popularity spread (stdev)", signals.popularitySpreadStdDev.toFixed(1), "popularitySpreadStdDev"],
+    ["Rank stability", signals.rankStability.toFixed(2), "rankStability"],
+    ["Skill/popularity correlation", signals.skillPopularityCorrelation.toFixed(2), "skillPopularityCorrelation"],
+    ["Running hot (near ceiling)", signals.starPowerRunningHotCount, "starPowerRunningHotCount"],
+    ["Suppressed (well under status)", signals.starPowerSuppressedCount, "starPowerSuppressedCount"],
+    ["Unresolved stories", signals.unresolvedStoryCount, "unresolvedStoryCount"],
+  ];
+  return [
+    "| Signal | Value | What it means |",
+    "| --- | ---: | --- |",
+    ...rows.map(([label, value, key]) => `| ${label} | ${value} | ${SIGNAL_DESCRIPTIONS[key]} |`),
+  ];
+}
+
 function seedReport(seed: string, analysis: SliceAnalysis): string[] {
-  const lines = [`## Seed: \`${seed}\``, "", ...criteriaTable(analysis.criteria), "", "### Title lineages"];
+  const lines = [
+    `## Seed: \`${seed}\``, "", ...criteriaTable(analysis.criteria), "",
+    "### Signals (advisory — not gates)", "", ...signalsTable(analysis.signals), "",
+    "### Title lineages",
+  ];
   for (const lineage of analysis.titleLineages) {
     const initial = lineage.initialHolderId ? wrestlerName(analysis, lineage.initialHolderId) : "vacant";
     const changes = lineage.changes.map((change) => {
@@ -90,6 +111,7 @@ export function runSlice(args: readonly string[], ctx: CliContext): string {
     return { seed, analysis: analyzeSlice(runHeadlessSlice(worldFromScenario(scenario, seed), seed, weeks)) };
   });
   const crossSeed = crossSeedCriterion(analyses.map(({ analysis }) => analysis));
+  const volatility = crossSeedSignals(analyses.map(({ analysis }) => analysis));
   const mustPass = analyses.every(({ analysis }) => analysis.criteria.filter((criterion) => criterion.strength === "MUST").every((criterion) => criterion.pass));
   const shouldPass = analyses.filter(({ analysis }) => analysis.criteria
     .filter((criterion) => criterion.shouldPass !== undefined)
@@ -105,8 +127,7 @@ export function runSlice(args: readonly string[], ctx: CliContext): string {
     weeks,
     runs: analyses,
     crossSeed,
-    mustPass,
-    shouldPass,
+    volatility,
   }), "utf8");
   const lines = [
     `# Six-month slice validation: ${scenario.manifest.name}`,
@@ -114,12 +135,13 @@ export function runSlice(args: readonly string[], ctx: CliContext): string {
     `Runs: ${seedCount}; weeks per run: ${weeks}; humans: 0.`,
     `HTML report: ${reportPath}`,
     "",
-    "## Combined verdict",
+    "## Combined signals (advisory — not gates; use these to decide whether to retune)",
     "",
     ...criteriaTable([crossSeed]),
     "",
-    `MUST criteria across every seed: ${mustPass ? "PASS" : "FAIL"}.`,
-    `Within-seed SHOULD criteria passed on ${shouldPass}/${seedCount} seed(s); SL-10: ${crossSeed.pass ? "PASS" : "FAIL"}.`,
+    `MUST criteria across every seed: ${mustPass ? "all pass" : "some below threshold"}.`,
+    `Within-seed SHOULD criteria met on ${shouldPass}/${seedCount} seed(s); SL-10: ${crossSeed.pass ? "PASS" : "FAIL"}.`,
+    `Cross-seed volatility — rises ${volatility.risesRange.join("-")}, falls ${volatility.fallsRange.join("-")}, non-monotonic share ${volatility.nonMonotonicShareRange.map((v) => `${Math.round(v * 100)}%`).join("-")}.`,
     "",
     ...analyses.flatMap(({ seed, analysis }) => ["", ...seedReport(seed, analysis)]),
   ];
