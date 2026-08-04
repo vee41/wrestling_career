@@ -1,4 +1,4 @@
-import type { MatchResult, PopularityChangeReason, SegmentResult, Show, WorldEvent, WorldState } from "@wrestling/contracts";
+import type { BookingTrace, MatchResult, PopularityChangeReason, SegmentResult, Show, WorldEvent, WorldState } from "@wrestling/contracts";
 import { isShowTick, weekForTick } from "./booking.js";
 import { runTick } from "./tick.js";
 
@@ -196,6 +196,8 @@ export interface SliceShowCard {
   showId: string;
   kind: "tv" | "ple";
   slots: SliceShowSlot[];
+  /** Private composer audit, intended for the developer/admin slice report. */
+  bookingTrace?: BookingTrace;
 }
 
 export interface SliceInjuryArc {
@@ -548,6 +550,7 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
   }));
   const showCards: SliceShowCard[] = finalWorld.shows.map((show) => ({
     week: weekForTick(show.tick, finalWorld.config), showId: show.id, kind: show.kind,
+    ...(show.bookingTrace === undefined ? {} : { bookingTrace: show.bookingTrace }),
     slots: show.card.map((slot) => {
       if (slot.kind === "segment") {
         const result = finalWorld.segmentResults.find((candidate) => candidate.showId === show.id && candidate.segmentSlotId === slot.id);

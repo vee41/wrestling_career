@@ -536,6 +536,8 @@ Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, s
 
 **Done when:** the composer creates complete deterministic TV and PLE cards from planned beats plus rotation, never violates a hard constraint, avoids weekly rivalry rematches, and explains every placement and rejection without reconstructing the decision from source code.
 
+**As built (2026-08-04):** Committed shows now persist a private `bookingTrace` with every selected slot's decomposed score and placement rationale plus unselected planned-beat alternatives. The composer remains one-show-ahead, now runs after same-tick interaction/response resolution, and gives the strongest justified attraction the main event while retaining a strong opener. The unified slice HTML report exposes the trace as a developer/admin-only “Why booked / why rejected” disclosure.
+
 ---
 
 ## Phase 3.13 — Eight-week / two-PLE creative-booking slice ⚠ THE CREATIVE GATE

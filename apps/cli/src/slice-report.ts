@@ -115,7 +115,20 @@ function showCards(analysis: SliceAnalysis): string {
       ? `${slot.dominantWrestlerId ? `<i>Dominant: ${html(wrestlerName(analysis, slot.dominantWrestlerId))}</i>` : ""}${slot.heatDeltas ? `<ul class="breakdown">${slot.heatDeltas.map((delta) => `<li>${html(wrestlerName(analysis, delta.wrestlerId))}: +heat ${delta.positive}, -heat ${delta.negative}, story +${delta.storyAdvancement}</li>`).join("")}</ul>` : ""}`
       : `${slot.winnerWrestlerId ? `<i>Winner: ${html(wrestlerName(analysis, slot.winnerWrestlerId))}</i>` : ""}`;
     return `<details class="match"><summary><span>${html(slot.position.replaceAll("_", " "))} · ${html(slot.kind)}</span><b>${names}</b>${slot.titleId ? "<i>Title</i>" : ""}${slot.storyId ? "<i>Story</i>" : ""}${slot.quality !== undefined ? `<i>Quality: ${slot.quality}</i>` : ""}</summary>${result}${matchBreakdown(analysis, slot.impacts)}</details>`;
-  }).join("")}</article>`).join("")}</div>`;
+  }).join("")}${bookingTrace(analysis, card)}</article>`).join("")}</div>`;
+}
+
+/** The trace stays in the developer/admin report: it intentionally exposes private GM scoring. */
+function bookingTrace(analysis: SliceAnalysis, card: SliceAnalysis["showCards"][number]): string {
+  const trace = card.bookingTrace;
+  if (!trace) return "";
+  const candidates = trace.candidates.map((candidate) => {
+    const names = candidate.participantWrestlerIds.map((id) => html(wrestlerName(analysis, id))).join(" / ");
+    const scores = Object.entries(candidate.scoreComponents).map(([key, value]) => `${html(key.replaceAll(/([A-Z])/g, " $1").toLowerCase())}: ${value.toFixed(1)}`).join(" · ");
+    const why = candidate.hardInvalidReasons.length > 0 ? candidate.hardInvalidReasons.join(", ") : candidate.placementReason ?? "score ordering";
+    return `<li><b>${html(candidate.disposition.replaceAll("_", " "))}</b> · ${names}<br><small>${html(why)} · total ${candidate.totalScore.toFixed(1)}<br>${scores}</small></li>`;
+  }).join("");
+  return `<details class="match booking-trace"><summary><span>Booking audit</span><b>Why booked / why rejected</b></summary><ul class="breakdown">${candidates}</ul></details>`;
 }
 
 function injuries(analysis: SliceAnalysis): string {

@@ -1,4 +1,4 @@
-import type { CardSlot, GmObjective, MatchSlot, PlannedBeat, ProgramPlan, SegmentSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
+import type { BookingCandidateTrace, BookingTrace, CardSlot, GmObjective, MatchSlot, PlannedBeat, ProgramPlan, SegmentSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
@@ -79,11 +79,21 @@ export function bookingScore(world: WorldState, wrestler: Wrestler, currentTick:
 }
 
 function bookableWrestlers(world: WorldState): Wrestler[] {
-  // A champion working hurt is a familiar short-term story risk; without
-  // this narrow exception one injury can erase an entire title line for the
-  // rest of the six-month validation slice. Other wrestlers still observe
-  // the normal absence threshold.
-  return world.wrestlers.filter((wrestler) => wrestler.condition >= BOOKABLE_CONDITION_THRESHOLD || isChampion(world, wrestler.id));
+  // Condition is a hard card-composer constraint. A title program must be
+  // revised around an unavailable holder, never waive medical availability.
+  return world.wrestlers.filter((wrestler) => wrestler.condition >= BOOKABLE_CONDITION_THRESHOLD);
+}
+
+function directMatchOnCooldown(world: WorldState, participantIds: readonly string[], targetTick: number, programId?: string): boolean {
+  if (participantIds.length < 2) return false;
+  const cooldown = programId === undefined
+    ? world.config.decisionTicksPerWeek + 1
+    : world.programPlans.find((plan) => plan.id === programId)?.directMatchCooldownTicks ?? world.config.decisionTicksPerWeek + 1;
+  return world.matchResults.some((result) => {
+    if (result.participantWrestlerIds.length !== participantIds.length || !participantIds.every((id) => result.participantWrestlerIds.includes(id))) return false;
+    const priorTick = world.shows.find((show) => show.id === result.showId)?.tick;
+    return priorTick !== undefined && targetTick - priorTick <= cooldown;
+  });
 }
 
 function storyForPair(world: WorldState, a: string, b: string): string | undefined {
@@ -238,10 +248,92 @@ function isTopOfCardProgram(world: WorldState, booked: MatchSlot): boolean {
 
 function assignPositions(world: WorldState, slots: CardSlot[]): CardSlot[] {
   const ranked = slots.slice().sort((a, b) => programHeat(world, b) - programHeat(world, a));
-  return ranked.map((booked, index) => {
-    const position = index === 0 ? "main_event" : index === 1 ? "upper" : index === ranked.length - 1 ? "opener" : "mid";
-    return { ...booked, position };
+  // The previous descending-heat implementation made the coldest slot the
+  // opener. Give the first two strongest justified attractions the opener
+  // and main event respectively, leaving room for a supporting upper slot.
+  const main = ranked[0];
+  const opener = ranked[1] ?? main;
+  return ranked.map((booked, index) => ({
+    ...booked,
+    position: booked.id === main?.id ? "main_event" : booked.id === opener?.id ? "opener" : index === 2 ? "upper" : "mid",
+  }));
+}
+
+function scoreComponents(world: WorldState, slot: CardSlot, targetTick: number): Record<string, number> {
+  const plan = slot.programId === undefined ? undefined : world.programPlans.find((candidate) => candidate.id === slot.programId);
+  const beat = slot.plannedBeatId === undefined ? undefined : world.plannedBeats.find((candidate) => candidate.id === slot.plannedBeatId);
+  const urgency = beat === undefined ? 0 : Math.max(0, beat.latestTick - targetTick === 0 ? 30 : 10 - (beat.latestTick - targetTick));
+  const objective = slot.participantWrestlerIds.reduce((sum, id) => sum + objectiveFit(world, world.wrestlers.find((wrestler) => wrestler.id === id)!), 0);
+  const conditionRisk = slot.participantWrestlerIds.reduce((sum, id) => sum + Math.max(0, 60 - (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0)), 0);
+  const overexposure = slot.participantWrestlerIds.reduce((sum, id) => sum + (findPopularity(world, id).fatigue * 0.25), 0);
+  return {
+    programPriority: plan?.priority ?? 0,
+    beatUrgency: urgency,
+    heat: programHeat(world, slot),
+    promotionObjectiveFit: objective,
+    freshness: slot.participantWrestlerIds.reduce((sum, id) => sum + (weeksSinceLastAppearance(world, id, targetTick) ?? 1), 0),
+    cardShapeContribution: slot.kind === "segment" ? 2 : 1,
+    overexposure: -overexposure,
+    conditionRisk: -conditionRisk,
+  };
+}
+
+function placementReason(slot: CardSlot): string {
+  if (slot.plannedBeatId !== undefined) return "reserved program beat";
+  if (slot.titleId !== undefined) return "title obligation";
+  if (slot.storyId !== undefined) return "supporting story progression";
+  return "roster rotation showcase";
+}
+
+/** Build the durable, private audit record after hard-valid candidates are committed. */
+function compositionTrace(world: WorldState, composedAtTick: number, targetTick: number, card: readonly CardSlot[]): BookingTrace {
+  const selectedBeatIds = new Set(card.flatMap((slot) => slot.plannedBeatId === undefined ? [] : [slot.plannedBeatId]));
+  const candidates: BookingCandidateTrace[] = card.map((slot) => {
+    const components = scoreComponents(world, slot, targetTick);
+    return {
+      id: `candidate:${slot.id}`, kind: slot.kind ?? "match", participantWrestlerIds: [...slot.participantWrestlerIds],
+      ...(slot.programId === undefined ? {} : { programId: slot.programId }),
+      ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }),
+      ...(slot.kind === "match" && slot.titleId !== undefined ? { titleId: slot.titleId } : {}),
+      disposition: "selected", hardInvalidReasons: [], scoreComponents: components,
+      totalScore: Object.values(components).reduce((sum, value) => sum + value, 0), slotId: slot.id,
+      placementReason: `${placementReason(slot)}; ${slot.position.replace(/_/g, " ")}`,
+    };
   });
+  const isPle = showKindForTick(targetTick, world.config) === "ple";
+  for (const beat of world.plannedBeats) {
+    if ((beat.status !== "provisional" && beat.status !== "scheduled" && beat.status !== "invalidated") || selectedBeatIds.has(beat.id)) continue;
+    const missingPrerequisite = beat.preconditions.requiredResolvedBeatIds.some((id) => world.plannedBeats.find((candidate) => candidate.id === id)?.status !== "resolved");
+    const unavailable = beat.requiredParticipantWrestlerIds.some((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) < BOOKABLE_CONDITION_THRESHOLD);
+    const alreadyBooked = beat.requiredParticipantWrestlerIds.some((id) => card.some((slot) => slot.participantWrestlerIds.includes(id)));
+    const inSchedulingWindow = targetTick >= beat.earliestTick && targetTick <= beat.latestTick && beat.preconditions.requirePle === isPle;
+    const directCooldown = beat.compatibleSlotKind === "match" && directMatchOnCooldown(world, beat.requiredParticipantWrestlerIds, targetTick, beat.programId);
+    const storyId = world.programPlans.find((plan) => plan.id === beat.programId)?.storyId;
+    const hardInvalidReasons = [
+      ...(unavailable ? ["availability_or_condition"] : []),
+      ...(inSchedulingWindow && alreadyBooked ? ["participant_double_booking"] : []),
+      ...(inSchedulingWindow && directCooldown ? ["direct_match_cooldown"] : []),
+      ...(missingPrerequisite ? ["beat_precondition_unmet"] : []),
+    ];
+    const virtualSlot: CardSlot = beat.compatibleSlotKind === "segment"
+      ? { kind: "segment", id: `trace-${beat.id}`, participantWrestlerIds: beat.requiredParticipantWrestlerIds, position: "mid", gmIntent: world.bookingObjective, programId: beat.programId, ...(storyId === undefined ? {} : { storyId }), intents: {} }
+      : { kind: "match", id: `trace-${beat.id}`, participantWrestlerIds: beat.requiredParticipantWrestlerIds, position: "mid", gmIntent: world.bookingObjective, programId: beat.programId, ...(storyId === undefined ? {} : { storyId }), intents: {} };
+    const components = scoreComponents(world, virtualSlot, targetTick);
+    candidates.push({
+      id: `candidate:beat:${beat.id}`, kind: beat.compatibleSlotKind === "segment" ? "segment" : "match", participantWrestlerIds: [...beat.requiredParticipantWrestlerIds],
+      programId: beat.programId, plannedBeatId: beat.id,
+      disposition: hardInvalidReasons.length > 0 ? "hard_invalid" : "rejected", hardInvalidReasons,
+      scoreComponents: components, totalScore: Object.values(components).reduce((sum, value) => sum + value, 0),
+      placementReason: hardInvalidReasons.length > 0
+        ? "failed hard constraint"
+        : !inSchedulingWindow
+          ? "outside this show's scheduling window"
+          : "capacity reserved for higher-priority candidates",
+    });
+    // This beat was not actually committed; make it eligible for the next
+    // composition attempt instead of leaving a phantom scheduled beat.
+  }
+  return { composedAtTick, targetTick, candidates };
 }
 
 function weeksSinceLastTitleDefense(world: WorldState, title: Title, targetTick: number): number {
@@ -286,7 +378,12 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     const plan = world.programPlans.find((candidate) => candidate.id === plannedBeat.programId)!;
     const participants = [...plannedBeat.requiredParticipantWrestlerIds, ...plannedBeat.optionalParticipantWrestlerIds]
       .filter((id, index, all) => all.indexOf(id) === index);
-    if (participants.some((id) => used.has(id))) continue;
+    if (participants.some((id) => used.has(id))) {
+      // `selectPlannedBeatsForShow` is intentionally program-local; the
+      // composer is the final no-double-booking authority.
+      plannedBeat.status = "provisional";
+      continue;
+    }
     participants.forEach((id) => used.add(id));
     const shared = { storyId: plan.storyId, programId: plan.id, plannedBeatId: plannedBeat.id };
     const titleId = plannedBeat.type === "ple_payoff" ? plan.stakesTitleId : undefined;
@@ -315,6 +412,8 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     for (const story of world.stories.filter((candidate) => candidate.phase === "peaking" && candidate.participantWrestlerIds.length >= 2)) {
       const participants = story.participantWrestlerIds;
       if (participants.some((id) => used.has(id) || !eligible.has(id))) continue;
+      const linkedPlan = world.programPlans.find((plan) => plan.storyId === story.id && (plan.status === "active" || plan.status === "payoff_ready"));
+      if (directMatchOnCooldown(world, participants, targetTick, linkedPlan?.id)) continue;
       if (blocksStaleTitleDefense(world, participants, targetTick)) continue;
       const title = world.titles.find((candidate) =>
         candidate.holderId !== undefined && participants.includes(candidate.holderId) && participantsTitleEligible(world, participants, candidate.tier),
@@ -370,6 +469,8 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     if (slots.length >= storySlotBudget) break;
     const participants = story.participantWrestlerIds;
     if (participants.some((id) => used.has(id) || !eligible.has(id))) continue;
+    const linkedPlan = world.programPlans.find((plan) => plan.storyId === story.id && (plan.status === "active" || plan.status === "payoff_ready"));
+    if (directMatchOnCooldown(world, participants, targetTick, linkedPlan?.id)) continue;
     for (const wrestlerId of participants) used.add(wrestlerId);
     // TV title bouts are exceptional and only happen when the story itself justifies one.
     const title = kind === "tv" && ctx.rng.fork(`tv-title:${story.id}`).chance(0.08)
@@ -433,6 +534,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   for (; slots.length < targetSlotCount && index + 1 < remaining.length; index += 2) {
     const a = remaining[index]; const b = remaining[index + 1];
     if (!a || !b) break;
+    if (directMatchOnCooldown(world, [a.id, b.id], targetTick)) continue;
     slots.push(slot(ctx, [a.id, b.id], world.bookingObjective));
   }
 
@@ -440,8 +542,13 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     if (booked.kind === "segment" || booked.plannedFinish !== undefined || (booked.storyId === undefined && booked.titleId === undefined)) return booked;
     return { ...booked, plannedFinish: finishForBookedStoryOrTitle(world, booked) };
   });
-  const show: Show = { id: ctx.ids.next("show"), tick: targetTick, kind, card: assignPositions(world, committedSlots) };
+  const positionedCard = assignPositions(world, committedSlots);
+  const show: Show = {
+    id: ctx.ids.next("show"), tick: targetTick, kind, card: positionedCard,
+    bookingTrace: compositionTrace(world, ctx.tick, targetTick, positionedCard),
+  };
   for (const plannedBeat of plannedBeats) {
+    if (!positionedCard.some((slot) => slot.plannedBeatId === plannedBeat.id)) continue;
     plannedBeat.scheduledShowId = show.id;
     const storyId = world.programPlans.find((plan) => plan.id === plannedBeat.programId)?.storyId;
     addEvent(world, ctx, {

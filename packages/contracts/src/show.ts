@@ -9,6 +9,46 @@ export type ShowKind = z.infer<typeof showKindSchema>;
 export const cardPositionSchema = z.enum(["main_event", "upper", "mid", "opener"]);
 export type CardPosition = z.infer<typeof cardPositionSchema>;
 
+/**
+ * Private GM audit data for a committed card. Scores remain decomposed so a
+ * report can explain a booking without reproducing the composer in prose.
+ */
+export const bookingCandidateDispositionSchema = z.enum(["selected", "rejected", "hard_invalid"]);
+export type BookingCandidateDisposition = z.infer<typeof bookingCandidateDispositionSchema>;
+
+export const bookingCandidateTraceSchema = z.object({
+  id: idSchema,
+  kind: z.enum(["match", "segment"]),
+  participantWrestlerIds: z.array(idSchema).min(1),
+  programId: idSchema.optional(),
+  plannedBeatId: idSchema.optional(),
+  titleId: idSchema.optional(),
+  disposition: bookingCandidateDispositionSchema,
+  hardInvalidReasons: z.array(z.string().min(1)).default([]),
+  scoreComponents: z.record(z.string(), z.number()).default({}),
+  totalScore: z.number(),
+  slotId: idSchema.optional(),
+  placementReason: z.string().min(1).optional(),
+}).superRefine((candidate, ctx) => {
+  if (candidate.disposition === "hard_invalid" && candidate.hardInvalidReasons.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "hard-invalid booking candidates require a reason", path: ["hardInvalidReasons"] });
+  }
+  if (candidate.disposition !== "hard_invalid" && candidate.hardInvalidReasons.length > 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "only hard-invalid booking candidates may carry invalid reasons", path: ["hardInvalidReasons"] });
+  }
+  if (candidate.disposition === "selected" && candidate.slotId === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "selected booking candidates require a slot", path: ["slotId"] });
+  }
+});
+export type BookingCandidateTrace = z.infer<typeof bookingCandidateTraceSchema>;
+
+export const bookingTraceSchema = z.object({
+  composedAtTick: tickSchema,
+  targetTick: tickSchema,
+  candidates: z.array(bookingCandidateTraceSchema),
+});
+export type BookingTrace = z.infer<typeof bookingTraceSchema>;
+
 // GDD §11 — the GM's active creative objective, rotated by the sim every few weeks.
 export const gmObjectiveSchema = z.enum([
   "new_main_eventer",
@@ -65,5 +105,7 @@ export const showSchema = z.object({
   tick: tickSchema,
   kind: showKindSchema,
   card: z.array(cardSlotSchema).min(1),
+  /** Developer/admin-only trace; never project this into player status. */
+  bookingTrace: bookingTraceSchema.optional(),
 });
 export type Show = z.infer<typeof showSchema>;

@@ -109,8 +109,8 @@ This is the single authoritative definition of what a tick does. Other documents
 
 1. **Collect turns** — pending player turns are collected and validated.
 2. **AI decisions** — AI wrestlers (and absent players, via stance fallback — spec §7.2) choose their turns.
-3. **GM decisions** — the GM responds to pitches and requests; on show ticks, books the card.
-4. **Resolve interactions and responses** — interactions, proposals, and reactive-decision responses are resolved; expired proposals resolve as ignored.
+3. **GM objective decisions** — the GM refreshes promotion-wide creative priorities. A future card is not committed yet.
+4. **Resolve interactions and responses** — interactions, proposals, and reactive-decision responses are resolved; expired proposals resolve as ignored. The GM then plans programs and commits the next show one tick ahead, so accepted same-tick pitches can inform the card while already committed cards retain their player intents.
 5. **Resolve the show** (show ticks) — matches, segments, stories, relationships, popularity, and crowd reactions are simulated.
 6. **Generate consequences** — new world events, reactive decisions, and opportunities are created.
 7. **Queue narrative** — narrative jobs are sent to the LLM layer (§15–16).

@@ -67,8 +67,6 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   // Step 3 — GM decisions (objective rotation, booking the next show).
   rotateBookingObjectiveIfDue(draft, ctx);
   rotateGmObjectiveIfDue(draft, ctx);
-  planPrograms(draft, ctx);
-  bookUpcomingShowIfDue(draft, ctx);
 
   // Step 4 — resolve interactions and responses (the action slot is
   // resolved alongside them; GDD §4 has no separate numbered step for it).
@@ -78,6 +76,11 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   expireProposals(draft, ctx);
   expireReactiveDecisions(draft, ctx);
   applyActions(draft, turns, ctx);
+
+  // Resolve current social choices before committing a future card. Existing
+  // shows stay untouched, so their player intents remain attached.
+  planPrograms(draft, ctx);
+  bookUpcomingShowIfDue(draft, ctx);
 
   // Step 5 — resolve the show (show ticks only).
   const show = draft.shows.find((s) => s.tick === tick);
