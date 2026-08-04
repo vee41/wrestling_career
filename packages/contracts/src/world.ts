@@ -5,7 +5,7 @@ import { popularityBlockSchema } from "./popularity.js";
 import { relationshipSchema } from "./relationship.js";
 import { storySchema } from "./story.js";
 import { gmObjectiveSchema, showSchema } from "./show.js";
-import { matchResultSchema } from "./match.js";
+import { matchResultSchema, segmentResultSchema } from "./match.js";
 import { worldEventSchema } from "./events.js";
 import { narrativeJobSchema, narrativeResultSchema } from "./narrative.js";
 import { wrestlerStanceSchema } from "./stance.js";
@@ -28,6 +28,7 @@ export const worldStateSchema = z
     stories: z.array(storySchema),
     shows: z.array(showSchema),
     matchResults: z.array(matchResultSchema),
+    segmentResults: z.array(segmentResultSchema),
     events: z.array(worldEventSchema),
     narrativeJobs: z.array(narrativeJobSchema),
     narrativeResults: z.array(narrativeResultSchema),
@@ -48,6 +49,7 @@ export const worldStateSchema = z
     const matchIds = new Set([
       ...world.shows.flatMap((show) => show.card.map((slot) => slot.id)),
       ...world.matchResults.map((m) => m.id),
+      ...world.segmentResults.map((s) => s.id),
     ]);
 
     const requireKnownWrestler = (id: string, path: (string | number)[]) => {
@@ -93,7 +95,7 @@ export const worldStateSchema = z
             path: ["shows", i, "card", j, "storyId"],
           });
         }
-        if (slot.titleId !== undefined && !titleIds.has(slot.titleId)) {
+        if (slot.kind === "match" && slot.titleId !== undefined && !titleIds.has(slot.titleId)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: `references unknown title id "${slot.titleId}"`,
@@ -120,6 +122,16 @@ export const worldStateSchema = z
           message: `references unknown story id "${m.storyId}"`,
           path: ["matchResults", i, "storyId"],
         });
+      }
+    });
+
+    world.segmentResults.forEach((segment, i) => {
+      if (!showIds.has(segment.showId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown show id "${segment.showId}"`, path: ["segmentResults", i, "showId"] });
+      }
+      segment.participantWrestlerIds.forEach((id, j) => requireKnownWrestler(id, ["segmentResults", i, "participantWrestlerIds", j]));
+      if (segment.storyId !== undefined && !storyIds.has(segment.storyId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown story id "${segment.storyId}"`, path: ["segmentResults", i, "storyId"] });
       }
     });
 

@@ -1,4 +1,4 @@
-import type { CardPosition, MatchResult, PopularityChangeReason, WorldState } from "@wrestling/contracts";
+import type { CardPosition, MatchResult, PopularityChangeReason, SegmentResult, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { clampDelta100, clampScale100, moveToward } from "./clamp.js";
 import { findPopularity, requireWrestler } from "./lookups.js";
@@ -72,7 +72,7 @@ function cadenceModifier(
 
 /** The history is intentionally derived from results rather than becoming a new persisted stat. */
 function expectedSegment(world: WorldState, wrestlerId: string, currentResultId: string, currentSegment: number): number {
-  const prior = world.matchResults
+  const prior = [...world.matchResults, ...world.segmentResults]
     .filter((result) => result.id !== currentResultId && result.participantWrestlerIds.includes(wrestlerId))
     .slice(-5)
     .map((result) => {
@@ -156,13 +156,21 @@ export function adjustStarPower(
  * it exceeds what the audience had reason to expect; the earned-status anchor
  * prevents both free workrate climbs and irreversible downward ratchets.
  */
-export function updatePopularity(world: WorldState, ctx: TickContext, matchResults: MatchResult[]): void {
-  const appearances = new Map<string, { result: MatchResult; performanceScore: number; physicalCost: number }>();
+export function updatePopularity(world: WorldState, ctx: TickContext, matchResults: MatchResult[], segmentResults: SegmentResult[] = []): void {
+  const appearances = new Map<string, { result: MatchResult | SegmentResult; performanceScore: number; physicalCost: number; positiveHeatDelta?: number; negativeHeatDelta?: number }>();
   const popularityAtStart = new Map(world.popularity.map((popularity) => [popularity.wrestlerId, popularity.generalPopularity]));
 
   for (const result of matchResults) {
     for (const performance of result.performances) {
       appearances.set(performance.wrestlerId, { result, performanceScore: performance.performanceScore, physicalCost: performance.physicalCost });
+    }
+  }
+  for (const result of segmentResults) {
+    for (const performance of result.performances) {
+      appearances.set(performance.wrestlerId, {
+        result, performanceScore: performance.performanceScore, physicalCost: 0,
+        positiveHeatDelta: performance.positiveHeatDelta, negativeHeatDelta: performance.negativeHeatDelta,
+      });
     }
   }
 
@@ -194,13 +202,16 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     // expectations below use the same lookup, so a main-event performance is
     // compared against the right-sized stage rather than a hidden default.
     const show = world.shows.find((candidate) => candidate.id === result.showId);
-    const slot = show?.card.find((candidate) => candidate.id === result.matchSlotId);
+    const slot = show?.card.find((candidate) => candidate.id === ("matchSlotId" in result ? result.matchSlotId : result.segmentSlotId));
     const position = slot?.position ?? "mid";
     const beforePopularity = popularity.generalPopularity;
     const beforeMomentum = popularity.momentum;
     popularity.fatigue = clampScale100(popularity.fatigue + physicalCost * 0.3);
 
-    if (wrestler.alignment === "face") {
+    if (appearance.positiveHeatDelta !== undefined || appearance.negativeHeatDelta !== undefined) {
+      popularity.positiveHeat = clampScale100(popularity.positiveHeat + (appearance.positiveHeatDelta ?? 0));
+      popularity.negativeHeat = clampScale100(popularity.negativeHeat + (appearance.negativeHeatDelta ?? 0));
+    } else if (wrestler.alignment === "face") {
       popularity.positiveHeat = moveToward(popularity.positiveHeat, result.crowdResponse, HEAT_MAX_STEP);
     } else if (wrestler.alignment === "heel") {
       popularity.negativeHeat = moveToward(popularity.negativeHeat, result.crowdResponse, HEAT_MAX_STEP);
@@ -219,7 +230,7 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     const expected = expectedSegment(world, wrestler.id, result.id, segment);
     const opponents = result.participantWrestlerIds.filter((id) => id !== wrestler.id);
     const opponentAveragePopularity = opponents.reduce((sum, id) => sum + (popularityAtStart.get(id) ?? 0), 0) / Math.max(1, opponents.length);
-    const won = result.winnerWrestlerId === wrestler.id;
+    const won = "winnerWrestlerId" in result && result.winnerWrestlerId === wrestler.id;
     const edge = won
       ? Math.max(0, opponentAveragePopularity - beforePopularity) * 0.5
       : -Math.max(0, beforePopularity - opponentAveragePopularity) * 0.5 - world.config.popularity.lossEdgeBase;
@@ -255,7 +266,7 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
       popularity.currentReaction = clampScale100(popularity.currentReaction + 10);
     }
 
-    if (show?.kind === "ple" && slot?.position === "main_event" && result.crowdResponse >= 70) {
+    if ("winnerWrestlerId" in result && show?.kind === "ple" && slot?.position === "main_event" && result.crowdResponse >= 70) {
       adjustStarPower(world, ctx, wrestler.id, world.config.popularity.pleMainEventStarPowerGain, `${wrestler.name} leaves the major main event with elevated status.`);
     }
     if (won && opponents.some((opponentId) => {

@@ -31,7 +31,7 @@ Commands:
   interact <wrestlerId> <gm|targetId> <intent> [emphasis] [--about <id>]  fill the interaction slot
   act <wrestlerId> <actionType> [...args] [--invest]       fill the action slot
   respond <wrestlerId> <id> <response> [counterPayload]    answer a reactive decision or proposal
-  intent <wrestlerId> <matchSlotId> <intent>               set a match intent
+  intent <wrestlerId> <slotId> <intent>                    set a match or segment intent
   stance <wrestlerId> <stance>                             queue a stance change
   tick [--count N]                                         resolve the next tick(s)
   sheet [--limit N]                                        render the dirt sheet

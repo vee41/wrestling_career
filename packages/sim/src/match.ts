@@ -4,17 +4,12 @@ import { clampScale100 } from "./clamp.js";
 import { findStance, findStory, requireWrestler } from "./lookups.js";
 import { defaultMatchIntent } from "./ai/stance-weights.js";
 import { weekForTick } from "./booking.js";
+import { dominantParticipant, intentsConflict } from "./dominance.js";
 
 // Spec §6.4: "whose intent dominates the ring" is a contest weighted by
 // psychology + professionalism (plus condition/experience). `experience` has
 // no dedicated stat (GDD §7's eight skills don't include one) — this phase
 // approximates it as the wrestler's own overall skill average.
-function ringIq(w: Wrestler): number {
-  const skills = Object.values(w.skills);
-  const experienceProxy = skills.reduce((sum, v) => sum + v, 0) / skills.length;
-  return w.skills.psychology * 0.4 + w.skills.professionalism * 0.4 + w.condition * 0.1 + experienceProxy * 0.1;
-}
-
 // How hard an intent pushes the match away from a cooperative, planned flow.
 // Two participants whose intents are far apart on this axis (e.g.
 // `steal_spotlight` vs `follow_plan`) are "conflicting" per spec §6.4.
@@ -29,8 +24,6 @@ const ASSERTIVENESS: Record<MatchIntent, number> = {
   take_risks: 0.7,
   steal_spotlight: 0.9,
 };
-
-const CONFLICT_THRESHOLD = 0.6;
 
 const APPEARANCE_PAY_BASE = 30;
 const CROWD_PAY_FACTOR = 0.5;
@@ -55,19 +48,8 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   const intents = participants.map((p) => resolveIntent(world, slot, p.id));
   const assertiveness = intents.map((i) => ASSERTIVENESS[i]);
 
-  let dominantIdx = 0;
-  let dominantScore = Number.NEGATIVE_INFINITY;
-  participants.forEach((p, i) => {
-    const score = ringIq(p) + rng.float(-8, 8);
-    if (score > dominantScore) {
-      dominantScore = score;
-      dominantIdx = i;
-    }
-  });
-
-  const maxAssert = Math.max(...assertiveness);
-  const minAssert = Math.min(...assertiveness);
-  const hasConflict = maxAssert - minAssert > CONFLICT_THRESHOLD;
+  const dominantIdx = dominantParticipant(participants, rng);
+  const hasConflict = intentsConflict(assertiveness);
 
   const rawScores = participants.map((p, i) => {
     const base =
@@ -211,5 +193,5 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
 }
 
 export function resolveShow(world: WorldState, show: Show, ctx: TickContext): MatchResult[] {
-  return show.card.map((slot) => resolveMatch(world, show, slot, ctx));
+  return show.card.filter((slot): slot is MatchSlot => slot.kind !== "segment").map((slot) => resolveMatch(world, show, slot, ctx));
 }

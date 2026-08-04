@@ -175,6 +175,7 @@ export const exampleWorldState: WorldState = {
       kind: "tv",
       card: [
         {
+          kind: "match",
           id: "slot-main-event",
           participantWrestlerIds: ["ace-steel", "vic-vendetta"],
           storyId: "story-ace-vs-vic",
@@ -217,6 +218,7 @@ export const exampleWorldState: WorldState = {
       ],
     },
   ],
+  segmentResults: [],
   events: [
     {
       id: "event-match-week-3-main-event",

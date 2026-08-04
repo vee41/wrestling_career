@@ -7,6 +7,7 @@ const validShow = {
   kind: "tv",
   card: [
     {
+      kind: "match",
       id: "slot-main-event",
       participantWrestlerIds: ["ace-steel", "vic-vendetta"],
       storyId: "story-ace-vs-vic",
@@ -28,8 +29,16 @@ describe("showSchema", () => {
   });
 
   it("allows a match slot with no story link or GM intent", () => {
-    const minimalSlot = { id: "slot-b", participantWrestlerIds: ["ace-steel", "dusty-cole"], position: "opener" };
+    const minimalSlot = { kind: "match", id: "slot-b", participantWrestlerIds: ["ace-steel", "dusty-cole"], position: "opener" };
     expect(() => showSchema.parse({ ...validShow, card: [minimalSlot] })).not.toThrow();
+  });
+
+  it("accepts a solo segment alongside matches", () => {
+    const show = showSchema.parse({ ...validShow, card: [{
+      kind: "segment", id: "slot-interview", participantWrestlerIds: ["ace-steel"],
+      position: "mid", gmIntent: "capitalise_on_rising_star", intents: { "ace-steel": "build_sympathy" },
+    }] });
+    expect(show.card[0]?.kind).toBe("segment");
   });
 
   it("rejects an unknown GM objective", () => {

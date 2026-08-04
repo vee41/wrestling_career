@@ -107,6 +107,17 @@ function pleCards(analysis: SliceAnalysis): string {
   return `<div class="cards">${analysis.pleCards.map((card) => `<article class="ple-card"><h3>Week ${card.week}</h3>${card.matches.map((match) => `<details class="match"><summary><span>${html(match.position.replaceAll("_", " "))}</span><b>${match.participants.map((id) => wrestlerWithDelta(analysis, match.impacts, id)).join(" vs. ")}</b>${match.titleId ? "<i>Title</i>" : ""}${match.storyId ? "<i>Story</i>" : ""}</summary>${matchBreakdown(analysis, match.impacts)}</details>`).join("")}</article>`).join("")}</div>`;
 }
 
+function showCards(analysis: SliceAnalysis): string {
+  if (analysis.showCards.length === 0) return `<p class="empty">No show cards were run.</p>`;
+  return `<div class="cards">${analysis.showCards.map((card) => `<article class="ple-card"><h3>Week ${card.week} <small>${html(card.kind.toUpperCase())}</small></h3>${card.slots.map((slot) => {
+    const names = slot.participants.map((id) => wrestlerWithDelta(analysis, slot.impacts, id)).join(slot.kind === "match" ? " vs. " : " · ");
+    const result = slot.kind === "segment"
+      ? `${slot.dominantWrestlerId ? `<i>Dominant: ${html(wrestlerName(analysis, slot.dominantWrestlerId))}</i>` : ""}${slot.heatDeltas ? `<ul class="breakdown">${slot.heatDeltas.map((delta) => `<li>${html(wrestlerName(analysis, delta.wrestlerId))}: +heat ${delta.positive}, -heat ${delta.negative}, story +${delta.storyAdvancement}</li>`).join("")}</ul>` : ""}`
+      : `${slot.winnerWrestlerId ? `<i>Winner: ${html(wrestlerName(analysis, slot.winnerWrestlerId))}</i>` : ""}`;
+    return `<details class="match"><summary><span>${html(slot.position.replaceAll("_", " "))} · ${html(slot.kind)}</span><b>${names}</b>${slot.titleId ? "<i>Title</i>" : ""}${slot.storyId ? "<i>Story</i>" : ""}${slot.quality !== undefined ? `<i>Quality: ${slot.quality}</i>` : ""}</summary>${result}${matchBreakdown(analysis, slot.impacts)}</details>`;
+  }).join("")}</article>`).join("")}</div>`;
+}
+
 function injuries(analysis: SliceAnalysis): string {
   if (analysis.injuryArcs.length === 0) return `<p class="empty">No injury-related events.</p>`;
   return `<div class="injuries">${analysis.injuryArcs.map((arc) => `<details><summary><b>${html(wrestlerName(analysis, arc.wrestlerId))}</b><span>Injuries: ${arc.injuryTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"} · Missed: ${arc.missedShowTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"} · Returns: ${arc.returnTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"}</span></summary><ul>${arc.events.map((event) => `<li><b>Week ${week(analysis, event.tick)}</b> · ${html(event.summary)}</li>`).join("")}</ul></details>`).join("")}</div>`;
@@ -153,6 +164,7 @@ function seedPanel(run: SliceReportRun, index: number): string {
     <section><h2>Title lineages</h2><div class="lineages">${titleLineages(analysis)}</div></section>
     <section><h2>Story timelines</h2>${stories(analysis)}</section>
     <section><h2>PLE cards</h2>${pleCards(analysis)}</section>
+    <section><h2>Complete show cards</h2>${showCards(analysis)}</section>
     <section><h2>Injury and return arcs</h2>${injuries(analysis)}</section>
   </section>`;
 }

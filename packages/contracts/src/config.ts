@@ -118,6 +118,8 @@ export const bookingTuningSchema = z.object({
   midcardTitleStakesHeatBonus: z.number().min(0).default(12),
   titleDefenseStalenessWeeks: z.number().int().min(0).default(8),
   contenderReadyMomentumThreshold: z.number().min(-100).max(100).default(20),
+  /** Chance for an eligible TV building-story slot to become a non-match beat. */
+  segmentChance: z.number().min(0).max(1).default(0.25),
 });
 export type BookingTuning = z.infer<typeof bookingTuningSchema>;
 

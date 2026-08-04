@@ -76,6 +76,17 @@ function seedReport(seed: string, analysis: SliceAnalysis): string[] {
   for (const card of analysis.pleCards) {
     lines.push(`- Week ${card.week}: ${card.matches.map((match) => `${match.position.replace(/_/g, " ")} — ${match.participants.map((id) => wrestlerName(analysis, id)).join(" vs. ")}${match.titleId ? " [title]" : ""}${match.storyId ? " [story]" : ""}`).join("; ")}`);
   }
+  lines.push("", "### Complete show cards");
+  for (const card of analysis.showCards) {
+    const slots = card.slots.map((slot) => {
+      const participants = slot.participants.map((id) => wrestlerName(analysis, id)).join(slot.kind === "match" ? " vs. " : " / ");
+      const outcome = slot.kind === "segment"
+        ? `${slot.dominantWrestlerId ? `; dominant: ${wrestlerName(analysis, slot.dominantWrestlerId)}` : ""}${slot.heatDeltas ? `; heat: ${slot.heatDeltas.map((delta) => `${wrestlerName(analysis, delta.wrestlerId)} +${delta.positive}/-${delta.negative}`).join(", ")}` : ""}`
+        : slot.winnerWrestlerId ? `; winner: ${wrestlerName(analysis, slot.winnerWrestlerId)}` : "";
+      return `${slot.position.replace(/_/g, " ")} ${slot.kind} — ${participants}${slot.storyId ? " [story]" : ""}${slot.titleId ? " [title]" : ""}${outcome}`;
+    });
+    lines.push(`- Week ${card.week} ${card.kind.toUpperCase()}: ${slots.join("; ")}`);
+  }
   lines.push("", "### Injury and return arcs");
   if (analysis.injuryArcs.length === 0) lines.push("- No injury-related events.");
   for (const arc of analysis.injuryArcs) {

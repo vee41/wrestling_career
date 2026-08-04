@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { idSchema, tickSchema } from "./common.js";
-import { matchIntentSchema } from "./intent.js";
+import { matchIntentSchema, segmentIntentSchema } from "./intent.js";
 
 export const showKindSchema = z.enum(["tv", "ple"]);
 export type ShowKind = z.infer<typeof showKindSchema>;
@@ -20,6 +20,9 @@ export const gmObjectiveSchema = z.enum([
 export type GmObjective = z.infer<typeof gmObjectiveSchema>;
 
 export const matchSlotSchema = z.object({
+  // Optional only for backwards-compatible parsing of pre-3.8 snapshots;
+  // all newly authored slots carry the explicit discriminator.
+  kind: z.literal("match").optional(),
   id: idSchema,
   participantWrestlerIds: z.array(idSchema).min(2),
   storyId: idSchema.optional(),
@@ -34,10 +37,26 @@ export const matchSlotSchema = z.object({
 });
 export type MatchSlot = z.infer<typeof matchSlotSchema>;
 
+/** A non-competitive on-card beat. A solo interview is deliberately valid. */
+export const segmentSlotSchema = z.object({
+  kind: z.literal("segment"),
+  id: idSchema,
+  participantWrestlerIds: z.array(idSchema).min(1),
+  storyId: idSchema.optional(),
+  position: cardPositionSchema,
+  gmIntent: gmObjectiveSchema.optional(),
+  titleId: z.never().optional(),
+  intents: z.record(idSchema, segmentIntentSchema).default({}),
+});
+export type SegmentSlot = z.infer<typeof segmentSlotSchema>;
+
+export const cardSlotSchema = z.union([matchSlotSchema, segmentSlotSchema]);
+export type CardSlot = z.infer<typeof cardSlotSchema>;
+
 export const showSchema = z.object({
   id: idSchema,
   tick: tickSchema,
   kind: showKindSchema,
-  card: z.array(matchSlotSchema).min(1),
+  card: z.array(cardSlotSchema).min(1),
 });
 export type Show = z.infer<typeof showSchema>;

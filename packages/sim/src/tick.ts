@@ -16,6 +16,7 @@ import {
 import { applyActions } from "./resolve-actions.js";
 import { bookUpcomingShowIfDue, rotateGmObjectiveIfDue } from "./gm.js";
 import { resolveShow } from "./match.js";
+import { resolveSegments } from "./segment.js";
 import { updatePopularity } from "./popularity.js";
 import { updateChampionships } from "./title.js";
 import { advanceStories } from "./stories.js";
@@ -61,7 +62,7 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   }
 
   queueStanceChanges(draft, ctx, turns);
-  mergeMatchIntents(draft, turns);
+  mergeCardIntents(draft, turns);
 
   // Step 3 — GM decisions (objective rotation, booking the next show).
   rotateGmObjectiveIfDue(draft, ctx);
@@ -79,13 +80,14 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   // Step 5 — resolve the show (show ticks only).
   const show = draft.shows.find((s) => s.tick === tick);
   const matchResults = show ? resolveShow(draft, show, ctx) : [];
+  const segmentResults = show ? resolveSegments(draft, show, ctx) : [];
 
   // Step 6 — crowd & popularity update.
-  updatePopularity(draft, ctx, matchResults);
+  updatePopularity(draft, ctx, matchResults, segmentResults);
   updateChampionships(draft, ctx, matchResults);
 
   // Step 7 — story engine + dramatic director.
-  advanceStories(draft, ctx, matchResults);
+  advanceStories(draft, ctx, matchResults, segmentResults);
   scanForNewStory(draft, ctx);
   generateReactiveDecisions(draft, ctx);
 
@@ -137,12 +139,16 @@ function queueStanceChanges(world: WorldState, ctx: TickContext, turns: Map<stri
   }
 }
 
-function mergeMatchIntents(world: WorldState, turns: Map<string, PlayerTurn>): void {
+function mergeCardIntents(world: WorldState, turns: Map<string, PlayerTurn>): void {
   const allSlots = world.shows.flatMap((s) => s.card);
   for (const turn of turns.values()) {
     for (const [slotId, intent] of Object.entries(turn.matchIntents)) {
       const slot = allSlots.find((c) => c.id === slotId);
-      if (slot) slot.intents[turn.wrestlerId] = intent;
+      if (slot && slot.kind !== "segment") slot.intents[turn.wrestlerId] = intent;
+    }
+    for (const [slotId, intent] of Object.entries(turn.segmentIntents)) {
+      const slot = allSlots.find((c) => c.id === slotId);
+      if (slot?.kind === "segment") slot.intents[turn.wrestlerId] = intent;
     }
   }
 }

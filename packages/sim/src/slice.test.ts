@@ -56,9 +56,10 @@ function defaultScenario() {
 describe("slice gate", () => {
   it("runs three fixed default-scenario seeds and reports every SL criterion and signal", () => {
     const scenario = defaultScenario();
-    const analyses = ["slice-wwe-2026-1", "slice-wwe-2026-2", "slice-wwe-2026-3"].map((seed) =>
-      analyzeSlice(runHeadlessSlice(worldFromScenario(scenario, seed), seed)),
+    const runs = ["slice-wwe-2026-1", "slice-wwe-2026-2", "slice-wwe-2026-3"].map((seed) =>
+      runHeadlessSlice(worldFromScenario(scenario, seed), seed),
     );
+    const analyses = runs.map(analyzeSlice);
 
     console.log("\nSlice signal glossary (see SIGNAL_DESCRIPTIONS in slice.ts for the full text):");
     for (const key of Object.keys(SIGNAL_DESCRIPTIONS)) console.log(`  ${key}: ${SIGNAL_DESCRIPTIONS[key as keyof typeof SIGNAL_DESCRIPTIONS]}`);
@@ -77,6 +78,14 @@ describe("slice gate", () => {
         (total, trajectory) => total + trajectory.end - trajectory.start,
         0,
       ));
+      const segments = runs[index]!.finalWorld.segmentResults;
+      const storySegments = segments.filter((segment) => segment.storyId !== undefined);
+      // Phase 3.8: TV angles occupy the same card budget as matches. The
+      // default scenario therefore needs a real weekly segment cadence, not
+      // merely a schema path that occasionally fires.
+      expect(segments.length).toBeGreaterThanOrEqual(runs[index]!.finalWorld.config.sliceWeeks);
+      expect(storySegments.length).toBeGreaterThan(0);
+      expect(analysis.showCards.flatMap((card) => card.slots).filter((slot) => slot.kind === "segment")).toHaveLength(segments.length);
     }
 
     const cross = crossSeedCriterion(analyses);

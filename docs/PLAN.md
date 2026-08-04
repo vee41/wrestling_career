@@ -1,8 +1,8 @@
 # MVP Prototype — AI Agent Execution Plan
 
-Companion to [GDD.md](GDD.md) (v0.5), the [player decision loop spec](player-decision-loop-spec.md) (v0.2, "the spec"), the [six-month slice spec](six-month-slice.md) ("the slice spec"), and the [scenario data spec](scenario-data-spec.md). This plan turns those documents into an ordered set of build phases an AI agent can execute autonomously. Each phase has a goal, concrete tasks, and acceptance criteria that can be verified without human judgement wherever possible.
+Companion to [GDD.md](GDD.md) (v0.5), the [player decision loop spec](player-decision-loop-spec.md) (v0.2, "the spec"), the [six-month slice spec](six-month-slice.md) ("the slice spec"), the [booking AI vision](booking_ai.md), and the [scenario data spec](scenario-data-spec.md). This plan turns those documents into an ordered set of build phases an AI agent can execute autonomously. Each phase has a goal, concrete tasks, and acceptance criteria that can be verified without human judgement wherever possible.
 
-**Precedence:** GDD owns vision and the canonical tick pipeline (GDD §4); the spec owns the player choice structure and all choice vocabularies (its tokens are normative); the slice spec owns the MVP acceptance bar (SL-1…SL-10); the scenario data spec owns world-data formats; this plan owns execution order. `packages/contracts` is the machine canon for tokens and data formats.
+**Precedence:** GDD owns the overall vision and canonical tick pipeline (GDD §4); the spec owns the player choice structure and all choice vocabularies (its tokens are normative); the booking AI vision owns creative-planning architecture and intent; the slice spec owns the 26-week MVP acceptance bar (SL-1…SL-10); the scenario data spec owns world-data formats; this plan owns execution order. `packages/contracts` is the machine canon for implemented tokens and data formats.
 
 ## Guiding decisions (already made — do not re-litigate)
 
@@ -15,7 +15,7 @@ Companion to [GDD.md](GDD.md) (v0.5), the [player decision loop spec](player-dec
 7. **Persistence is a snapshot, not event sourcing.** Store the full world state as versioned JSON plus an append-only event log for the dirt sheet. Do not build per-entity relational CRUD for sim internals.
 8. **The decision-loop spec is authoritative for player choices.** One interaction slot + one action slot per tick (both tick types), reactive decisions, match/segment intent, persistent stance with next-tick inertia. Stance doubles as the AI utility weighting (spec §7.2). Players see qualitative projections, never raw numbers (spec §8).
 9. **Data-driven scenarios.** All world content — promotion, roster, titles, calendar, seed relationships/feuds, cadence config — comes from replaceable `data/<scenario>/` files per the scenario data spec. The sim is scenario-agnostic: no wrestler/title/show name in `packages/sim` or `packages/contracts` source. The default scenario is `wwe-2026`, a direct remodel of WWE (single brand, men's singles, ~40 real wrestlers, World Heavyweight + Intercontinental titles). *(Decided 2026-07-27.)*
-10. **The MVP bar is the six-month slice.** The simulation must produce an interesting, wrestling-logical 26-week slice headlessly — feuds that arc to PLE blowoffs, meaningful title lineages, acts that rise *and fall*, visible history. Tuning targets the slice spec's SL criteria; that gate (Phase 3.7) blocks all narrative/UI phases. Interesting-and-logical beats feature count.
+10. **The MVP bar is layered.** The simulation must first pass the eight-week/two-PLE creative-booking gate in Phase 3.13, then produce an interesting, wrestling-logical 26-week slice headlessly — feuds that arc to PLE blowoffs, meaningful title lineages, acts that rise *and fall*, visible history. Both gates block narrative/UI phases. Interesting-and-logical beats feature count.
 
 ## Repository layout
 
@@ -24,6 +24,7 @@ wrestling_career/
   CLAUDE.md
   docs/
     GDD.md
+    booking_ai.md
     PLAN.md
     player-decision-loop-spec.md
     six-month-slice.md
@@ -420,7 +421,7 @@ A **program** ≈ an active story (or a champion-vs-contender pairing). Its **he
 
 **Goal:** Give the show card a non-match segment type — the promo/interview/angle beat that advances a story or shifts heat without a competitive outcome. This closes a gap the contracts layer already anticipated: `segmentIntentSchema`'s 8 tokens (`build_sympathy`, `generate_hostility`, `promote_opponent`, `escalate_rivalry`, `show_vulnerability`, `protect_mystery`, `seek_controversy`, `stay_controlled` — [intent.ts:20-29](../packages/contracts/src/intent.ts#L20-L29)) and `PlayerTurn.segmentIntents` ([turn.ts:22](../packages/contracts/src/turn.ts#L22)) have existed since Phase 1.5 with nothing to attach them to — Phase 3's post-implementation notes call this out explicitly (above, "the CLI's `intent` command only wires match intents… left for a future pass since there's no segment-slot entity yet to attach them to"). This phase builds that entity.
 
-Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, story engine), and lightly the CLI. Not required to keep the slice gate green, so it doesn't block Phase 4/5; sequenced here (before Phase 4) so the narrative layer's template coverage includes segment jobs from the start instead of retrofitting them later.
+Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, story engine), and lightly the CLI. Phase 3.8 is the prerequisite for the creative-booking slice in Phases 3.9–3.13: programs need non-match beats before the planner can build anticipation instead of repeatedly booking the same match. Narrative and UI work begin after that slice is coherent.
 
 **Contracts:**
 1. `show.ts`: introduce a `segmentSlotSchema` (id, `participantWrestlerIds: array(idSchema).min(1)` — a solo interview is valid, unlike matches, which require 2 — `position`, optional `storyId`, `gmIntent`) and change `Show.card` from `array(matchSlotSchema)` to `array(matchSlotSchema | segmentSlotSchema)`, distinguished by a `kind: "match" | "segment"` discriminant added to both. Bump `schemaVersion`, regenerate fixtures.
@@ -436,6 +437,124 @@ Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, s
 **Testing:** segment schemas round-trip through contracts; `resolveSegment` produces heat deltas matching the intent-mapping table above; a segment-only appearance moves `generalPopularity`/`momentum` the same way a match appearance does (no idle-decay leakage); a story advances from a segment result, not just a match result; re-run `slice.test.ts` — a segment competing for TV slot budget changes how many matches a show can carry, so verify SL-6/SL-9's shape still holds.
 
 **Done when:** a 26-week run books at least one segment per week on average; at least one story advances via a segment; `slice.test.ts` still passes; `playtest-notes.md` gets a short section on segment behavior citing the SL ids affected.
+
+---
+
+## Phase 3.9 — ProgramPlan foundation
+
+**Goal:** Add durable, private GM creative intent. A story describes what has happened and how the audience feels; a program plan describes what the GM wants to accomplish over the next four weeks. This phase implements [booking_ai.md §5](booking_ai.md#5-program-plan-model) without changing weekly card composition yet.
+
+**Contracts:**
+1. Add a `ProgramPlan` schema and world-state collection. It minimally contains: id, linked story id, participants with creative roles, premise, creative objective, priority, start tick, mandatory target payoff tick, optional target show id once committed, intended payoff, protected participants, escalation, status, planned beat ids, completed beat ids, direct-match cooldown/repetition budget, and structured revision history.
+2. Keep public `Story` and private `ProgramPlan` distinct. World validation enforces known wrestler/story/show references, unique plan ids, valid target ticks, and one active plan per story. Do not expose private plan details through player-facing projections.
+3. Add structured program lifecycle/revision event types. Persist previous intent, new intent, and revision reason; do not overwrite plan history silently.
+
+**Sim:**
+4. Introduce a deterministic planning-cycle entry point that can create a plan from an existing active story or a director-produced catalyst. It chooses a four-week target payoff and creative objective using world facts, GM objectives, title state, relationships, roles, availability, and player pitches.
+5. Replace the GM objective's short random rotation as the primary source of creative direction. Objectives must persist for at least a PLE cycle unless a structured trigger causes revision; unsupported objectives (for example a tag objective while the scenario has no tag division) are ineligible.
+6. Store selected and rejected plan candidates with score components sufficient to explain the choice. Hard-invalid candidates are recorded separately from valid candidates that lost on score.
+
+**Testing:**
+7. Contract round trips and invalid-reference tests; deterministic same-seed candidate selection; objective persistence across a PLE cycle; no duplicate active plan for one story; unavailable or conflicting participants rejected as hard-invalid.
+
+**Done when:** the default scenario can deterministically produce a bounded portfolio of three to five active four-week plans, each linked to a story and target payoff; identical inputs reproduce identical plans and traces; no card behavior has to depend on reading prose fields.
+
+---
+
+## Phase 3.10 — Planned beats and program evolution
+
+**Goal:** Turn each `ProgramPlan` into a small, inspectable progression of structured beats built on Phase 3.8's match and segment slots. Programs must be able to develop without primary rivals wrestling every week.
+
+**Contracts:**
+1. Add a `PlannedBeat` schema with: id, program id, beat type, required/optional participants, scheduling window, preconditions, intended story effect, escalation level, whether it spends a direct matchup, compatible slot kind, status, and result references.
+2. Start with the deliberately small catalog in [booking_ai.md §6](booking_ai.md#6-beats): promo/interview, confrontation, attack/save/interference, showcase/contender match, direct rivalry match, go-home angle, and PLE payoff. Do not add stipulation breadth until this catalog creates readable programs.
+
+**Sim:**
+3. Generate a provisional four-week beat skeleton for each accepted plan: establish, complicate, escalate, and pay off. Archetypes may omit or substitute steps, but every payoff must have prior setup and every scheduled beat must serve the plan's objective.
+4. Add a beat selector that identifies required and eligible beats for the next show. Enforce scheduling windows, participant availability, escalation order, direct-match cooldown, and PLE-only payoff rules as hard constraints.
+5. Feed resolved match and segment results back into both public story state and private beat state. Mark beats resolved, skipped, or invalidated; never infer completion merely because a story meter crossed a threshold.
+6. Add initial replanning responses for an invalidated beat: substitute beat, accelerate, extend, cool down, pivot, or abandon. Every response appends a structured revision.
+
+**Testing:**
+7. Golden program tests: establish-to-payoff title challenge; non-title grudge; prospect elevation without an immediate title win; unavailable participant invalidates and replaces a beat. Assert intermediate beats and traces, not only final story state.
+
+**Done when:** an isolated four-week plan advances through at least three distinct beats, includes at least one non-match beat, respects direct-match cooldown, reaches a PLE payoff, and records deterministic revisions when a fixture disrupts it.
+
+---
+
+## Phase 3.11 — Planned finishes and execution deviation
+
+**Goal:** Make the GM the normal authority over winners and finishes while preserving emergent execution risk. Match simulation judges how well a booking is performed; it does not normally invent the creative outcome.
+
+**Contracts:**
+1. Add a planned finish to story/title match slots: intended winner, finish family (`clean`, `dirty`, `interference`, `disqualification`, `no_contest`), protected participants, intended title/story consequence, and adherence strength. Final token names become normative only when added to contracts and the applicable spec.
+2. Extend match results/events to record the planned outcome, actual outcome, adherence/deviation, and structured deviation cause.
+
+**Sim:**
+3. Move title change/retention policy from hard-coded match-resolution timing into the program planner and planned finish. Remove the forced mid-slice midcard transition and unexplained random world-title change once equivalent plan coverage exists.
+4. Resolve the planned winner by default. Skills, chemistry, condition, card position, and participant intents still determine quality, crowd response, credibility, physical cost, GM/backstage reaction, and story advancement.
+5. Permit deviations only through explicit rules such as injury, refusal, dominant conflicting intent, or failed interference. A deviation emits a material event and triggers replanning; it never silently substitutes a different winner.
+
+**Testing:**
+6. Planned clean/dirty/interference/title outcomes; protected loser credibility; identical planned finishes with different execution quality; every deviation cause individually forced by a fixture; no deviation without an eligible cause; planner reaction to a changed title holder.
+
+**Done when:** every program payoff and title match in a four-week run has an intended finish; normal matches follow it; forced disruption fixtures produce explainable deviations and deterministic replans; title lineage no longer depends on slice-position hacks in `resolveMatch`.
+
+---
+
+## Phase 3.12 — Weekly card composer and booking trace
+
+**Goal:** Compose a wrestling show from due beats, obligations, and roster rotation. Replace independent match selection plus descending heat sort with a constraint-aware card that has continuity and rhythm.
+
+**Composer order:**
+1. Reserve hard obligations: due PLE payoffs, title obligations, and already-promised player bookings.
+2. Place program beats whose scheduling windows are closing.
+3. Place other high-value eligible program beats.
+4. Fill remaining capacity with contender-building, showcases, and roster rotation.
+5. Order the show with a strong opener, match/segment variety, participant separation, supporting progression, and the hottest justified main event.
+6. Emit selected and rejected candidate traces.
+
+**Hard constraints:** availability/condition, no accidental double booking, slot-kind compatibility, title/role eligibility, direct-match cooldown, card capacity, payoff reservations, and rare-role cadence. Hard-invalid candidates never become valid by receiving a larger score.
+
+**Soft score:** program priority + beat urgency + heat + promotion-objective fit + freshness + card-shape contribution - overexposure - repeat-pairing penalty - condition risk. Put every coefficient in scenario-owned tuning only after its need is demonstrated by a test or slice.
+
+**Trace and reports:**
+7. Integrate composition at the correct information boundary: resolve relevant interactions/responses before committing a newly due future card; keep intents attached to an already committed show; resolve a show and its consequences before replanning later provisional beats. Update GDD §4 in the same change if the canonical tick sequence changes.
+8. Persist a structured audit trace for every show: hard constraints, score components, selected candidates, rejected alternatives, placement reason, and linked plan/beat ids.
+9. Extend the CLI/HTML report with show cards, program timelines, planned-versus-actual finishes, and a "why booked / why rejected" view. Private plan details are a developer/admin report, not a player projection.
+
+**Testing:**
+10. Golden cards: high-heat non-title main event; stale title obligation; PLE payoff reservation; direct rematch rejected; injured wrestler rejected; rare-role cadence; segment/match variety; strong opener and main-event placement; same-tick accepted pitch visible to composition; deterministic trace snapshot.
+
+**Done when:** the composer creates complete deterministic TV and PLE cards from planned beats plus rotation, never violates a hard constraint, avoids weekly rivalry rematches, and explains every placement and rejection without reconstructing the decision from source code.
+
+---
+
+## Phase 3.13 — Eight-week / two-PLE creative-booking slice ⚠ THE CREATIVE GATE
+
+**Goal:** Prove `ProgramPlan → beats → planned finishes → weekly card composition` in an eight-week headless run covering two four-week PLE cycles. This is the fast readability gate before reconnecting the architecture to the full 26-week balance gate.
+
+**Harness and Balance Lab:**
+1. Add a fixed-seed eight-week command/test/report using the default scenario, three to five active programs, two singles titles, Phase 3.8 segments, planned finishes, and one-show-ahead card commitment.
+2. Report complete program and card timelines: selected/rejected traces, beat status, plan revisions, planned versus actual finishes, direct-pairing history, title lineage, roster usage, and crowd/story consequences.
+3. Add same-seed config comparison. Begin multi-seed batch support and parameter sweeps without coupling the planner to the tuner UI.
+
+**Required deterministic fixtures:**
+4. A title challenger built through multiple TV beats into a PLE payoff.
+5. A non-title program advanced primarily through segments and allowed to outrank a colder title program.
+6. A prospect elevated without being immediately made champion.
+7. A disruption (initially injury or planned-finish deviation) that produces a visible, reasoned replan.
+
+**Creative acceptance:**
+8. At least two PLE programs have multiple prior TV beats; at least one program advances primarily through non-match beats; primary rivals do not fall into a weekly direct-match loop; at least one later beat depends on an earlier planned finish; all active programs end resolved, validly extended, or explicitly abandoned; identical state/turns/seed reproduce identical output and trace.
+9. Conduct and record a qualitative read-through in `playtest-notes.md`. The report must be describable as premises, escalation, consequences, and payoffs rather than as meter changes or repeated pairings.
+
+**Reconnect the 26-week gate:**
+10. Run the same planner through the existing 26-week harness. Extend analysis with program completion/abandonment, beats-before-payoff, PLE build coverage, direct-rematch frequency, segment share, escalation violations, revisions by cause, finish adherence, main-event/challenger diversity, role utilization, action-to-consequence delay, and unresolved-program backlog.
+11. Change the automated slice gate so every MUST criterion actually fails the test when below threshold. Treat prior prose in `playtest-notes.md` as historical; record fresh results for the implemented planner and current tuning.
+12. Tune program, card, title, roster, and popularity behavior together across multiple fixed seeds. Do not tune popularity in isolation to compensate for incoherent booking.
+
+**Done when:** the eight-week creative gate passes every deterministic and qualitative requirement; the 26-week harness uses the new planner, enforces MUST failures, and has fresh recorded results; root tests/typecheck pass; Phase 4 narrative work can consume stable match, segment, plan-revision, and show facts without inventing booking logic.
 
 ---
 
@@ -490,11 +609,11 @@ Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, s
 
 ## Cross-cutting rules for the executing agent
 
-- **Order is strict** through Phase 3.7; Phases 4 and 5a may be parallelized after the slice gate.
+- **Order is strict** through Phase 3.13. Phase 3.8 supplies segment primitives; Phases 3.9–3.13 build and validate the creative-booking core. Phases 4 and 5a may be parallelized only after the two-PLE creative gate passes and the planner is reconnected to the enforced 26-week gate.
 - **Every phase lands with passing tests** (`pnpm test` + `pnpm typecheck` green at root). Deviations from this plan are recorded in the plan itself: amend the relevant phase section in place.
 - **Tokens are normative.** All enum values in code MUST match the spec's backticked tokens verbatim. If a token must change, update the spec in the same change.
 - **The sim is scenario-agnostic.** No wrestler, title, show, or faction name from any dataset appears in `packages/` source; all world content flows from `data/<scenario>/` through the contracts scenario schemas.
 - **When the GDD or spec offers options** ("possible skills", "useful measures may include"), pick the listed set as-is — do not invent additional systems.
 - **When the docs are silent**, choose the simplest thing that preserves the pillars (GDD §2), the design rules (spec §11, DL-1…DL-7), and the slice criteria (SL-1…SL-10), note the decision in a code comment or the relevant doc section, and move on. Do not block on questions unless a pillar or a MUST-level rule is at risk.
 - **Scope discipline:** anything in GDD §3 "Not initially included" or tagged *post-prototype* in the spec is out — reject the temptation to add women's/tag divisions, a second brand, mentors, sponsors, finances, or multiple promotions even if "easy." (The scenario data format may anticipate divisions; the sim and booking logic must not implement them yet.)
-- **The validation bars are layered:** the slice spec (SL-1…SL-10) is the acceptance test for the simulation; GDD §21 and spec §13 are the acceptance test for the playable prototype. Emergent, social, non-linear careers beat feature completeness. When trading off, cut features, not consequence depth.
+- **The validation bars are layered:** Phase 3.13's two-PLE slice validates creative continuity and inspectability; the slice spec (SL-1…SL-10) validates 26-week simulation outcomes; GDD §21 and spec §13 validate the playable prototype. All three bars must pass. Emergent, social, non-linear careers beat feature completeness. When trading off, cut features, not consequence depth.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchResultSchema } from "./match.js";
+import { matchResultSchema, segmentResultSchema } from "./match.js";
 
 const validMatchResult = {
   id: "match-week-3-main-event",
@@ -64,5 +64,16 @@ describe("matchResultSchema", () => {
       performances: [validMatchResult.performances[0]],
     };
     expect(() => matchResultSchema.parse(missingPerformance)).toThrow();
+  });
+
+  it("round-trips a solo segment result without a competitive winner", () => {
+    const result = segmentResultSchema.parse({
+      id: "segment-1", segmentSlotId: "slot-promo", showId: "show-1",
+      participantWrestlerIds: ["ace-steel"], dominantWrestlerId: "ace-steel",
+      quality: 72, crowdResponse: 74, storyAdvancement: 18,
+      intents: { "ace-steel": "build_sympathy" },
+      performances: [{ wrestlerId: "ace-steel", performanceScore: 72, positiveHeatDelta: 10, negativeHeatDelta: 0, storyAdvancement: 8 }],
+    });
+    expect(segmentResultSchema.parse(JSON.parse(JSON.stringify(result)))).toEqual(result);
   });
 });

@@ -71,6 +71,7 @@
     "worldTitleStakesHeatBonus": 30,
     "midcardTitleStakesHeatBonus": 12,
     "titleDefenseStalenessWeeks": 4,
-    "contenderReadyMomentumThreshold": 20
+    "contenderReadyMomentumThreshold": 20,
+    "segmentChance": 0.75
   }
 }

@@ -122,7 +122,7 @@ export function renderStatus(world: WorldState, wrestlerId: string, debug: boole
       const others = slot.participantWrestlerIds.filter((id) => id !== wrestlerId).map((id) => findName(world, id));
       const intent = slot.intents[wrestlerId];
       lines.push(
-        `    show at tick ${show.tick}, slot ${slot.id} vs ${others.join(", ")}${
+        `    ${slot.kind === "segment" ? "segment" : "match"} at tick ${show.tick}, slot ${slot.id}${others.length > 0 ? ` with ${others.join(", ")}` : " (solo)"}${
           intent ? ` — your intent: ${humanize(intent)}` : " — no intent set yet"
         }`,
       );

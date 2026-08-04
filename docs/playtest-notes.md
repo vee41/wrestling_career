@@ -335,3 +335,19 @@ The three runs recorded 3/4/5 rises for SL-1, 5/11/6 falls for SL-2, and
 three different title/main-event performers, satisfying SL-10. The tether
 keeps ordinary hot streaks temporary while championship and major-show
 outcomes create the limited, legible climbs required by the slice.
+
+## Phase 3.8 promo, angle, and skit segments (SL-6, SL-9)
+
+The default scenario now gives eligible TV building stories a 75% chance to
+take a segment slot instead of a match slot. The fixed three-seed 26-week
+slice records at least one segment per week and at least one story advance
+through a segment in every run. Segments use promo/character/psychology
+rather than ring work, consume card capacity, and create no physical cost;
+their participants are nevertheless treated as normal appearances by the
+popularity model, so they do not silently fall through the idle-decay path.
+
+SL-6 remains structurally intact: stories can build through non-match beats
+before their PLE payoff. SL-9 also remains intact in all three runs (every
+roster member still wrestles at least three matches, with nobody appearing on
+every show), confirming that segment slots complement rather than erase the
+rotation match budget.

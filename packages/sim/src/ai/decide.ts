@@ -19,7 +19,7 @@ import { interactionGatePasses } from "../gates.js";
 import { countRecentInteractions, patienceMultiplier } from "../patience.js";
 import { findPopularity, findRelationship, findStance } from "../lookups.js";
 import { pickBestResponse } from "./response-scoring.js";
-import { defaultMatchIntent, stanceWeights, type StanceWeights } from "./stance-weights.js";
+import { defaultMatchIntent, defaultSegmentIntent, stanceWeights, type StanceWeights } from "./stance-weights.js";
 
 const SKILL_NAMES = skillNameSchema.options;
 
@@ -290,8 +290,11 @@ export function decideFallbackTurn(world: WorldState, wrestler: Wrestler, ctx: T
     }));
 
   const matchIntents: Record<string, ReturnType<typeof defaultMatchIntent>> = {};
+  const segmentIntents: Record<string, ReturnType<typeof defaultSegmentIntent>> = {};
   for (const { slot } of upcomingSlotsFor(world, wrestler.id, ctx.tick)) {
-    if (!slot.intents[wrestler.id]) matchIntents[slot.id] = defaultMatchIntent(stance);
+    if (slot.intents[wrestler.id]) continue;
+    if (slot.kind === "segment") segmentIntents[slot.id] = defaultSegmentIntent(stance);
+    else matchIntents[slot.id] = defaultMatchIntent(stance);
   }
 
   return {
@@ -301,6 +304,6 @@ export function decideFallbackTurn(world: WorldState, wrestler: Wrestler, ctx: T
     reactiveResponses,
     proposalResponses,
     matchIntents,
-    segmentIntents: {},
+    segmentIntents,
   };
 }

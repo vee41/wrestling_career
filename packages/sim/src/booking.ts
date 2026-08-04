@@ -1,4 +1,4 @@
-import { DEFAULT_WORLD_CONFIG, type MatchSlot, type Show, type ShowKind, type WorldConfig, type WorldState } from "@wrestling/contracts";
+import { DEFAULT_WORLD_CONFIG, type CardSlot, type Show, type ShowKind, type WorldConfig, type WorldState } from "@wrestling/contracts";
 
 /** Default week: 2 decision ticks + 1 show tick (GDD §4) — configurable, not spec-normative. */
 export const DECISION_TICKS_PER_WEEK = DEFAULT_WORLD_CONFIG.decisionTicksPerWeek;
@@ -32,7 +32,7 @@ export function nextShowTick(currentTick: number, config: WorldConfig = DEFAULT_
 
 export interface SlotRef {
   show: Show;
-  slot: MatchSlot;
+  slot: CardSlot;
 }
 
 /** Booked-but-not-yet-resolved slots (this or a future show tick) featuring `wrestlerId`. */
@@ -66,7 +66,7 @@ export function weeksSinceLastAppearance(
   targetTick: number,
   excludeMatchResultId?: string,
 ): number | undefined {
-  const priorTicks = world.matchResults
+  const priorTicks = [...world.matchResults, ...world.segmentResults]
     .filter((result) => result.id !== excludeMatchResultId && result.participantWrestlerIds.includes(wrestlerId))
     .map((result) => world.shows.find((show) => show.id === result.showId)?.tick)
     .filter((tick): tick is number => tick !== undefined && tick < targetTick);

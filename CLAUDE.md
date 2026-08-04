@@ -12,9 +12,10 @@ All documentation is meant for AI agents.
 | [docs/player-decision-loop-spec.md](docs/player-decision-loop-spec.md) | **Authoritative for player choices** (slots, reactive decisions, intents, stance). Its backticked tokens are normative for all code. |
 | [docs/six-month-slice.md](docs/six-month-slice.md) | **The MVP target**: measurable criteria (SL-1…SL-10) the simulation must meet on a headless 26-week run. Acceptance test for all sim tuning. |
 | [docs/scenario-data-spec.md](docs/scenario-data-spec.md) | Data file formats for replaceable game worlds under `data/<scenario>/`. |
+| [docs/booking_ai.md](docs/booking_ai.md) | **Booking architecture vision**: program plans, beats, planned finishes, card composition, replanning, and observability. |
 | [docs/PLAN.md](docs/PLAN.md) | Phased execution plan. |
 
-Precedence on conflict: spec > GDD §5–6; GDD elsewhere; the slice spec owns the MVP acceptance bar; `packages/contracts` is machine canon for tokens and data formats.
+Precedence on conflict: spec > GDD §5–6; GDD elsewhere; the slice spec owns the 26-week MVP acceptance bar; `booking_ai.md` owns booking-AI architecture and design intent; `PLAN.md` owns execution order; `packages/contracts` is machine canon for implemented tokens and data formats.
 
 ## Layout
 

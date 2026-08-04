@@ -120,6 +120,7 @@ export function createTestWorld(options: TestWorldOptions = {}): WorldState {
     stories: [],
     shows: [],
     matchResults: [],
+    segmentResults: [],
     events: [],
     narrativeJobs: [],
     narrativeResults: [],

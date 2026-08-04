@@ -1,4 +1,4 @@
-import { matchIntentSchema } from "@wrestling/contracts";
+import { matchIntentSchema, segmentIntentSchema } from "@wrestling/contracts";
 import type { CliContext } from "../context.js";
 import { findWrestler } from "../format.js";
 import { emptyPendingTurn, loadSave, writeSave } from "../store.js";
@@ -20,11 +20,13 @@ export function runIntent(args: readonly string[], ctx: CliContext): string {
     throw new Error(`${wrestler.name} isn't booked in match slot "${matchSlotId}"`);
   }
 
-  const intent = parseOrThrow(matchIntentSchema, intentArg, "intent");
-
   const turn = save.pendingTurns[wrestlerId] ?? emptyPendingTurn(wrestlerId);
-  save.pendingTurns[wrestlerId] = { ...turn, matchIntents: { ...turn.matchIntents, [matchSlotId]: intent } };
+  const isSegment = slot.kind === "segment";
+  const intent = parseOrThrow(isSegment ? segmentIntentSchema : matchIntentSchema, intentArg, "intent");
+  save.pendingTurns[wrestlerId] = isSegment
+    ? { ...turn, segmentIntents: { ...turn.segmentIntents, [matchSlotId]: intent as typeof turn.segmentIntents[string] } }
+    : { ...turn, matchIntents: { ...turn.matchIntents, [matchSlotId]: intent as typeof turn.matchIntents[string] } };
   writeSave(ctx.filePath, save);
 
-  return `${wrestler.name} will approach match "${matchSlotId}" with intent: ${intent.replace(/_/g, " ")}.`;
+  return `${wrestler.name} will approach ${isSegment ? "segment" : "match"} "${matchSlotId}" with intent: ${intent.replace(/_/g, " ")}.`;
 }

@@ -15,6 +15,7 @@ export const worldEventTypeSchema = z.enum([
   "stance_changed",
   "show_booked",
   "match_result",
+  "segment_result",
   "story_started",
   "story_developed",
   "story_resolved",

@@ -1,4 +1,4 @@
-import type { MatchResult, Story, WorldState } from "@wrestling/contracts";
+import type { MatchResult, SegmentResult, Story, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { clampDelta100, clampScale100 } from "./clamp.js";
 
@@ -10,10 +10,10 @@ const IDLE_INTEREST_DECAY = 3;
 const IDLE_MOMENTUM_DECAY_FACTOR = 0.8;
 
 /** GDD §4 pipeline step 7: advance every non-resolved story from this tick's match results. */
-export function advanceStories(world: WorldState, ctx: TickContext, matchResults: MatchResult[]): void {
+export function advanceStories(world: WorldState, ctx: TickContext, matchResults: MatchResult[], segmentResults: SegmentResult[] = []): void {
   const advancementByStory = new Map<string, number>();
-  for (const result of matchResults) {
-    if (result.storyId) advancementByStory.set(result.storyId, result.storyAdvancement);
+  for (const result of [...matchResults, ...segmentResults]) {
+    if (result.storyId) advancementByStory.set(result.storyId, (advancementByStory.get(result.storyId) ?? 0) + result.storyAdvancement);
   }
 
   for (const story of world.stories) {

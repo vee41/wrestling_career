@@ -26,6 +26,7 @@ export function worldFromScenario(scenario: Scenario, seed: string): WorldState 
     stories: scenario.stories.map((story) => structuredClone(story)),
     shows: [],
     matchResults: [],
+    segmentResults: [],
     events: [],
     narrativeJobs: [],
     narrativeResults: [],

@@ -190,6 +190,7 @@ describe("cli slice", () => {
     expect(output).toContain("### Title lineages");
     expect(output).toContain("| Gained | Lost | Net |");
     expect(output).toContain("### Popularity trajectories");
+    expect(output).toContain("### Complete show cards");
     const reportPath = join(ctx.sliceReportDirectory!, "wwe-2026-1-seed-4-weeks.html");
     expect(existsSync(reportPath)).toBe(true);
     const report = readFileSync(reportPath, "utf8");
@@ -198,6 +199,7 @@ describe("cli slice", () => {
     expect(report).toContain("<span>Net</span>");
     expect(report).toContain('data-sort="end"');
     expect(report).toContain('aria-sort="descending"');
+    expect(report).toContain("Complete show cards");
     expect(() => loadSave(ctx.filePath)).toThrow(/no saved world/i);
   });
 });

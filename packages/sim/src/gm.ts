@@ -1,4 +1,4 @@
-import type { GmObjective, MatchSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
+import type { CardSlot, GmObjective, MatchSlot, SegmentSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
@@ -83,7 +83,11 @@ function blocksStaleTitleDefense(world: WorldState, participantIds: readonly str
 }
 
 function slot(ctx: TickContext, participants: string[], gmIntent: GmObjective, extras: Partial<MatchSlot> = {}): MatchSlot {
-  return { id: ctx.ids.next("slot"), participantWrestlerIds: participants, position: "mid", gmIntent, intents: {}, ...extras };
+  return { kind: "match", id: ctx.ids.next("slot"), participantWrestlerIds: participants, position: "mid", gmIntent, intents: {}, ...extras };
+}
+
+function segmentSlot(ctx: TickContext, participants: string[], gmIntent: GmObjective, extras: Partial<SegmentSlot> = {}): SegmentSlot {
+  return { kind: "segment", id: ctx.ids.next("segment-slot"), participantWrestlerIds: participants, position: "mid", gmIntent, intents: {}, ...extras };
 }
 
 function highestScoringContender(world: WorldState, title: Title, used: Set<string>, currentTick: number): Wrestler | undefined {
@@ -127,7 +131,7 @@ function highestScoringContender(world: WorldState, title: Title, used: Set<stri
  * The card is ordered around programs, not championships. A belt contributes
  * stakes heat, but a hotter personal story may still close the show.
  */
-export function programHeat(world: WorldState, booked: MatchSlot): number {
+export function programHeat(world: WorldState, booked: CardSlot): number {
   const tuning = world.config.booking;
   const story = booked.storyId ? world.stories.find((candidate) => candidate.id === booked.storyId) : undefined;
   const participantHeat = booked.participantWrestlerIds.reduce((sum, wrestlerId) => {
@@ -135,7 +139,7 @@ export function programHeat(world: WorldState, booked: MatchSlot): number {
     return sum + popularity.momentum * tuning.heatParticipantMomentumWeight +
       popularity.generalPopularity * tuning.heatParticipantPopularityWeight;
   }, 0);
-  const title = booked.titleId ? world.titles.find((candidate) => candidate.id === booked.titleId) : undefined;
+  const title = booked.kind !== "segment" && booked.titleId ? world.titles.find((candidate) => candidate.id === booked.titleId) : undefined;
   const stakesHeat = title?.tier === "world"
     ? tuning.worldTitleStakesHeatBonus
     : title?.tier === "midcard" ? tuning.midcardTitleStakesHeatBonus : 0;
@@ -168,7 +172,7 @@ function isTopOfCardProgram(world: WorldState, booked: MatchSlot): boolean {
   return candidateHeat >= hottestActiveStory;
 }
 
-function assignPositions(world: WorldState, slots: MatchSlot[]): MatchSlot[] {
+function assignPositions(world: WorldState, slots: CardSlot[]): CardSlot[] {
   const ranked = slots.slice().sort((a, b) => programHeat(world, b) - programHeat(world, a));
   return ranked.map((booked, index) => {
     const position = index === 0 ? "main_event" : index === 1 ? "upper" : index === ranked.length - 1 ? "opener" : "mid";
@@ -210,7 +214,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     });
   }
   const used = new Set<string>();
-  const slots: MatchSlot[] = [];
+  const slots: CardSlot[] = [];
   // A stale championship has a hard defence floor. Reserve one viable
   // challenger before the program pass so unrelated peaking stories cannot
   // consume the entire pool and accidentally strand that defence.
@@ -242,7 +246,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       const pairAlreadyMetForTitle = title !== undefined && world.matchResults.some((result) => {
         const priorShow = world.shows.find((show) => show.id === result.showId);
         const priorSlot = priorShow?.card.find((slot) => slot.id === result.matchSlotId);
-        return priorSlot?.titleId === title.id && participants.every((id) => result.participantWrestlerIds.includes(id));
+        return priorSlot?.kind !== "segment" && priorSlot?.titleId === title.id && participants.every((id) => result.participantWrestlerIds.includes(id));
       });
       const potentialSlot = slot(ctx, participants, world.gmObjective, {
         storyId: story.id, ...(title ? { titleId: title.id } : {}),
@@ -291,7 +295,10 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     // TV title bouts are exceptional and only happen when the story itself justifies one.
     const title = kind === "tv" && ctx.rng.fork(`tv-title:${story.id}`).chance(0.08)
       ? world.titles.find((candidate) => candidate.tier === "midcard" && candidate.holderId !== undefined && participants.includes(candidate.holderId) && participantsTitleEligible(world, participants, candidate.tier)) : undefined;
-    slots.push(slot(ctx, participants, world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
+    const useSegment = kind === "tv" && ctx.rng.fork(`story-segment:${targetTick}:${story.id}`).chance(world.config.booking.segmentChance);
+    slots.push(useSegment
+      ? segmentSlot(ctx, participants, world.gmObjective, { storyId: story.id })
+      : slot(ctx, participants, world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
   }
 
   const previousAppearances = new Map<string, number>();
@@ -366,8 +373,9 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       });
     }
   }
+  const segmentCount = slots.filter((booked) => booked.kind === "segment").length;
   addEvent(world, ctx, {
-    type: "show_booked", summary: `The GM booked ${slots.length} matches for the next ${kind.toUpperCase()} show.`,
+    type: "show_booked", summary: `The GM booked ${slots.length - segmentCount} matches and ${segmentCount} segments for the next ${kind.toUpperCase()} show.`,
     wrestlerIds: slots.flatMap((booked) => booked.participantWrestlerIds), showId: show.id, data: { kind },
   });
   return show;

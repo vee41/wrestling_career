@@ -1,4 +1,4 @@
-import type { MatchResult, PopularityChangeReason, Show, WorldEvent, WorldState } from "@wrestling/contracts";
+import type { MatchResult, PopularityChangeReason, SegmentResult, Show, WorldEvent, WorldState } from "@wrestling/contracts";
 import { isShowTick, weekForTick } from "./booking.js";
 import { runTick } from "./tick.js";
 
@@ -56,6 +56,8 @@ export interface SliceAnalysis {
   titleLineages: SliceTitleLineage[];
   stories: SliceStoryTimeline[];
   pleCards: SlicePleCard[];
+  /** Every aired card, including non-match slots, for booking inspection. */
+  showCards: SliceShowCard[];
   injuryArcs: SliceInjuryArc[];
   trajectories: SliceTrajectory[];
   popularityLogs: Record<string, SlicePopularityLogEntry[]>;
@@ -173,6 +175,27 @@ export interface SlicePleCard {
   week: number;
   showId: string;
   matches: Array<{ position: string; participants: string[]; titleId?: string; storyId?: string; impacts: SliceMatchImpact[] }>;
+}
+
+export interface SliceShowSlot {
+  kind: "match" | "segment";
+  position: string;
+  participants: string[];
+  storyId?: string;
+  titleId?: string;
+  quality?: number;
+  crowdResponse?: number;
+  winnerWrestlerId?: string;
+  dominantWrestlerId?: string;
+  impacts: SliceMatchImpact[];
+  heatDeltas?: Array<{ wrestlerId: string; positive: number; negative: number; storyAdvancement: number }>;
+}
+
+export interface SliceShowCard {
+  week: number;
+  showId: string;
+  kind: "tv" | "ple";
+  slots: SliceShowSlot[];
 }
 
 export interface SliceInjuryArc {
@@ -322,6 +345,26 @@ function showForMatch(world: WorldState, matchId: string): Show | undefined {
 }
 
 function matchImpacts(result: MatchResult): SliceMatchImpact[] {
+  return result.performances
+    .filter((performance) => performance.popularityImpact !== undefined)
+    .map((performance) => {
+      const impact = performance.popularityImpact!;
+      return {
+        wrestlerId: performance.wrestlerId,
+        delta: impact.delta,
+        before: impact.before,
+        after: impact.after,
+        segment: impact.segment,
+        expectedSegment: impact.expectedSegment,
+        edge: impact.edge,
+        momentumBefore: impact.momentumBefore,
+        momentumAfter: impact.momentumAfter,
+        ...(impact.reason ? { reason: impact.reason } : {}),
+      };
+    });
+}
+
+function segmentImpacts(result: SegmentResult): SliceMatchImpact[] {
   return result.performances
     .filter((performance) => performance.popularityImpact !== undefined)
     .map((performance) => {
@@ -503,6 +546,29 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
       };
     }),
   }));
+  const showCards: SliceShowCard[] = finalWorld.shows.map((show) => ({
+    week: weekForTick(show.tick, finalWorld.config), showId: show.id, kind: show.kind,
+    slots: show.card.map((slot) => {
+      if (slot.kind === "segment") {
+        const result = finalWorld.segmentResults.find((candidate) => candidate.showId === show.id && candidate.segmentSlotId === slot.id);
+        return {
+          kind: "segment" as const, position: slot.position, participants: slot.participantWrestlerIds,
+          ...(slot.storyId ? { storyId: slot.storyId } : {}),
+          ...(result ? {
+            quality: result.quality, crowdResponse: result.crowdResponse, dominantWrestlerId: result.dominantWrestlerId,
+            impacts: segmentImpacts(result),
+            heatDeltas: result.performances.map((performance) => ({ wrestlerId: performance.wrestlerId, positive: performance.positiveHeatDelta, negative: performance.negativeHeatDelta, storyAdvancement: performance.storyAdvancement })),
+          } : { impacts: [] }),
+        };
+      }
+      const result = finalWorld.matchResults.find((candidate) => candidate.showId === show.id && candidate.matchSlotId === slot.id);
+      return {
+        kind: "match" as const, position: slot.position, participants: slot.participantWrestlerIds,
+        ...(slot.storyId ? { storyId: slot.storyId } : {}), ...(slot.titleId ? { titleId: slot.titleId } : {}),
+        ...(result ? { quality: result.quality, crowdResponse: result.crowdResponse, winnerWrestlerId: result.winnerWrestlerId, impacts: matchImpacts(result) } : { impacts: [] }),
+      };
+    }),
+  }));
   const pleMainEventers = new Set(pleCards.flatMap((card) => card.matches.filter((match) => match.position === "main_event").flatMap((match) => match.participants)));
   const mainEventerOutsideInitialTopFive = [...pleMainEventers].some((id) => !initialTopFive.has(id));
 
@@ -584,7 +650,7 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
   };
 
   return {
-    criteria, titleLineages, stories, pleCards, injuryArcs, trajectories,
+    criteria, titleLineages, stories, pleCards, showCards, injuryArcs, trajectories,
     popularityLogs: popularityLogs(finalWorld),
     popularityTotals,
     topWrestlerId: finalRanking[0]?.wrestlerId ?? "unknown",
