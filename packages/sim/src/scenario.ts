@@ -28,6 +28,7 @@ export function worldFromScenario(scenario: Scenario, seed: string): WorldState 
     stories: scenario.stories.map((story) => structuredClone(story)),
     programPlans: [],
     programPlanCandidates: [],
+    plannedBeats: [],
     shows: [],
     matchResults: [],
     segmentResults: [],

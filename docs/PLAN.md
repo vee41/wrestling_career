@@ -463,7 +463,7 @@ Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, s
 
 ---
 
-## Phase 3.10 — Planned beats and program evolution
+## Phase 3.10 — Planned beats and program evolution ✅ (done)
 
 **Goal:** Turn each `ProgramPlan` into a small, inspectable progression of structured beats built on Phase 3.8's match and segment slots. Programs must be able to develop without primary rivals wrestling every week.
 

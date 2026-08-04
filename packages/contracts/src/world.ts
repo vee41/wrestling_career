@@ -5,6 +5,7 @@ import { popularityBlockSchema } from "./popularity.js";
 import { relationshipSchema } from "./relationship.js";
 import { storySchema } from "./story.js";
 import { programPlanCandidateSchema, programPlanSchema } from "./program-plan.js";
+import { plannedBeatSchema } from "./planned-beat.js";
 import { gmObjectiveSchema, showSchema } from "./show.js";
 import { matchResultSchema, segmentResultSchema } from "./match.js";
 import { worldEventSchema } from "./events.js";
@@ -31,6 +32,8 @@ export const worldStateSchema = z
     programPlans: z.array(programPlanSchema),
     /** Private planner audit trail, including valid losers and hard-invalid candidates. */
     programPlanCandidates: z.array(programPlanCandidateSchema),
+    /** Private, inspectable creative progression owned by program plans. */
+    plannedBeats: z.array(plannedBeatSchema).default([]),
     shows: z.array(showSchema),
     matchResults: z.array(matchResultSchema),
     segmentResults: z.array(segmentResultSchema),
@@ -93,6 +96,10 @@ export const worldStateSchema = z
     });
 
     const planIds = new Set(world.programPlans.map((plan) => plan.id));
+    const beatIds = new Set(world.plannedBeats.map((beat) => beat.id));
+    if (beatIds.size !== world.plannedBeats.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "planned beat ids must be unique", path: ["plannedBeats"] });
+    }
     if (planIds.size !== world.programPlans.length) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "program plan ids must be unique", path: ["programPlans"] });
     }
@@ -122,6 +129,16 @@ export const worldStateSchema = z
           snapshot?.protectedWrestlerIds.forEach((id, k) => requireKnownWrestler(id, ["programPlans", i, "revisions", j, "protectedWrestlerIds", k]));
         }
       });
+      for (const beatId of [...plan.plannedBeatIds, ...plan.completedBeatIds]) {
+        if (!beatIds.has(beatId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown planned beat id "${beatId}"`, path: ["programPlans", i] });
+      }
+    });
+    world.plannedBeats.forEach((beat, i) => {
+      if (!planIds.has(beat.programId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown program plan id "${beat.programId}"`, path: ["plannedBeats", i, "programId"] });
+      [...beat.requiredParticipantWrestlerIds, ...beat.optionalParticipantWrestlerIds].forEach((id, j) => requireKnownWrestler(id, ["plannedBeats", i, "participants", j]));
+      beat.preconditions.requiredResolvedBeatIds.forEach((id, j) => {
+        if (!beatIds.has(id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown planned beat id "${id}"`, path: ["plannedBeats", i, "preconditions", "requiredResolvedBeatIds", j] });
+      });
     });
     world.programPlanCandidates.forEach((candidate, i) => {
       if (!storyIds.has(candidate.storyId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown story id "${candidate.storyId}"`, path: ["programPlanCandidates", i, "storyId"] });
@@ -142,6 +159,12 @@ export const worldStateSchema = z
             message: `references unknown story id "${slot.storyId}"`,
             path: ["shows", i, "card", j, "storyId"],
           });
+        }
+        if (slot.programId !== undefined && !planIds.has(slot.programId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown program plan id "${slot.programId}"`, path: ["shows", i, "card", j, "programId"] });
+        if (slot.plannedBeatId !== undefined && !beatIds.has(slot.plannedBeatId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown planned beat id "${slot.plannedBeatId}"`, path: ["shows", i, "card", j, "plannedBeatId"] });
+        if (slot.plannedBeatId !== undefined) {
+          const beat = world.plannedBeats.find((candidate) => candidate.id === slot.plannedBeatId);
+          if (slot.programId !== beat?.programId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "planned beat slot must reference its owning program", path: ["shows", i, "card", j] });
         }
         if (slot.kind === "match" && slot.titleId !== undefined && !titleIds.has(slot.titleId)) {
           ctx.addIssue({
@@ -171,6 +194,9 @@ export const worldStateSchema = z
           path: ["matchResults", i, "storyId"],
         });
       }
+      if (m.programId !== undefined && !planIds.has(m.programId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown program plan id "${m.programId}"`, path: ["matchResults", i, "programId"] });
+      if (m.plannedBeatId !== undefined && !beatIds.has(m.plannedBeatId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown planned beat id "${m.plannedBeatId}"`, path: ["matchResults", i, "plannedBeatId"] });
+      if (m.plannedBeatId !== undefined && m.programId !== world.plannedBeats.find((beat) => beat.id === m.plannedBeatId)?.programId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "planned beat result must reference its owning program", path: ["matchResults", i] });
     });
 
     world.segmentResults.forEach((segment, i) => {
@@ -181,6 +207,9 @@ export const worldStateSchema = z
       if (segment.storyId !== undefined && !storyIds.has(segment.storyId)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown story id "${segment.storyId}"`, path: ["segmentResults", i, "storyId"] });
       }
+      if (segment.programId !== undefined && !planIds.has(segment.programId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown program plan id "${segment.programId}"`, path: ["segmentResults", i, "programId"] });
+      if (segment.plannedBeatId !== undefined && !beatIds.has(segment.plannedBeatId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown planned beat id "${segment.plannedBeatId}"`, path: ["segmentResults", i, "plannedBeatId"] });
+      if (segment.plannedBeatId !== undefined && segment.programId !== world.plannedBeats.find((beat) => beat.id === segment.plannedBeatId)?.programId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "planned beat result must reference its owning program", path: ["segmentResults", i] });
     });
 
     world.events.forEach((e, i) => {

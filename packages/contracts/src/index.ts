@@ -6,6 +6,7 @@ export * from "./popularity.js";
 export * from "./relationship.js";
 export * from "./story.js";
 export * from "./program-plan.js";
+export * from "./planned-beat.js";
 export * from "./show.js";
 export * from "./title.js";
 export * from "./config.js";

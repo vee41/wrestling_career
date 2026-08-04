@@ -77,6 +77,8 @@ export function resolveSegment(world: WorldState, show: Show, slot: SegmentSlot,
     participantWrestlerIds: participants.map((participant) => participant.id),
     dominantWrestlerId: participants[dominantIndex]!.id, quality, crowdResponse,
     ...(story ? { storyId: story.id } : {}), storyAdvancement,
+    ...(slot.programId === undefined ? {} : { programId: slot.programId }),
+    ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }),
     intents: Object.fromEntries(participants.map((participant, index) => [participant.id, intents[index]!])),
     performances,
   };
@@ -85,7 +87,7 @@ export function resolveSegment(world: WorldState, show: Show, slot: SegmentSlot,
     type: "segment_result",
     summary: `${participants[dominantIndex]!.name} carried a ${slot.storyId ? "story" : "non-match"} segment${story ? ` for "${story.tensionDescription}"` : ""}.`,
     wrestlerIds: result.participantWrestlerIds, ...(story ? { storyId: story.id } : {}), matchId: result.id, showId: show.id,
-    data: { quality, crowdResponse, position: slot.position, dominantWrestlerId: result.dominantWrestlerId },
+    data: { quality, crowdResponse, position: slot.position, dominantWrestlerId: result.dominantWrestlerId, ...(slot.programId === undefined ? {} : { programId: slot.programId }), ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }) },
   });
   return result;
 }

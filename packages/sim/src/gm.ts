@@ -3,6 +3,7 @@ import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
 import { recentPerformanceReaction } from "./patience.js";
+import { selectPlannedBeatsForShow } from "./program-plans.js";
 
 // The MVP has no tag division. Keep its legacy token in contracts for old
 // snapshots, but never select an objective the scenario cannot execute.
@@ -244,6 +245,21 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   }
   const used = new Set<string>();
   const slots: CardSlot[] = [];
+  // Planned beats claim their own match/segment primitive. The old random
+  // segment chance remains only for unplanned filler below.
+  const plannedBeats = selectPlannedBeatsForShow(world, ctx, targetTick, targetSlotCount);
+  for (const plannedBeat of plannedBeats) {
+    const plan = world.programPlans.find((candidate) => candidate.id === plannedBeat.programId)!;
+    const participants = [...plannedBeat.requiredParticipantWrestlerIds, ...plannedBeat.optionalParticipantWrestlerIds]
+      .filter((id, index, all) => all.indexOf(id) === index);
+    if (participants.some((id) => used.has(id))) continue;
+    participants.forEach((id) => used.add(id));
+    const shared = { storyId: plan.storyId, programId: plan.id, plannedBeatId: plannedBeat.id };
+    const titleId = plannedBeat.type === "ple_payoff" ? plan.stakesTitleId : undefined;
+    slots.push(plannedBeat.compatibleSlotKind === "match"
+      ? slot(ctx, participants, world.bookingObjective, { ...shared, ...(titleId === undefined ? {} : { titleId }) })
+      : segmentSlot(ctx, participants, world.bookingObjective, shared));
+  }
   // A stale championship has a hard defence floor. Reserve one viable
   // challenger before the program pass so unrelated peaking stories cannot
   // consume the entire pool and accidentally strand that defence.
@@ -387,6 +403,18 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   }
 
   const show: Show = { id: ctx.ids.next("show"), tick: targetTick, kind, card: assignPositions(world, slots) };
+  for (const plannedBeat of plannedBeats) {
+    plannedBeat.scheduledShowId = show.id;
+    const storyId = world.programPlans.find((plan) => plan.id === plannedBeat.programId)?.storyId;
+    addEvent(world, ctx, {
+      type: "planned_beat_scheduled",
+      summary: `The GM scheduled a ${plannedBeat.type.replace(/_/g, " ")} beat.`,
+      wrestlerIds: plannedBeat.requiredParticipantWrestlerIds,
+      ...(storyId === undefined ? {} : { storyId }),
+      showId: show.id,
+      data: { programPlanId: plannedBeat.programId, plannedBeatId: plannedBeat.id, type: plannedBeat.type },
+    });
+  }
   world.shows.push(show);
   for (const wrestlerId of slots.flatMap((booked) => booked.participantWrestlerIds)) {
     const hasUnreturnedAbsence = world.events.some((event) =>

@@ -40,6 +40,9 @@ export const programRevisionReasonSchema = z.enum([
 ]);
 export type ProgramRevisionReason = z.infer<typeof programRevisionReasonSchema>;
 
+export const programRevisionResponseSchema = z.enum(["substitute_beat", "accelerate", "extend", "cool_down", "pivot", "abandon"]);
+export type ProgramRevisionResponse = z.infer<typeof programRevisionResponseSchema>;
+
 /** The intent snapshot that makes a revision auditable without parsing prose. */
 export const programIntentSnapshotSchema = z.object({
   creativeObjective: programCreativeObjectiveSchema,
@@ -56,6 +59,7 @@ export const programPlanRevisionSchema = z.object({
   reason: programRevisionReasonSchema,
   previousIntent: programIntentSnapshotSchema.optional(),
   newIntent: programIntentSnapshotSchema,
+  response: programRevisionResponseSchema.optional(),
 });
 export type ProgramPlanRevision = z.infer<typeof programPlanRevisionSchema>;
 

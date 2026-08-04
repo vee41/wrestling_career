@@ -46,6 +46,8 @@ export const matchResultSchema = z
     crowdResponse: scale100Schema,
     chemistry: scale100Schema,
     storyId: idSchema.optional(),
+    programId: idSchema.optional(),
+    plannedBeatId: idSchema.optional(),
     storyAdvancement: scale100Schema,
     performances: z.array(participantPerformanceSchema).min(2),
   })
@@ -87,6 +89,8 @@ export const segmentResultSchema = z
     quality: scale100Schema,
     crowdResponse: scale100Schema,
     storyId: idSchema.optional(),
+    programId: idSchema.optional(),
+    plannedBeatId: idSchema.optional(),
     storyAdvancement: scale100Schema,
     intents: z.record(idSchema, segmentIntentSchema),
     performances: z.array(segmentParticipantPerformanceSchema).min(1),

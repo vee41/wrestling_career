@@ -142,6 +142,8 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     crowdResponse,
     chemistry,
     ...(story ? { storyId: story.id } : {}),
+    ...(slot.programId === undefined ? {} : { programId: slot.programId }),
+    ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }),
     storyAdvancement,
     performances,
   };
@@ -186,7 +188,7 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     ...(story ? { storyId: story.id } : {}),
     matchId: result.id,
     showId: show.id,
-    data: { quality, crowdResponse, position: slot.position, payouts },
+    data: { quality, crowdResponse, position: slot.position, payouts, ...(slot.programId === undefined ? {} : { programId: slot.programId }), ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }) },
   });
 
   return result;

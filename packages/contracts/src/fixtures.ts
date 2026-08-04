@@ -170,6 +170,7 @@ export const exampleWorldState: WorldState = {
   ],
   programPlans: [],
   programPlanCandidates: [],
+  plannedBeats: [],
   shows: [
     {
       id: "show-week-3",

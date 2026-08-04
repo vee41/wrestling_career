@@ -15,8 +15,7 @@ import {
 } from "./responses.js";
 import { applyActions } from "./resolve-actions.js";
 import { bookUpcomingShowIfDue, rotateBookingObjectiveIfDue, rotateGmObjectiveIfDue } from "./gm.js";
-import { resolveShow } from "./match.js";
-import { resolveSegments } from "./segment.js";
+import { resolveCard } from "./card.js";
 import { updatePopularity } from "./popularity.js";
 import { updateChampionships } from "./title.js";
 import { advanceStories } from "./stories.js";
@@ -82,8 +81,8 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
 
   // Step 5 — resolve the show (show ticks only).
   const show = draft.shows.find((s) => s.tick === tick);
-  const matchResults = show ? resolveShow(draft, show, ctx) : [];
-  const segmentResults = show ? resolveSegments(draft, show, ctx) : [];
+  const resolution = show ? resolveCard(draft, show, ctx) : { matchResults: [], segmentResults: [] };
+  const { matchResults, segmentResults } = resolution;
 
   // Step 6 — crowd & popularity update.
   updatePopularity(draft, ctx, matchResults, segmentResults);
@@ -92,8 +91,6 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   // Step 7 — story engine + dramatic director.
   advanceStories(draft, ctx, matchResults, segmentResults);
   scanForNewStory(draft, ctx);
-  // A director-created story is a planning catalyst. Card composition still
-  // ignores plans until Phase 3.10+, so this only records private intent.
   planPrograms(draft, ctx);
   generateReactiveDecisions(draft, ctx);
 

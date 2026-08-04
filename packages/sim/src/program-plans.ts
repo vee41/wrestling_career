@@ -5,6 +5,9 @@ import type {
   ProgramPlan,
   ProgramPlanCandidate,
   ProgramRevisionReason,
+  ProgramRevisionResponse,
+  PlannedBeat,
+  PlannedBeatType,
   Story,
   WorldState,
 } from "@wrestling/contracts";
@@ -157,6 +160,102 @@ function makePlan(world: WorldState, ctx: TickContext, story: Story, selected: P
   };
 }
 
+function beat(world: WorldState, ctx: TickContext, plan: ProgramPlan, type: PlannedBeatType, earliestTick: number, latestTick: number, effect: string, escalationLevel: number, requiredResolvedBeatIds: string[] = []): PlannedBeat {
+  const participants = plan.participants.map((participant) => participant.wrestlerId);
+  const payoff = type === "ple_payoff";
+  const direct = type === "direct_rivalry_match" || payoff;
+  return {
+    id: ctx.ids.next("planned-beat"), programId: plan.id, type,
+    requiredParticipantWrestlerIds: participants,
+    optionalParticipantWrestlerIds: [],
+    earliestTick, latestTick,
+    preconditions: { requiredResolvedBeatIds, requirePle: payoff },
+    intendedStoryEffect: effect, escalationLevel,
+    spendsDirectMatchup: direct,
+    compatibleSlotKind: direct || type === "showcase_contender_match" ? "match" : "segment",
+    status: "provisional", resultIds: [],
+  };
+}
+
+/** A compact four-show cadence: premise, complication, escalation, payoff. */
+export function createBeatSkeleton(world: WorldState, ctx: TickContext, plan: ProgramPlan): PlannedBeat[] {
+  const firstLatest = Math.max(plan.startTick, plan.targetPayoffTick - 6);
+  const secondEarliest = firstLatest;
+  const secondLatest = Math.max(secondEarliest, plan.targetPayoffTick - 3);
+  const thirdEarliest = secondLatest;
+  const thirdLatest = Math.max(thirdEarliest, plan.targetPayoffTick - 1);
+  const establish = beat(world, ctx, plan, "promo_interview", plan.startTick, firstLatest, "Establish the conflict and stakes.", 0);
+  const complicate = beat(world, ctx, plan, "confrontation", secondEarliest, secondLatest, "Complicate the conflict without spending the rivalry match.", 1, [establish.id]);
+  const goHome = beat(world, ctx, plan, "go_home_angle", thirdEarliest, thirdLatest, "Escalate the conflict and make the payoff unavoidable.", 2, [complicate.id]);
+  const payoff = beat(world, ctx, plan, "ple_payoff", plan.targetPayoffTick, plan.targetPayoffTick, plan.intendedPayoff, 3, [goHome.id]);
+  return [establish, complicate, goHome, payoff];
+}
+
+function snapshot(plan: ProgramPlan): ProgramIntentSnapshot {
+  return {
+    creativeObjective: plan.creativeObjective,
+    ...(plan.stakesTitleId === undefined ? {} : { stakesTitleId: plan.stakesTitleId }),
+    targetPayoffTick: plan.targetPayoffTick,
+    intendedPayoff: plan.intendedPayoff,
+    protectedWrestlerIds: [...plan.protectedWrestlerIds],
+  };
+}
+
+function invalidateAndSubstitute(world: WorldState, ctx: TickContext, plan: ProgramPlan, invalid: PlannedBeat, targetTick: number): void {
+  invalid.status = "invalidated";
+  addEvent(world, ctx, {
+    type: "planned_beat_invalidated", summary: `A planned ${invalid.type.replace(/_/g, " ")} could not proceed because a participant was unavailable.`,
+    wrestlerIds: invalid.requiredParticipantWrestlerIds, storyId: plan.storyId,
+    data: { programPlanId: plan.id, plannedBeatId: invalid.id, response: "substitute_beat" },
+  });
+  const available = invalid.requiredParticipantWrestlerIds.filter((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) >= MINIMUM_AVAILABLE_CONDITION);
+  if (available.length > 0 && targetTick <= invalid.latestTick) {
+    const substitute: PlannedBeat = {
+      ...beat(world, ctx, plan, "promo_interview", targetTick, invalid.latestTick, `Keep the program visible while replacing ${invalid.type.replace(/_/g, " ")}.`, invalid.escalationLevel),
+      requiredParticipantWrestlerIds: available,
+      preconditions: { requiredResolvedBeatIds: [], requirePle: false },
+    };
+    world.plannedBeats.push(substitute);
+    plan.plannedBeatIds.push(substitute.id);
+  }
+  reviseProgramPlan(world, ctx, plan.id, "participant_unavailable", snapshot(plan), "substitute_beat");
+}
+
+/**
+ * Selects only plan-owned beats. The legacy filler in gm.ts still supplies
+ * the rest of the card until Phase 3.12, but cannot choose a planned beat's
+ * execution primitive.
+ */
+export function selectPlannedBeatsForShow(world: WorldState, ctx: TickContext, targetTick: number, capacity: number): PlannedBeat[] {
+  const isPle = showKindForTick(targetTick, world.config) === "ple";
+  const selected: PlannedBeat[] = [];
+  const activePlans = world.programPlans.filter(isActive).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
+  for (const plan of activePlans) {
+    if (selected.length >= capacity) break;
+    const beats = world.plannedBeats.filter((candidate) => candidate.programId === plan.id && candidate.status === "provisional")
+      .sort((a, b) => a.escalationLevel - b.escalationLevel || a.id.localeCompare(b.id));
+    for (const candidate of beats) {
+      if (targetTick > candidate.latestTick) { candidate.status = "skipped"; continue; }
+      if (targetTick < candidate.earliestTick || candidate.preconditions.requirePle !== isPle) continue;
+      const prerequisites = candidate.preconditions.requiredResolvedBeatIds;
+      if (!prerequisites.every((id) => world.plannedBeats.find((beat) => beat.id === id)?.status === "resolved")) continue;
+      if (candidate.requiredParticipantWrestlerIds.some((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) < MINIMUM_AVAILABLE_CONDITION)) {
+        invalidateAndSubstitute(world, ctx, plan, candidate, targetTick);
+        continue;
+      }
+      const lastDirect = world.plannedBeats
+        .filter((beat) => beat.programId === plan.id && beat.spendsDirectMatchup && beat.status === "resolved")
+        .map((beat) => world.shows.find((show) => show.id === beat.scheduledShowId)?.tick ?? -Infinity)
+        .reduce((latest, tick) => Math.max(latest, tick), -Infinity);
+      if (candidate.spendsDirectMatchup && targetTick - lastDirect < plan.directMatchCooldownTicks) continue;
+      candidate.status = "scheduled";
+      selected.push(candidate);
+      break; // Phase 3.10: one beat per program per show.
+    }
+  }
+  return selected;
+}
+
 /**
  * Deterministically creates a bounded private portfolio from active public
  * stories. It deliberately does not compose cards: Phase 3.10 owns beats and
@@ -207,6 +306,9 @@ export function planPrograms(world: WorldState, ctx: TickContext): void {
     selected.disposition = "selected";
     selected.selectedPlanId = plan.id;
     world.programPlans.push(plan);
+    const skeleton = createBeatSkeleton(world, ctx, plan);
+    world.plannedBeats.push(...skeleton);
+    plan.plannedBeatIds.push(...skeleton.map((beat) => beat.id));
     selected.participantWrestlerIds.forEach((id) => activeParticipants.add(id));
     selectedIds.add(selected.id);
     addEvent(world, ctx, {
@@ -248,16 +350,11 @@ export function reviseProgramPlan(
   programPlanId: string,
   reason: ProgramRevisionReason,
   newIntent: ProgramIntentSnapshot,
+  response?: ProgramRevisionResponse,
 ): ProgramPlan {
   const plan = world.programPlans.find((candidate) => candidate.id === programPlanId);
   if (plan === undefined) throw new Error(`Unknown program plan "${programPlanId}"`);
-  const previousIntent: ProgramIntentSnapshot = {
-    creativeObjective: plan.creativeObjective,
-    ...(plan.stakesTitleId === undefined ? {} : { stakesTitleId: plan.stakesTitleId }),
-    targetPayoffTick: plan.targetPayoffTick,
-    intendedPayoff: plan.intendedPayoff,
-    protectedWrestlerIds: [...plan.protectedWrestlerIds],
-  };
+  const previousIntent = snapshot(plan);
   plan.creativeObjective = newIntent.creativeObjective;
   if (newIntent.stakesTitleId === undefined) delete plan.stakesTitleId;
   else plan.stakesTitleId = newIntent.stakesTitleId;
@@ -270,13 +367,14 @@ export function reviseProgramPlan(
     reason,
     previousIntent,
     newIntent: structuredClone(newIntent),
+    ...(response === undefined ? {} : { response }),
   });
   addEvent(world, ctx, {
     type: "program_plan_revised",
     summary: `The GM revised the program plan for ${plan.storyId}.`,
     wrestlerIds: plan.participants.map((participant) => participant.wrestlerId),
     storyId: plan.storyId,
-    data: { programPlanId: plan.id, reason, previousIntent, newIntent },
+    data: { programPlanId: plan.id, reason, previousIntent, newIntent, ...(response === undefined ? {} : { response }) },
   });
   return plan;
 }

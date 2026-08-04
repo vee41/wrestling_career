@@ -13,7 +13,8 @@ export { isShowTick, nextShowTick, upcomingSlotsFor, DECISION_TICKS_PER_WEEK, WE
 export { stanceWeights, defaultMatchIntent, defaultSegmentIntent, type StanceWeights } from "./ai/stance-weights.js";
 export { decideFallbackTurn } from "./ai/decide.js";
 export { worldFromScenario } from "./scenario.js";
-export { planPrograms, reviseProgramPlan } from "./program-plans.js";
+export { planPrograms, reviseProgramPlan, createBeatSkeleton, selectPlannedBeatsForShow } from "./program-plans.js";
+export { resolveCard, type CardResolution } from "./card.js";
 export { resolveSegment, resolveSegments } from "./segment.js";
 export {
   analyzeSlice, CROSS_SEED_INTRO, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, SL_CRITERION_DESCRIPTIONS,
