@@ -164,6 +164,12 @@ function beat(world: WorldState, ctx: TickContext, plan: ProgramPlan, type: Plan
   const participants = plan.participants.map((participant) => participant.wrestlerId);
   const payoff = type === "ple_payoff";
   const direct = type === "direct_rivalry_match" || payoff;
+  const focal = plan.participants.find((participant) => participant.role === "protagonist")?.wrestlerId ?? participants[0]!;
+  const antagonist = plan.participants.find((participant) => participant.role === "antagonist")?.wrestlerId;
+  const intendedDominantWrestlerId = (type === "attack_save_interference" || type === "go_home_angle") && antagonist !== undefined ? antagonist : focal;
+  const intendedHeatDirection = type === "confrontation" ? "mixed" as const
+    : (type === "attack_save_interference" || type === "go_home_angle") ? "negative" as const
+      : "positive" as const;
   return {
     id: ctx.ids.next("planned-beat"), programId: plan.id, type,
     requiredParticipantWrestlerIds: participants,
@@ -171,6 +177,15 @@ function beat(world: WorldState, ctx: TickContext, plan: ProgramPlan, type: Plan
     earliestTick, latestTick,
     preconditions: { requiredResolvedBeatIds, requirePle: payoff },
     intendedStoryEffect: effect, escalationLevel,
+    ...(direct ? {} : {
+      plannedSegmentOutcome: {
+        intendedDominantWrestlerId,
+        intendedHeatDirection,
+        intendedStoryEffect: effect,
+        protectedWrestlerIds: [...plan.protectedWrestlerIds],
+        adherenceStrength: type === "go_home_angle" ? "strict" as const : "standard" as const,
+      },
+    }),
     spendsDirectMatchup: direct,
     compatibleSlotKind: direct || type === "showcase_contender_match" ? "match" : "segment",
     status: "provisional", resultIds: [],
@@ -377,4 +392,18 @@ export function reviseProgramPlan(
     data: { programPlanId: plan.id, reason, previousIntent, newIntent, ...(response === undefined ? {} : { response }) },
   });
   return plan;
+}
+
+/** Execution facts are a replanning input, never a silent change to a program's premise. */
+export function replanForExecutionDeviation(world: WorldState, ctx: TickContext, programPlanId: string): void {
+  const plan = world.programPlans.find((candidate) => candidate.id === programPlanId);
+  if (plan === undefined || !isActive(plan)) return;
+  reviseProgramPlan(world, ctx, plan.id, "execution_deviation", snapshot(plan), "pivot");
+}
+
+/** A title holder is itself planned state; a surprise change makes linked plans auditablely reconsider it. */
+export function replanForTitleChange(world: WorldState, ctx: TickContext, titleId: string): void {
+  for (const plan of world.programPlans) {
+    if (plan.stakesTitleId === titleId && isActive(plan)) reviseProgramPlan(world, ctx, plan.id, "title_change", snapshot(plan), "pivot");
+  }
 }

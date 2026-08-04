@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { idSchema, tickSchema } from "./common.js";
 import { matchIntentSchema, segmentIntentSchema } from "./intent.js";
+import { plannedFinishSchema, plannedSegmentOutcomeSchema } from "./planned-outcome.js";
 
 export const showKindSchema = z.enum(["tv", "ple"]);
 export type ShowKind = z.infer<typeof showKindSchema>;
@@ -31,6 +32,7 @@ export const matchSlotSchema = z.object({
   position: cardPositionSchema,
   titleId: idSchema.optional(),
   gmIntent: gmObjectiveSchema.optional(),
+  plannedFinish: plannedFinishSchema.optional(),
   // PLAN Phase 2: a show's card is booked one tick ahead of airing so
   // players have a decision period to set match intent (spec §6) before it
   // resolves. Intents accumulate here (wrestlerId -> intent) across however
@@ -49,6 +51,7 @@ export const segmentSlotSchema = z.object({
   plannedBeatId: idSchema.optional(),
   position: cardPositionSchema,
   gmIntent: gmObjectiveSchema.optional(),
+  plannedOutcome: plannedSegmentOutcomeSchema.optional(),
   titleId: z.never().optional(),
   intents: z.record(idSchema, segmentIntentSchema).default({}),
 });

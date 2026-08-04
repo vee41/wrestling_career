@@ -2,6 +2,7 @@ import { z } from "zod";
 import { deltaScale100Schema, idSchema, scale100Schema } from "./common.js";
 import { popularityChangeReasonSchema } from "./popularity.js";
 import { segmentIntentSchema } from "./intent.js";
+import { actualMatchOutcomeSchema, actualSegmentOutcomeSchema, executionAdherenceSchema, executionDeviationCauseSchema, plannedFinishSchema, plannedSegmentOutcomeSchema } from "./planned-outcome.js";
 
 // Broad pre-match intentions (GDD §14) live in intent.ts (spec §6) — see
 // matchIntentSchema there. This module only covers the match's outcome.
@@ -48,6 +49,10 @@ export const matchResultSchema = z
     storyId: idSchema.optional(),
     programId: idSchema.optional(),
     plannedBeatId: idSchema.optional(),
+    plannedFinish: plannedFinishSchema.optional(),
+    actualOutcome: actualMatchOutcomeSchema.optional(),
+    adherence: executionAdherenceSchema.optional(),
+    deviationCause: executionDeviationCauseSchema.optional(),
     storyAdvancement: scale100Schema,
     performances: z.array(participantPerformanceSchema).min(2),
   })
@@ -65,7 +70,16 @@ export const matchResultSchema = z
       );
     },
     { message: "every participant must have exactly one performance record", path: ["performances"] },
-  );
+  )
+  .refine((m) => m.plannedFinish === undefined || m.participantWrestlerIds.includes(m.plannedFinish.intendedWinnerWrestlerId), {
+    message: "planned winner must be one of the match participants", path: ["plannedFinish", "intendedWinnerWrestlerId"],
+  })
+  .refine((m) => m.plannedFinish === undefined || m.plannedFinish.protectedWrestlerIds.every((id) => m.participantWrestlerIds.includes(id)), {
+    message: "protected participants must be in the match", path: ["plannedFinish", "protectedWrestlerIds"],
+  })
+  .refine((m) => m.actualOutcome === undefined || m.participantWrestlerIds.includes(m.actualOutcome.winnerWrestlerId), {
+    message: "actual winner must be one of the match participants", path: ["actualOutcome", "winnerWrestlerId"],
+  });
 export type MatchResult = z.infer<typeof matchResultSchema>;
 
 export const segmentParticipantPerformanceSchema = z.object({
@@ -91,6 +105,10 @@ export const segmentResultSchema = z
     storyId: idSchema.optional(),
     programId: idSchema.optional(),
     plannedBeatId: idSchema.optional(),
+    plannedOutcome: plannedSegmentOutcomeSchema.optional(),
+    actualOutcome: actualSegmentOutcomeSchema.optional(),
+    adherence: executionAdherenceSchema.optional(),
+    deviationCause: executionDeviationCauseSchema.optional(),
     storyAdvancement: scale100Schema,
     intents: z.record(idSchema, segmentIntentSchema),
     performances: z.array(segmentParticipantPerformanceSchema).min(1),
@@ -103,5 +121,14 @@ export const segmentResultSchema = z
     const participants = new Set(segment.participantWrestlerIds);
     const performers = new Set(segment.performances.map((p) => p.wrestlerId));
     return participants.size === performers.size && [...participants].every((id) => performers.has(id));
-  }, { message: "every participant must have exactly one segment performance record", path: ["performances"] });
+  }, { message: "every participant must have exactly one segment performance record", path: ["performances"] })
+  .refine((segment) => segment.plannedOutcome === undefined || segment.participantWrestlerIds.includes(segment.plannedOutcome.intendedDominantWrestlerId), {
+    message: "planned dominant wrestler must be a segment participant", path: ["plannedOutcome", "intendedDominantWrestlerId"],
+  })
+  .refine((segment) => segment.plannedOutcome === undefined || segment.plannedOutcome.protectedWrestlerIds.every((id) => segment.participantWrestlerIds.includes(id)), {
+    message: "protected participants must be in the segment", path: ["plannedOutcome", "protectedWrestlerIds"],
+  })
+  .refine((segment) => segment.actualOutcome === undefined || segment.participantWrestlerIds.includes(segment.actualOutcome.dominantWrestlerId), {
+    message: "actual dominant wrestler must be a segment participant", path: ["actualOutcome", "dominantWrestlerId"],
+  });
 export type SegmentResult = z.infer<typeof segmentResultSchema>;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { idSchema, tickSchema } from "./common.js";
+import { plannedSegmentOutcomeSchema } from "./planned-outcome.js";
 
 /** The intentionally small Phase 3.10 creative vocabulary (booking AI §6). */
 export const plannedBeatTypeSchema = z.enum([
@@ -35,6 +36,8 @@ export const plannedBeatSchema = z.object({
   latestTick: tickSchema,
   preconditions: plannedBeatPreconditionsSchema.default({}),
   intendedStoryEffect: z.string().min(1),
+  // Segment plans own their creative outcome before a card slot is committed.
+  plannedSegmentOutcome: plannedSegmentOutcomeSchema.optional(),
   escalationLevel: z.number().int().min(0).max(3),
   spendsDirectMatchup: z.boolean(),
   compatibleSlotKind: plannedBeatSlotKindSchema,

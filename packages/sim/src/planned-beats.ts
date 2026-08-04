@@ -1,5 +1,6 @@
 import type { MatchResult, SegmentResult, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
+import { replanForExecutionDeviation } from "./program-plans.js";
 
 type PlannedResult = MatchResult | SegmentResult;
 
@@ -24,4 +25,5 @@ export function recordResolvedBeat(world: WorldState, ctx: TickContext, result: 
     matchId: result.id, showId: result.showId,
     data: { programPlanId: beat.programId, plannedBeatId: beat.id, resultId: result.id, type: beat.type },
   });
+  if (result.adherence === "deviated") replanForExecutionDeviation(world, ctx, beat.programId);
 }

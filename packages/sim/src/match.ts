@@ -1,9 +1,8 @@
-import type { MatchIntent, MatchResult, MatchSlot, Show, WorldState, Wrestler } from "@wrestling/contracts";
+import type { ExecutionDeviationCause, FinishFamily, MatchIntent, MatchResult, MatchSlot, Show, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { clampScale100 } from "./clamp.js";
 import { findStance, findStory, requireWrestler } from "./lookups.js";
 import { defaultMatchIntent } from "./ai/stance-weights.js";
-import { weekForTick } from "./booking.js";
 import { dominantParticipant, intentsConflict } from "./dominance.js";
 
 // Spec §6.4: "whose intent dominates the ring" is a contest weighted by
@@ -62,30 +61,12 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     return base + storyBonus + intentBonus + rng.float(-tuning.performanceVariance, tuning.performanceVariance);
   });
 
-  let winnerIdx = 0;
+  let performanceWinnerIdx = 0;
   rawScores.forEach((s, i) => {
-    if (s > (rawScores[winnerIdx] ?? Number.NEGATIVE_INFINITY)) winnerIdx = i;
+    if (s > (rawScores[performanceWinnerIdx] ?? Number.NEGATIVE_INFINITY)) performanceWinnerIdx = i;
   });
-
-  // Titles need distinct rhythms. The world belt is protected against
-  // hot-potato changes; the midcard belt is allowed one earned six-month
-  // transition, giving that division a meaningful lineage and a new act to
-  // elevate. This remains data-driven by title tier rather than title name.
-  if (slot.titleId) {
-    const title = world.titles.find((candidate) => candidate.id === slot.titleId);
-    const holderIndex = participants.findIndex((participant) => participant.id === title?.holderId);
-    if (title && holderIndex >= 0) {
-      const previousChanges = world.events.filter((event) =>
-        event.type === "title_change" && event.data["titleId"] === title.id && event.data["defended"] === false,
-      ).length;
-      const currentWeek = weekForTick(ctx.tick, world.config);
-      const challengerIndex = participants.findIndex((participant) => participant.id !== title.holderId);
-      const forceMidcardTransition = title.tier === "midcard" && previousChanges === 0 && currentWeek >= Math.ceil(world.config.sliceWeeks / 2);
-      const challengerMayWin = title.tier === "world" && previousChanges < 2 && rng.chance(0.18);
-      if (forceMidcardTransition && challengerIndex >= 0) winnerIdx = challengerIndex;
-      else if (!challengerMayWin) winnerIdx = holderIndex;
-    }
-  }
+  const execution = matchExecution(slot, participants, intents, hasConflict, dominantIdx, performanceWinnerIdx, rng);
+  const winnerIdx = execution.winnerIdx;
 
   const avgProfessionalism = participants.reduce((s, p) => s + p.skills.professionalism, 0) / participants.length;
   const avgPsychology = participants.reduce((s, p) => s + p.skills.psychology, 0) / participants.length;
@@ -129,6 +110,14 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     };
   });
 
+  // A protected loser may still lose the match, but not the credibility the
+  // program is deliberately preserving for a later beat/payoff.
+  for (const performance of performances) {
+    if (slot.plannedFinish?.protectedWrestlerIds.includes(performance.wrestlerId) && performance.wrestlerId !== participants[winnerIdx]?.id) {
+      performance.characterCredibilityDelta = Math.max(performance.characterCredibilityDelta, -2);
+    }
+  }
+
   const winner = participants[winnerIdx];
   if (!winner) throw new Error(`match slot "${slot.id}" has no participants`);
 
@@ -144,6 +133,17 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     ...(story ? { storyId: story.id } : {}),
     ...(slot.programId === undefined ? {} : { programId: slot.programId }),
     ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }),
+    ...(slot.plannedFinish === undefined ? {} : {
+      plannedFinish: slot.plannedFinish,
+      actualOutcome: {
+        winnerWrestlerId: winner.id,
+        finishFamily: execution.finishFamily,
+        titleConsequence: titleConsequence(world, slot, winner.id, execution.finishFamily, execution.deviationCause),
+        storyEffect: execution.deviationCause === undefined ? slot.plannedFinish.intendedStoryEffect : "Execution disruption requires the program to replan.",
+      },
+      adherence: execution.deviationCause === undefined ? "adhered" : "deviated",
+      ...(execution.deviationCause === undefined ? {} : { deviationCause: execution.deviationCause }),
+    }),
     storyAdvancement,
     performances,
   };
@@ -188,10 +188,63 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     ...(story ? { storyId: story.id } : {}),
     matchId: result.id,
     showId: show.id,
-    data: { quality, crowdResponse, position: slot.position, payouts, ...(slot.programId === undefined ? {} : { programId: slot.programId }), ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }) },
+    data: { quality, crowdResponse, position: slot.position, payouts, ...(slot.programId === undefined ? {} : { programId: slot.programId }), ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }), ...(slot.plannedFinish === undefined ? {} : { plannedFinish: slot.plannedFinish, actualOutcome: { winnerWrestlerId: winner.id, finishFamily: execution.finishFamily }, adherence: execution.deviationCause === undefined ? "adhered" : "deviated", ...(execution.deviationCause === undefined ? {} : { deviationCause: execution.deviationCause }) }) },
   });
 
+  if (execution.deviationCause !== undefined) {
+    addEvent(world, ctx, {
+      type: "execution_deviation",
+      summary: `The planned finish for this match changed because of ${execution.deviationCause.replace(/_/g, " ")}.`,
+      wrestlerIds: participants.map((p) => p.id),
+      ...(story ? { storyId: story.id } : {}), matchId: result.id, showId: show.id,
+      data: { plannedFinish: slot.plannedFinish, actualWinnerWrestlerId: winner.id, deviationCause: execution.deviationCause, ...(slot.programId === undefined ? {} : { programId: slot.programId }) },
+    });
+  }
+
   return result;
+}
+
+function titleConsequence(
+  world: WorldState,
+  slot: MatchSlot,
+  winnerId: string,
+  finishFamily: FinishFamily,
+  deviationCause: ExecutionDeviationCause | undefined,
+): "change" | "retain" | "none" {
+  // The planned consequence, not an incidental in-ring score, controls title
+  // lineage. A disrupted no-contest never creates a phantom title change.
+  if (finishFamily === "no_contest") return "none";
+  if (slot.plannedFinish !== undefined && deviationCause === undefined) return slot.plannedFinish.intendedTitleConsequence;
+  const holder = slot.titleId === undefined ? undefined : world.titles.find((title) => title.id === slot.titleId)?.holderId;
+  return holder === undefined ? "none" : holder === winnerId ? "retain" : "change";
+}
+
+function matchExecution(
+  slot: MatchSlot,
+  participants: readonly { id: string; condition: number }[],
+  intents: readonly MatchIntent[],
+  hasConflict: boolean,
+  dominantIdx: number,
+  performanceWinnerIdx: number,
+  rng: { chance(probability: number): boolean },
+): { winnerIdx: number; finishFamily: FinishFamily; deviationCause?: ExecutionDeviationCause } {
+  const planned = slot.plannedFinish;
+  if (planned === undefined) return { winnerIdx: performanceWinnerIdx, finishFamily: "clean" };
+  const intendedIdx = participants.findIndex((participant) => participant.id === planned.intendedWinnerWrestlerId);
+  if (intendedIdx < 0) return { winnerIdx: performanceWinnerIdx, finishFamily: planned.finishFamily, deviationCause: "refusal" };
+  const alternate = performanceWinnerIdx === intendedIdx ? (intendedIdx + 1) % participants.length : performanceWinnerIdx;
+  if ((participants[intendedIdx]?.condition ?? 0) < INJURY_CONDITION_THRESHOLD) {
+    return { winnerIdx: alternate, finishFamily: planned.finishFamily, deviationCause: "injury" };
+  }
+  const refusalIdx = intents.findIndex((intent, index) => index !== intendedIdx && intent === "protect_character");
+  if (refusalIdx >= 0) return { winnerIdx: refusalIdx, finishFamily: planned.finishFamily, deviationCause: "refusal" };
+  if (hasConflict && dominantIdx !== intendedIdx && intents[dominantIdx] === "steal_spotlight") {
+    return { winnerIdx: dominantIdx, finishFamily: planned.finishFamily, deviationCause: "dominant_conflicting_intent" };
+  }
+  if (planned.finishFamily === "interference" && planned.adherenceStrength !== "strict" && rng.chance(0.15)) {
+    return { winnerIdx: intendedIdx, finishFamily: "clean", deviationCause: "failed_interference" };
+  }
+  return { winnerIdx: intendedIdx, finishFamily: planned.finishFamily };
 }
 
 export function resolveShow(world: WorldState, show: Show, ctx: TickContext): MatchResult[] {

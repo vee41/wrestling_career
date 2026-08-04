@@ -353,6 +353,12 @@ Do not add these to the first creative-booking slice:
 
 Prefer a small beat vocabulary with strong consequences over a broad vocabulary that produces interchangeable output.
 
+## 15. Planned outcomes and execution deviation
+
+The GM records an intended winner, `clean`/`dirty`/`interference`/`disqualification`/`no_contest` finish family, protected participants, `change`/`retain`/`none` title consequence, story effect, and `strict`/`standard`/`flexible` adherence strength for each story or title match. Planned segments likewise record a focal participant, `positive`/`negative`/`mixed`/`neutral` heat direction, story effect, protection, and adherence strength.
+
+Results retain both planned and actual outcomes and are `adhered` unless an `injury`, `refusal`, `dominant_conflicting_intent`, or `failed_interference` causes a `deviated` execution. Every deviation is a material event and a program-revision input, never a silent creative substitution.
+
 ## 14. Implementation discipline
 
 - Keep planner functions deterministic and scenario-agnostic.

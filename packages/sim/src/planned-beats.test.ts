@@ -35,6 +35,8 @@ describe("planned beats", () => {
       const show = bookShow(world, context(bookingTick), showTick);
       const plannedSlot = show.card.find((slot) => slot.programId === plan.id);
       expect(plannedSlot).toBeDefined();
+      if (plannedSlot?.kind === "segment") expect(plannedSlot.plannedOutcome?.intendedStoryEffect).toBeTruthy();
+      if (plannedSlot?.kind === "match") expect(plannedSlot.plannedFinish?.intendedWinnerWrestlerId).toBeTruthy();
       resolveCard(world, show, context(showTick));
     }
 
@@ -45,6 +47,28 @@ describe("planned beats", () => {
     expect(plan.completedBeatIds).toEqual(beats.map((beat) => beat.id));
     expect(plan.status).toBe("resolved");
     expect(world.events.filter((event) => event.type === "planned_beat_resolved")).toHaveLength(4);
+  });
+
+  it("follows planned segment focus and records an injury deviation with a replan", () => {
+    const world = worldWithProgram();
+    const plan = world.programPlans[0]!;
+    const show = bookShow(world, context(1), 2);
+    const planned = show.card.find((slot) => slot.programId === plan.id && slot.kind === "segment");
+    expect(planned?.kind).toBe("segment");
+    if (planned?.kind !== "segment") return;
+    const normal = resolveCard(world, show, context(2)).segmentResults.find((result) => result.segmentSlotId === planned.id)!;
+    expect(normal.adherence).toBe("adhered");
+    expect(normal.dominantWrestlerId).toBe(planned.plannedOutcome?.intendedDominantWrestlerId);
+
+    const disrupted = worldWithProgram();
+    const disruptedShow = bookShow(disrupted, context(1), 2);
+    const disruptedSlot = disruptedShow.card.find((slot) => slot.programId === disrupted.programPlans[0]!.id && slot.kind === "segment");
+    if (disruptedSlot?.kind !== "segment") return;
+    const focal = disruptedSlot.plannedOutcome!.intendedDominantWrestlerId;
+    disrupted.wrestlers.find((wrestler) => wrestler.id === focal)!.condition = 20;
+    const result = resolveCard(disrupted, disruptedShow, context(2)).segmentResults.find((entry) => entry.segmentSlotId === disruptedSlot.id)!;
+    expect(result.deviationCause).toBe("injury");
+    expect(disrupted.programPlans[0]!.revisions.at(-1)?.reason).toBe("execution_deviation");
   });
 
   it("invalidates an unavailable beat and records an explicit substitute revision", () => {

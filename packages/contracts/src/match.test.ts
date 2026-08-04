@@ -66,6 +66,33 @@ describe("matchResultSchema", () => {
     expect(() => matchResultSchema.parse(missingPerformance)).toThrow();
   });
 
+  it("records an auditable planned and actual finish", () => {
+    const result = matchResultSchema.parse({
+      ...validMatchResult,
+      plannedFinish: {
+        intendedWinnerWrestlerId: "vic-vendetta", finishFamily: "dirty",
+        protectedWrestlerIds: ["ace-steel"], intendedTitleConsequence: "retain",
+        intendedStoryEffect: "The champion survives the challenge.", adherenceStrength: "strict",
+      },
+      actualOutcome: {
+        winnerWrestlerId: "vic-vendetta", finishFamily: "dirty", titleConsequence: "retain",
+        storyEffect: "The champion survives the challenge.",
+      },
+      adherence: "adhered",
+    });
+    expect(result.actualOutcome?.winnerWrestlerId).toBe(result.plannedFinish?.intendedWinnerWrestlerId);
+  });
+
+  it("rejects a planned winner outside the match", () => {
+    expect(() => matchResultSchema.parse({
+      ...validMatchResult,
+      plannedFinish: {
+        intendedWinnerWrestlerId: "dusty-cole", finishFamily: "clean", protectedWrestlerIds: [],
+        intendedTitleConsequence: "none", intendedStoryEffect: "Impossible.", adherenceStrength: "standard",
+      },
+    })).toThrow();
+  });
+
   it("round-trips a solo segment result without a competitive winner", () => {
     const result = segmentResultSchema.parse({
       id: "segment-1", segmentSlotId: "slot-promo", showId: "show-1",

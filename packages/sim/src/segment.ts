@@ -1,4 +1,4 @@
-import type { SegmentIntent, SegmentResult, SegmentSlot, Show, WorldState, Wrestler } from "@wrestling/contracts";
+import type { ExecutionDeviationCause, SegmentIntent, SegmentResult, SegmentSlot, Show, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { clampScale100 } from "./clamp.js";
 import { dominantParticipant, intentsConflict } from "./dominance.js";
@@ -15,6 +15,7 @@ const ASSERTIVENESS: Record<SegmentIntent, number> = {
   generate_hostility: 0.55,
   seek_controversy: 0.8,
 };
+const INJURY_CONDITION_THRESHOLD = 40;
 
 function resolveIntent(world: WorldState, slot: SegmentSlot, wrestlerId: string): SegmentIntent {
   return slot.intents[wrestlerId] ?? defaultSegmentIntent(findStance(world, wrestlerId).stance);
@@ -41,8 +42,10 @@ export function resolveSegment(world: WorldState, show: Show, slot: SegmentSlot,
   const rng = ctx.rng.fork(`segment:${slot.id}`);
   const intents = participants.map((participant) => resolveIntent(world, slot, participant.id));
   const assertiveness = intents.map((intent) => ASSERTIVENESS[intent]);
-  const dominantIndex = dominantParticipant(participants, rng);
+  const naturalDominantIndex = dominantParticipant(participants, rng);
   const conflict = intentsConflict(assertiveness);
+  const execution = segmentExecution(slot, participants, intents, conflict, naturalDominantIndex);
+  const dominantIndex = execution.dominantIndex;
   const rawScores = participants.map((participant, index) => (
     participant.skills.promoAbility * 0.45 +
     participant.skills.characterWork * 0.3 +
@@ -79,6 +82,16 @@ export function resolveSegment(world: WorldState, show: Show, slot: SegmentSlot,
     ...(story ? { storyId: story.id } : {}), storyAdvancement,
     ...(slot.programId === undefined ? {} : { programId: slot.programId }),
     ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }),
+    ...(slot.plannedOutcome === undefined ? {} : {
+      plannedOutcome: slot.plannedOutcome,
+      actualOutcome: {
+        dominantWrestlerId: participants[dominantIndex]!.id,
+        heatDirection: execution.deviationCause === undefined ? slot.plannedOutcome.intendedHeatDirection : heatDirection(intents[dominantIndex]!),
+        storyEffect: execution.deviationCause === undefined ? slot.plannedOutcome.intendedStoryEffect : "Execution disruption requires the program to replan.",
+      },
+      adherence: execution.deviationCause === undefined ? "adhered" : "deviated",
+      ...(execution.deviationCause === undefined ? {} : { deviationCause: execution.deviationCause }),
+    }),
     intents: Object.fromEntries(participants.map((participant, index) => [participant.id, intents[index]!])),
     performances,
   };
@@ -87,9 +100,45 @@ export function resolveSegment(world: WorldState, show: Show, slot: SegmentSlot,
     type: "segment_result",
     summary: `${participants[dominantIndex]!.name} carried a ${slot.storyId ? "story" : "non-match"} segment${story ? ` for "${story.tensionDescription}"` : ""}.`,
     wrestlerIds: result.participantWrestlerIds, ...(story ? { storyId: story.id } : {}), matchId: result.id, showId: show.id,
-    data: { quality, crowdResponse, position: slot.position, dominantWrestlerId: result.dominantWrestlerId, ...(slot.programId === undefined ? {} : { programId: slot.programId }), ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }) },
+    data: { quality, crowdResponse, position: slot.position, dominantWrestlerId: result.dominantWrestlerId, ...(slot.programId === undefined ? {} : { programId: slot.programId }), ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }), ...(slot.plannedOutcome === undefined ? {} : { plannedOutcome: slot.plannedOutcome, actualOutcome: { dominantWrestlerId: result.dominantWrestlerId, heatDirection: execution.deviationCause === undefined ? slot.plannedOutcome.intendedHeatDirection : heatDirection(intents[dominantIndex]!) }, adherence: execution.deviationCause === undefined ? "adhered" : "deviated", ...(execution.deviationCause === undefined ? {} : { deviationCause: execution.deviationCause }) }) },
   });
+  if (execution.deviationCause !== undefined) {
+    addEvent(world, ctx, {
+      type: "execution_deviation",
+      summary: `The planned segment outcome changed because of ${execution.deviationCause.replace(/_/g, " ")}.`,
+      wrestlerIds: result.participantWrestlerIds, ...(story ? { storyId: story.id } : {}), matchId: result.id, showId: show.id,
+      data: { plannedOutcome: slot.plannedOutcome, actualDominantWrestlerId: result.dominantWrestlerId, deviationCause: execution.deviationCause, ...(slot.programId === undefined ? {} : { programId: slot.programId }) },
+    });
+  }
   return result;
+}
+
+function heatDirection(intent: SegmentIntent): "positive" | "negative" | "mixed" | "neutral" {
+  if (intent === "build_sympathy" || intent === "show_vulnerability" || intent === "promote_opponent") return "positive";
+  if (intent === "generate_hostility" || intent === "seek_controversy") return "negative";
+  if (intent === "escalate_rivalry") return "mixed";
+  return "neutral";
+}
+
+function segmentExecution(
+  slot: SegmentSlot,
+  participants: readonly { id: string; condition: number }[],
+  intents: readonly SegmentIntent[],
+  conflict: boolean,
+  naturalDominantIndex: number,
+): { dominantIndex: number; deviationCause?: ExecutionDeviationCause } {
+  const planned = slot.plannedOutcome;
+  if (planned === undefined) return { dominantIndex: naturalDominantIndex };
+  const intended = participants.findIndex((participant) => participant.id === planned.intendedDominantWrestlerId);
+  if (intended < 0) return { dominantIndex: naturalDominantIndex, deviationCause: "refusal" };
+  const alternate = naturalDominantIndex === intended ? (intended + 1) % participants.length : naturalDominantIndex;
+  if ((participants[intended]?.condition ?? 0) < INJURY_CONDITION_THRESHOLD) return { dominantIndex: alternate, deviationCause: "injury" };
+  const refusal = intents.findIndex((intent, index) => index !== intended && intent === "protect_mystery");
+  if (refusal >= 0) return { dominantIndex: refusal, deviationCause: "refusal" };
+  if (conflict && naturalDominantIndex !== intended && intents[naturalDominantIndex] === "seek_controversy") {
+    return { dominantIndex: naturalDominantIndex, deviationCause: "dominant_conflicting_intent" };
+  }
+  return { dominantIndex: intended };
 }
 
 export function resolveSegments(world: WorldState, show: Show, ctx: TickContext): SegmentResult[] {

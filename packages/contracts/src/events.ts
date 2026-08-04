@@ -28,6 +28,7 @@ export const worldEventTypeSchema = z.enum([
   "planned_beat_scheduled",
   "planned_beat_resolved",
   "planned_beat_invalidated",
+  "execution_deviation",
   "injury",
   "rumour",
   "gimmick_changed",

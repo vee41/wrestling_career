@@ -506,6 +506,8 @@ Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, s
 
 **Done when:** every program payoff/title match has an intended finish and every planned segment has an intended focus/effect; normal execution follows those plans; forced disruption fixtures produce explainable deviations and deterministic replans; title lineage no longer depends on slice-position hacks in `resolveMatch`.
 
+**As built (2026-08-04):** Planned story/title matches now carry an auditable finish, and planned segments carry a focus, heat direction, and story effect. Normal execution adheres to those outcomes; `injury`, `refusal`, `dominant_conflicting_intent`, and `failed_interference` are the only recorded deviations, each emitting an `execution_deviation` event and a program revision. `resolveMatch` no longer contains slice-position or random title-change policy.
+
 ---
 
 ## Phase 3.12 — Weekly card composer and booking trace

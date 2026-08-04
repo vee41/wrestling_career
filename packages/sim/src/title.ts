@@ -2,6 +2,7 @@ import type { MatchResult, Title, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { requireWrestler } from "./lookups.js";
 import { adjustStarPower } from "./popularity.js";
+import { replanForTitleChange } from "./program-plans.js";
 
 /** Resolve every booked title match independently; title_change events are the derived lineage. */
 export function updateChampionships(world: WorldState, ctx: TickContext, matchResults: MatchResult[]): void {
@@ -17,13 +18,15 @@ export function updateChampionships(world: WorldState, ctx: TickContext, matchRe
 
 function resolveTitleMatch(world: WorldState, ctx: TickContext, title: Title, result: MatchResult): void {
   const previousHolderId = title.holderId;
+  const intendedConsequence = result.actualOutcome?.titleConsequence;
+  if (intendedConsequence === "none") return;
   // An uncrowned title can only be established by an explicitly booked title match.
   if (!previousHolderId) {
     crown(world, ctx, title, result.winnerWrestlerId, result.id);
     return;
   }
   if (!result.participantWrestlerIds.includes(previousHolderId)) return;
-  if (result.winnerWrestlerId === previousHolderId) {
+  if (intendedConsequence === "retain" || result.winnerWrestlerId === previousHolderId) {
     addEvent(world, ctx, {
       type: "title_change",
       summary: `${requireWrestler(world, previousHolderId).name} successfully defended the ${title.name}.`,
@@ -47,6 +50,7 @@ function crown(world: WorldState, ctx: TickContext, title: Title, holderId: stri
     wrestlerIds: previousHolderId ? [holderId, previousHolderId] : [holderId], matchId,
     data: { titleId: title.id, defended: false },
   });
+  if (previousHolderId !== undefined) replanForTitleChange(world, ctx, title.id);
   const winnerGain = title.tier === "world"
     ? world.config.popularity.worldTitleWinStarPowerGain
     : world.config.popularity.midcardTitleWinStarPowerGain;

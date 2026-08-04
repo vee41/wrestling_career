@@ -1,4 +1,4 @@
-import type { CardSlot, GmObjective, MatchSlot, SegmentSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
+import type { CardSlot, GmObjective, MatchSlot, PlannedBeat, ProgramPlan, SegmentSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
@@ -118,6 +118,40 @@ function slot(ctx: TickContext, participants: string[], gmIntent: GmObjective, e
 
 function segmentSlot(ctx: TickContext, participants: string[], gmIntent: GmObjective, extras: Partial<SegmentSlot> = {}): SegmentSlot {
   return { kind: "segment", id: ctx.ids.next("segment-slot"), participantWrestlerIds: participants, position: "mid", gmIntent, intents: {}, ...extras };
+}
+
+/** Program planning, rather than match resolution, owns the normal creative finish. */
+function finishForPlannedBeat(world: WorldState, plan: ProgramPlan, beat: PlannedBeat, participants: readonly string[], titleId: string | undefined): MatchSlot["plannedFinish"] {
+  const titleHolder = titleId === undefined ? undefined : world.titles.find((title) => title.id === titleId)?.holderId;
+  const protagonist = plan.participants.find((participant) => participant.role === "protagonist")?.wrestlerId ?? participants[0]!;
+  const wantsChange = plan.creativeObjective === "change_championship" || plan.creativeObjective === "establish_challenger" || plan.creativeObjective === "elevate_act";
+  const intendedWinnerWrestlerId = titleHolder !== undefined && !wantsChange ? titleHolder : protagonist;
+  const winner = participants.includes(intendedWinnerWrestlerId) ? intendedWinnerWrestlerId : participants[0]!;
+  const winnerRole = plan.participants.find((participant) => participant.wrestlerId === winner)?.role;
+  return {
+    intendedWinnerWrestlerId: winner,
+    finishFamily: titleHolder !== undefined && winnerRole === "antagonist" ? "dirty" : "clean",
+    protectedWrestlerIds: [...plan.protectedWrestlerIds],
+    intendedTitleConsequence: titleHolder === undefined ? "none" : winner === titleHolder ? "retain" : "change",
+    intendedStoryEffect: beat.intendedStoryEffect,
+    adherenceStrength: beat.type === "ple_payoff" ? "strict" : "standard",
+  };
+}
+
+/** Story and title matches always have a GM-owned outcome, even outside a private program beat. */
+function finishForBookedStoryOrTitle(world: WorldState, booked: MatchSlot): NonNullable<MatchSlot["plannedFinish"]> {
+  const holder = booked.titleId === undefined ? undefined : world.titles.find((title) => title.id === booked.titleId)?.holderId;
+  const intendedWinnerWrestlerId = holder !== undefined && booked.participantWrestlerIds.includes(holder)
+    ? holder
+    : booked.participantWrestlerIds[0]!;
+  return {
+    intendedWinnerWrestlerId,
+    finishFamily: "clean",
+    protectedWrestlerIds: [],
+    intendedTitleConsequence: holder === undefined ? "none" : holder === intendedWinnerWrestlerId ? "retain" : "change",
+    intendedStoryEffect: booked.storyId === undefined ? "Complete the championship booking." : "Advance the booked story.",
+    adherenceStrength: "standard",
+  };
 }
 
 function highestScoringContender(world: WorldState, title: Title, used: Set<string>, currentTick: number): Wrestler | undefined {
@@ -257,8 +291,8 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     const shared = { storyId: plan.storyId, programId: plan.id, plannedBeatId: plannedBeat.id };
     const titleId = plannedBeat.type === "ple_payoff" ? plan.stakesTitleId : undefined;
     slots.push(plannedBeat.compatibleSlotKind === "match"
-      ? slot(ctx, participants, world.bookingObjective, { ...shared, ...(titleId === undefined ? {} : { titleId }) })
-      : segmentSlot(ctx, participants, world.bookingObjective, shared));
+      ? slot(ctx, participants, world.bookingObjective, { ...shared, ...(titleId === undefined ? {} : { titleId }), plannedFinish: finishForPlannedBeat(world, plan, plannedBeat, participants, titleId) })
+      : segmentSlot(ctx, participants, world.bookingObjective, { ...shared, ...(plannedBeat.plannedSegmentOutcome === undefined ? {} : { plannedOutcome: plannedBeat.plannedSegmentOutcome }) }));
   }
   // A stale championship has a hard defence floor. Reserve one viable
   // challenger before the program pass so unrelated peaking stories cannot
@@ -402,7 +436,11 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     slots.push(slot(ctx, [a.id, b.id], world.bookingObjective));
   }
 
-  const show: Show = { id: ctx.ids.next("show"), tick: targetTick, kind, card: assignPositions(world, slots) };
+  const committedSlots = slots.map((booked) => {
+    if (booked.kind === "segment" || booked.plannedFinish !== undefined || (booked.storyId === undefined && booked.titleId === undefined)) return booked;
+    return { ...booked, plannedFinish: finishForBookedStoryOrTitle(world, booked) };
+  });
+  const show: Show = { id: ctx.ids.next("show"), tick: targetTick, kind, card: assignPositions(world, committedSlots) };
   for (const plannedBeat of plannedBeats) {
     plannedBeat.scheduledShowId = show.id;
     const storyId = world.programPlans.find((plan) => plan.id === plannedBeat.programId)?.storyId;
