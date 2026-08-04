@@ -54,7 +54,7 @@ function gmAcceptanceProbability(
     (popularity.generalPopularity / 100) * 0.3 +
     (wrestler.skills.professionalism / 100) * 0.2 +
     (gmReaction + backstageReaction) * 0.001;
-  const objectiveBonus = GM_OBJECTIVE_INTENT_FIT[world.gmObjective]?.[intent] ?? 0;
+  const objectiveBonus = GM_OBJECTIVE_INTENT_FIT[world.bookingObjective]?.[intent] ?? 0;
   return clamp01(base * patienceMultiplier(repeats) + objectiveBonus);
 }
 

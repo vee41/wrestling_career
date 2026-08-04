@@ -113,6 +113,8 @@ A plan is allowed to fail. The plan history must remain visible to debugging too
 
 A beat is the smallest planned unit of creative progression. A beat is not prose. It is a structured intent that the show can schedule and the simulation can resolve.
 
+Phase 3.8 already provides the generic execution primitive: discriminated match/segment card slots, solo or multi-participant segments, segment intents, dominance, heat/story/popularity effects, appearance cadence, AI/CLI intent wiring, and unified show-card reporting. Do not rebuild those systems. The missing layer is semantic intent: the existing `SegmentSlot` says that a non-match segment occurs, but not whether it is a promo, confrontation, attack, save, interference, or go-home angle. `PlannedBeat` owns that meaning and links the generic slot/result back to a program.
+
 The first implementation should use a deliberately small catalog built on Phase 3.8's match and segment slots:
 
 - promo or interview;
@@ -145,9 +147,9 @@ Beat selection follows a wrestling cadence rather than repeating the hottest ava
 
 This is a pattern, not a mandatory script. Different program archetypes may provide different eligible beat sequences, and world events may cause replanning.
 
-## 7. Planned finishes and actual execution
+## 7. Planned outcomes and actual execution
 
-For important matches, the booker must choose an intended outcome. A wrestling booking engine that normally derives the winner from raw performance is closer to a sports league than an authored wrestling promotion.
+For important matches and segments, the booker must choose an intended outcome. A wrestling booking engine that normally derives the winner or dominant speaker solely from performance is closer to a sports league than an authored wrestling promotion.
 
 A minimal planned finish records:
 
@@ -158,7 +160,17 @@ A minimal planned finish records:
 - intended story consequence;
 - creative importance or adherence strength.
 
+A minimal planned segment outcome records:
+
+- intended focal or dominant participant;
+- intended positive/negative heat direction;
+- intended story effect;
+- protected participants;
+- execution risk or adherence strength.
+
 Match resolution should normally honor the planned finish. Skills, chemistry, condition, player intent, and conflict determine how well the wrestlers execute it: match quality, crowd response, credibility, physical cost, backstage reaction, and story advancement.
+
+Segment resolution follows the same principle. The planned beat supplies the intended focus and effect; promo/character skill, dominance, participant intent, and conflict determine how well it lands. The Phase 3.8 intent-to-heat mapping remains useful execution logic, but must not silently replace the beat's creative purpose.
 
 Deviation is exceptional and creates a world event. Valid causes include injury, refusal, dominant conflicting intent, failed interference, or another explicit simulated disruption. The result records both the plan and the actual outcome so the replanner and audit tools can explain the difference.
 
@@ -226,6 +238,8 @@ Revision reason, previous intent, and new intent are permanent audit facts. Repl
 
 The weekly composer turns due program beats into a complete show.
 
+The committed card order is authoritative, not cosmetic. Replace the Phase 3.8 split resolution pass (all matches, then all segments) with one ordered card resolver before beats are allowed to affect later slots on the same show. The initial creative slice should schedule at most one beat per program per show; story advancement must nevertheless aggregate multiple same-story results defensively rather than letting the last result overwrite earlier work.
+
 Composition order:
 
 1. reserve hard obligations: due PLE payoffs, title obligations, and already-promised player bookings;
@@ -276,7 +290,7 @@ Scope:
 - the small beat catalog in this document;
 - planned finishes for story and title matches;
 - provisional four-week plans and one-show-ahead card commitment;
-- deterministic template/report output;
+- the existing unified show-card report, extended with program/beat/plan information;
 - no dependency on an LLM or web UI.
 
 The slice must demonstrate:
@@ -303,6 +317,8 @@ Booking cannot be balanced using popularity outcomes alone. The Balance Lab and 
 - batch simulation across many seeds;
 - parameter sweeps and exportable tuning snapshots;
 - enforced CI gates rather than advisory output only.
+
+Raw segment count is a capacity/cadence check, not a storytelling-quality measure. Once the planner owns program beats, evaluate whether segments served a premise, advanced escalation, and contributed to a payoff. The Phase 3.8 `segmentChance` is transitional tuning for unplanned cards; it must not choose match-versus-segment for planned program beats.
 
 Track at least:
 

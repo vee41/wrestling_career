@@ -4,17 +4,46 @@ import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
 import { recentPerformanceReaction } from "./patience.js";
 
-const ALL_OBJECTIVES: GmObjective[] = [
-  "new_main_eventer", "strengthen_tag_division", "rebuild_championship", "capitalise_on_rising_star",
+// The MVP has no tag division. Keep its legacy token in contracts for old
+// snapshots, but never select an objective the scenario cannot execute.
+export const SUPPORTED_GM_OBJECTIVES: GmObjective[] = [
+  "new_main_eventer", "rebuild_championship", "capitalise_on_rising_star",
   "cool_down_overexposed_act", "prepare_major_event",
 ];
-const OBJECTIVE_ROTATION_TICKS = 6;
+const LEGACY_BOOKING_OBJECTIVE_ROTATION_TICKS = 6;
 export const BOOKABLE_CONDITION_THRESHOLD = 40;
 
-export function rotateGmObjectiveIfDue(world: WorldState, ctx: TickContext): void {
-  if (ctx.tick - world.gmObjectiveSince < OBJECTIVE_ROTATION_TICKS) return;
+/**
+ * Compatibility-only filler guidance. It preserves the pre-plan card
+ * composer through Phase 3.11; ProgramPlan is the durable creative source.
+ */
+export function rotateBookingObjectiveIfDue(world: WorldState, ctx: TickContext): void {
+  if (ctx.tick - world.bookingObjectiveSince < LEGACY_BOOKING_OBJECTIVE_ROTATION_TICKS) return;
   const rng = ctx.rng.fork("gm-objective-rotation");
-  const next = rng.pick(ALL_OBJECTIVES.filter((o) => o !== world.gmObjective));
+  const allObjectives: GmObjective[] = [
+    "new_main_eventer", "strengthen_tag_division", "rebuild_championship", "capitalise_on_rising_star",
+    "cool_down_overexposed_act", "prepare_major_event",
+  ];
+  const next = rng.pick(allObjectives.filter((objective) => objective !== world.bookingObjective));
+  addEvent(world, ctx, {
+    type: "gm_decision",
+    summary: `The GM's operational booking focus shifted from ${world.bookingObjective.replace(/_/g, " ")} to ${next.replace(/_/g, " ")}.`,
+    wrestlerIds: [], data: { previousObjective: world.bookingObjective, objective: next, scope: "legacy_booking" },
+  });
+  world.bookingObjective = next;
+  world.bookingObjectiveSince = ctx.tick;
+}
+
+export function rotateGmObjectiveIfDue(world: WorldState, ctx: TickContext): void {
+  // Program plans own medium-term creative direction. The promotion-level
+  // objective is only reconsidered after a complete PLE cycle, never on the
+  // old short random timer.
+  const cycleTicks = world.config.pleIntervalWeeks * (world.config.decisionTicksPerWeek + 1);
+  const unsupported = !SUPPORTED_GM_OBJECTIVES.includes(world.gmObjective);
+  if (!unsupported && ctx.tick - world.gmObjectiveSince < cycleTicks) return;
+  const rng = ctx.rng.fork("gm-objective-rotation");
+  const eligible = SUPPORTED_GM_OBJECTIVES.filter((objective) => objective !== world.gmObjective);
+  const next = rng.pick(eligible.length > 0 ? eligible : SUPPORTED_GM_OBJECTIVES);
   addEvent(world, ctx, {
     type: "gm_decision",
     summary: `The GM's creative focus shifted from ${world.gmObjective.replace(/_/g, " ")} to ${next.replace(/_/g, " ")}.`,
@@ -30,7 +59,7 @@ function isChampion(world: WorldState, wrestlerId: string): boolean {
 
 function objectiveFit(world: WorldState, wrestler: Wrestler): number {
   const popularity = findPopularity(world, wrestler.id);
-  switch (world.gmObjective) {
+  switch (world.bookingObjective) {
     case "new_main_eventer": return popularity.momentum > 0 && popularity.generalPopularity < 70 ? popularity.momentum * 0.5 : 0;
     case "rebuild_championship": return isChampion(world, wrestler.id) || popularity.generalPopularity > 50 ? 10 : 0;
     case "capitalise_on_rising_star": return popularity.momentum > 10 ? popularity.momentum : 0;
@@ -248,7 +277,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
         const priorSlot = priorShow?.card.find((slot) => slot.id === result.matchSlotId);
         return priorSlot?.kind !== "segment" && priorSlot?.titleId === title.id && participants.every((id) => result.participantWrestlerIds.includes(id));
       });
-      const potentialSlot = slot(ctx, participants, world.gmObjective, {
+      const potentialSlot = slot(ctx, participants, world.bookingObjective, {
         storyId: story.id, ...(title ? { titleId: title.id } : {}),
       });
       if (pairAlreadyMetForTitle && !isTopOfCardProgram(world, potentialSlot)) continue;
@@ -278,7 +307,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       if (!contender) continue;
       used.add(holderId); used.add(contender.id);
       const storyId = storyForPair(world, holderId, contender.id);
-      slots.push(slot(ctx, [holderId, contender.id], world.gmObjective, {
+      slots.push(slot(ctx, [holderId, contender.id], world.bookingObjective, {
         titleId: title.id, ...(storyId ? { storyId } : {}),
       }));
     }
@@ -297,8 +326,8 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       ? world.titles.find((candidate) => candidate.tier === "midcard" && candidate.holderId !== undefined && participants.includes(candidate.holderId) && participantsTitleEligible(world, participants, candidate.tier)) : undefined;
     const useSegment = kind === "tv" && ctx.rng.fork(`story-segment:${targetTick}:${story.id}`).chance(world.config.booking.segmentChance);
     slots.push(useSegment
-      ? segmentSlot(ctx, participants, world.gmObjective, { storyId: story.id })
-      : slot(ctx, participants, world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
+      ? segmentSlot(ctx, participants, world.bookingObjective, { storyId: story.id })
+      : slot(ctx, participants, world.bookingObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
   }
 
   const previousAppearances = new Map<string, number>();
@@ -312,7 +341,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     // Legends and part-timers only appear through the meaningful story/title
     // passes above; ordinary rotation never spends a rare appearance.
     .filter((wrestler) => !world.config.roles[wrestler.role].storyGated)
-    .filter((wrestler) => !(world.gmObjective === "cool_down_overexposed_act" && findPopularity(world, wrestler.id).fatigue > 75))
+    .filter((wrestler) => !(world.bookingObjective === "cool_down_overexposed_act" && findPopularity(world, wrestler.id).fatigue > 75))
     // Existing stories and title scenes still lead the card, but open slots
     // deliberately rotate the rest of the roster through it.
     .sort((a, b) => {
@@ -348,13 +377,13 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   if (canBookMultiWay && ctx.rng.fork(`multi-way:${targetTick}`).chance(world.config.booking.multiWayChance)) {
     const participantCount = Math.min(world.config.booking.maxMultiWayParticipants, remaining.length);
     const participants = remaining.slice(0, participantCount).map((wrestler) => wrestler.id);
-    slots.push(slot(ctx, participants, world.gmObjective));
+    slots.push(slot(ctx, participants, world.bookingObjective));
     index = participantCount;
   }
   for (; slots.length < targetSlotCount && index + 1 < remaining.length; index += 2) {
     const a = remaining[index]; const b = remaining[index + 1];
     if (!a || !b) break;
-    slots.push(slot(ctx, [a.id, b.id], world.gmObjective));
+    slots.push(slot(ctx, [a.id, b.id], world.bookingObjective));
   }
 
   const show: Show = { id: ctx.ids.next("show"), tick: targetTick, kind, card: assignPositions(world, slots) };

@@ -14,13 +14,14 @@ import {
   resolveReactiveResponses,
 } from "./responses.js";
 import { applyActions } from "./resolve-actions.js";
-import { bookUpcomingShowIfDue, rotateGmObjectiveIfDue } from "./gm.js";
+import { bookUpcomingShowIfDue, rotateBookingObjectiveIfDue, rotateGmObjectiveIfDue } from "./gm.js";
 import { resolveShow } from "./match.js";
 import { resolveSegments } from "./segment.js";
 import { updatePopularity } from "./popularity.js";
 import { updateChampionships } from "./title.js";
 import { advanceStories } from "./stories.js";
 import { generateReactiveDecisions, scanForNewStory } from "./director.js";
+import { planPrograms } from "./program-plans.js";
 import { buildNarrativeJobs } from "./narrative.js";
 
 // Comfortably larger than the patience (6-tick) and training-plateau
@@ -65,7 +66,9 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   mergeCardIntents(draft, turns);
 
   // Step 3 — GM decisions (objective rotation, booking the next show).
+  rotateBookingObjectiveIfDue(draft, ctx);
   rotateGmObjectiveIfDue(draft, ctx);
+  planPrograms(draft, ctx);
   bookUpcomingShowIfDue(draft, ctx);
 
   // Step 4 — resolve interactions and responses (the action slot is
@@ -89,6 +92,9 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   // Step 7 — story engine + dramatic director.
   advanceStories(draft, ctx, matchResults, segmentResults);
   scanForNewStory(draft, ctx);
+  // A director-created story is a planning catalyst. Card composition still
+  // ignores plans until Phase 3.10+, so this only records private intent.
+  planPrograms(draft, ctx);
   generateReactiveDecisions(draft, ctx);
 
   // Step 8 — emit narrative jobs.

@@ -13,6 +13,8 @@ import { createRng } from "./rng.js";
  */
 export function worldFromScenario(scenario: Scenario, seed: string): WorldState {
   const rng = createRng(seed);
+  const bookingObjective = rng.pick(gmObjectiveSchema.options);
+  const gmObjective = bookingObjective === "strengthen_tag_division" ? "new_main_eventer" : bookingObjective;
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -24,14 +26,18 @@ export function worldFromScenario(scenario: Scenario, seed: string): WorldState 
     popularity: scenario.roster.map(({ popularity }) => structuredClone(popularity)),
     relationships: scenario.relationships.map((relationship) => structuredClone(relationship)),
     stories: scenario.stories.map((story) => structuredClone(story)),
+    programPlans: [],
+    programPlanCandidates: [],
     shows: [],
     matchResults: [],
     segmentResults: [],
     events: [],
     narrativeJobs: [],
     narrativeResults: [],
-    gmObjective: rng.pick(gmObjectiveSchema.options),
+    gmObjective,
     gmObjectiveSince: 0,
+    bookingObjective,
+    bookingObjectiveSince: 0,
     titles: scenario.titles.map((title) => ({
       id: title.id,
       name: title.name,

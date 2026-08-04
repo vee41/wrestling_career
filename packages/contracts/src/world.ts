@@ -4,6 +4,7 @@ import { wrestlerSchema } from "./wrestler.js";
 import { popularityBlockSchema } from "./popularity.js";
 import { relationshipSchema } from "./relationship.js";
 import { storySchema } from "./story.js";
+import { programPlanCandidateSchema, programPlanSchema } from "./program-plan.js";
 import { gmObjectiveSchema, showSchema } from "./show.js";
 import { matchResultSchema, segmentResultSchema } from "./match.js";
 import { worldEventSchema } from "./events.js";
@@ -26,6 +27,10 @@ export const worldStateSchema = z
     popularity: z.array(popularityBlockSchema),
     relationships: z.array(relationshipSchema),
     stories: z.array(storySchema),
+    /** Private GM creative intent. Never use this directly in player projections. */
+    programPlans: z.array(programPlanSchema),
+    /** Private planner audit trail, including valid losers and hard-invalid candidates. */
+    programPlanCandidates: z.array(programPlanCandidateSchema),
     shows: z.array(showSchema),
     matchResults: z.array(matchResultSchema),
     segmentResults: z.array(segmentResultSchema),
@@ -34,6 +39,10 @@ export const worldStateSchema = z
     narrativeResults: z.array(narrativeResultSchema),
     gmObjective: gmObjectiveSchema,
     gmObjectiveSince: tickSchema,
+    // Phase 3.9 keeps the old card-filler heuristic isolated while private
+    // program objectives settle over a full PLE cycle. Phase 3.12 replaces it.
+    bookingObjective: gmObjectiveSchema,
+    bookingObjectiveSince: tickSchema,
     // Championship lineage is derived from title_change events; this is the
     // current title table for booking and status views.
     titles: z.array(titleSchema).min(2),
@@ -81,6 +90,45 @@ export const worldStateSchema = z
       s.participantWrestlerIds.forEach((id, j) =>
         requireKnownWrestler(id, ["stories", i, "participantWrestlerIds", j]),
       );
+    });
+
+    const planIds = new Set(world.programPlans.map((plan) => plan.id));
+    if (planIds.size !== world.programPlans.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "program plan ids must be unique", path: ["programPlans"] });
+    }
+    const activePlanStoryIds = world.programPlans
+      .filter((plan) => plan.status === "active" || plan.status === "payoff_ready")
+      .map((plan) => plan.storyId);
+    if (new Set(activePlanStoryIds).size !== activePlanStoryIds.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "only one active program plan may exist per story", path: ["programPlans"] });
+    }
+    world.programPlans.forEach((plan, i) => {
+      if (!storyIds.has(plan.storyId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown story id "${plan.storyId}"`, path: ["programPlans", i, "storyId"] });
+      }
+      if (plan.stakesTitleId !== undefined && !titleIds.has(plan.stakesTitleId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown title id "${plan.stakesTitleId}"`, path: ["programPlans", i, "stakesTitleId"] });
+      }
+      if (plan.targetShowId !== undefined && !showIds.has(plan.targetShowId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown show id "${plan.targetShowId}"`, path: ["programPlans", i, "targetShowId"] });
+      }
+      plan.participants.forEach((participant, j) => requireKnownWrestler(participant.wrestlerId, ["programPlans", i, "participants", j, "wrestlerId"]));
+      plan.protectedWrestlerIds.forEach((id, j) => requireKnownWrestler(id, ["programPlans", i, "protectedWrestlerIds", j]));
+      plan.revisions.forEach((revision, j) => {
+        for (const snapshot of [revision.previousIntent, revision.newIntent]) {
+          if (snapshot?.stakesTitleId !== undefined && !titleIds.has(snapshot.stakesTitleId)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown title id "${snapshot.stakesTitleId}"`, path: ["programPlans", i, "revisions", j] });
+          }
+          snapshot?.protectedWrestlerIds.forEach((id, k) => requireKnownWrestler(id, ["programPlans", i, "revisions", j, "protectedWrestlerIds", k]));
+        }
+      });
+    });
+    world.programPlanCandidates.forEach((candidate, i) => {
+      if (!storyIds.has(candidate.storyId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown story id "${candidate.storyId}"`, path: ["programPlanCandidates", i, "storyId"] });
+      candidate.participantWrestlerIds.forEach((id, j) => requireKnownWrestler(id, ["programPlanCandidates", i, "participantWrestlerIds", j]));
+      if (candidate.selectedPlanId !== undefined && !planIds.has(candidate.selectedPlanId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown program plan id "${candidate.selectedPlanId}"`, path: ["programPlanCandidates", i, "selectedPlanId"] });
+      }
     });
 
     world.shows.forEach((show, i) => {
