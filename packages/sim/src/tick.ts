@@ -108,6 +108,12 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   draft.events = draft.events.filter(
     (e) => !PRUNABLE_EVENT_TYPES.has(e.type) || e.tick > tick - EVENT_RETENTION_TICKS,
   );
+  // The planner appends two candidates per planning pass; without a window
+  // this grows for the whole run. Program plans, beats, and their revisions
+  // are permanent facts and stay — only the per-tick scoring trace ages out.
+  draft.programPlanCandidates = draft.programPlanCandidates.filter(
+    (candidate) => candidate.tick > tick - draft.config.booking.programCandidateRetentionTicks,
+  );
 
   draft.tick = tick + 1;
 

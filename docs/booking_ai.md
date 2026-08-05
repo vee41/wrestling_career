@@ -176,13 +176,25 @@ Deviation is exceptional and creates a world event. Valid causes include injury,
 
 Hard-coded title change timing and unexplained random title changes should be removed as planned finishes become authoritative. Title policy belongs in the creative planner; execution risk belongs in match resolution.
 
+### Alignment, finish texture, and continuity
+
+Alignment never chooses winners. The creative objective and program plan choose the intended winner; heels win programs as often as the story demands, and a face chasing and failing is a valid long arc. There is no rule — explicit or emergent — that the face must win in the end.
+
+What alignment does drive is **texture**, as tunable tendencies, never validity rules:
+
+- **Finish family.** A heel intended winner leans `dirty`/`interference` when the program should generate continuation, and `clean` when the plan wants a decisive statement. A face intended winner leans `clean`. A face winning dirty is a deliberate character signal (a possible turn catalyst, §16), never a default.
+- **Heat direction.** Face beats tend to build positive heat, heel beats negative heat; the segment intent-to-heat mapping must respect alignment.
+- **Pairing.** Candidate scoring prefers face-versus-heel opposition (§8's "alignment and relationship fit"), but same-alignment programs remain valid and sometimes desirable.
+
+**Finish texture is the continuity engine.** Booking has no final state: programs end, but the promotion's story does not. Every payoff must leave catalysts behind, and the finish family is a first-class catalyst input — an *unjust* finish (dirty retain, interference screwjob, count-out escape) generates rematch demand, grudge escalation, or authority involvement; a *clean, decisive* finish closes the thread and releases its participants toward new directions. The planner's catalyst derivation (§8) reads the texture of recently resolved programs the same way it reads popularity and relationships. A well-booked promotion is a chain: each payoff is also a premise.
+
 ## 8. Creative planner
 
 The creative planner operates on a portfolio of programs rather than generating each match independently.
 
 At the start of a planning cycle, and whenever a material disruption occurs, it should:
 
-1. derive story catalysts from world facts;
+1. derive story catalysts from world facts, including the finish texture of recently resolved programs (§7);
 2. generate program candidates;
 3. score candidates against current promotion objectives;
 4. select a limited portfolio subject to roster and title constraints;
@@ -358,6 +370,23 @@ Prefer a small beat vocabulary with strong consequences over a broad vocabulary 
 The GM records an intended winner, `clean`/`dirty`/`interference`/`disqualification`/`no_contest` finish family, protected participants, `change`/`retain`/`none` title consequence, story effect, and `strict`/`standard`/`flexible` adherence strength for each story or title match. Planned segments likewise record a focal participant, `positive`/`negative`/`mixed`/`neutral` heat direction, story effect, protection, and adherence strength.
 
 Results retain both planned and actual outcomes and are `adhered` unless an `injury`, `refusal`, `dominant_conflicting_intent`, or `failed_interference` causes a `deviated` execution. Every deviation is a material event and a program-revision input, never a silent creative substitution.
+
+## 16. Character turns
+
+A turn is a planned creative act executed through a program — never a stat flip, never an LLM decision, and never frequent. The `turn_character` objective exists for it; the turn itself lands on a specific beat.
+
+**Triggers** are structured world facts, all config-gated and deliberately rare:
+
+- **Crowd contradiction** — the audience has already decided: a heel drawing sustained positive heat, or a face drawing sustained negative heat, past a margin and duration threshold. The turn ratifies the crowd, which is why it pops.
+- **Staleness** — an act cold at its current alignment past a window, where a fresh direction is worth more than the current one.
+- **Betrayal catalyst** — a relationship inside an alliance-flavored program crossing resentment/rivalry thresholds; the turn is the payoff of that tension.
+- **Player request** — an accepted `propose_character_change` or GM turn proposal per the decision-loop spec. Human-controlled wrestlers turn only with player consent; an AI wrestler may refuse based on stance and personality, which cancels the plan with a recorded revision.
+
+**Execution.** The planner creates a `turn_character` program; the flip happens at the resolution of a designated beat — typically an `attack_save_interference` beat (the betrayal or the save) or the payoff itself. No new beat type is needed. On resolution: alignment flips, a structured event is emitted for the narrative layer, and heat **converts** rather than resets — the crowd energy that motivated the turn carries into the new alignment at a tunable conversion factor.
+
+**Aftermath.** A turn is a premise, not a conclusion (§7 continuity): a heel turn seeds a grudge/betrayal program against the former ally; a face turn seeds a redemption arc (`redeem_act`). The turned act gets a short protection window so the new direction can establish before it can be undercut.
+
+**Scarcity.** At most one active turn program at a time. A promotion where turns are common has no alignments worth turning.
 
 ## 14. Implementation discipline
 

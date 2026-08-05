@@ -1,10 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { analyzeSlice, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, worldFromScenario, type SliceAnalysis } from "@wrestling/sim";
+import {
+  analyzeSlice, BOOKING_METRIC_DESCRIPTIONS, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, sliceCriteriaScope, worldFromScenario,
+  type SliceAnalysis, type SliceProgramTimeline, type SliceShowSlot,
+} from "@wrestling/sim";
 import { extractOption, parsePositiveInt } from "../args.js";
 import type { CliContext } from "../context.js";
 import { loadScenario } from "../scenario.js";
+import { sliceJsonDump } from "../slice-json.js";
 import { renderSliceHtmlReport } from "../slice-report.js";
 
 const SPARKS = "▁▂▃▄▅▆▇█";
@@ -25,12 +29,109 @@ function week(analysis: SliceAnalysis, tick: number): number {
   return Math.floor(tick / analysis.ticksPerWeek) + 1;
 }
 
-function criteriaTable(criteria: readonly { id: string; strength: string; pass: boolean; observed: string; detail?: string }[]): string[] {
+function criteriaTable(
+  criteria: readonly { id: string; strength: string; pass: boolean; observed: string; detail?: string }[],
+  scope: string,
+): string[] {
   return [
-    "| Criterion | Strength | Result | Observed |",
-    "| --- | --- | --- | --- |",
-    ...criteria.map((criterion) => `| ${criterion.id} | ${criterion.strength} | ${criterion.pass ? "PASS" : "FAIL"} | ${criterion.observed}${criterion.detail ? `<br>${criterion.detail}` : ""} |`),
+    "| Criterion | Strength | Result | Observed | Scope |",
+    "| --- | --- | --- | --- | --- |",
+    ...criteria.map((criterion) => `| ${criterion.id} | ${criterion.strength} | ${criterion.pass ? "PASS" : "FAIL"} | ${criterion.observed}${criterion.detail ? `<br>${criterion.detail}` : ""} | ${scope} |`),
   ];
+}
+
+function percent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function tokenCounts(counts: Record<string, number>, { includeZero = false } = {}): string {
+  const entries = Object.entries(counts).filter(([, count]) => includeZero || count > 0);
+  if (entries.length === 0) return "none";
+  return entries.map(([token, count]) => `${token.replace(/_/g, " ")} ${count}`).join(", ");
+}
+
+function bookingMetricsTable(analysis: SliceAnalysis): string[] {
+  const metrics = analysis.bookingMetrics;
+  const rows: Array<[string, string, string]> = [
+    ["Programs created", String(metrics.programsCreated), BOOKING_METRIC_DESCRIPTIONS.programsCreated],
+    ["Programs resolved", `${metrics.programsResolved} (${percent(metrics.completionRate)})`, BOOKING_METRIC_DESCRIPTIONS.completionRate],
+    ["Programs abandoned", `${metrics.programsAbandoned} (${percent(metrics.abandonmentRate)})`, BOOKING_METRIC_DESCRIPTIONS.abandonmentRate],
+    ["Unresolved-program backlog", String(metrics.programsOpen), BOOKING_METRIC_DESCRIPTIONS.programsOpen],
+    ["Median program duration (weeks)", metrics.medianProgramDurationWeeks.toFixed(1), BOOKING_METRIC_DESCRIPTIONS.medianProgramDurationWeeks],
+    ["Median beats before payoff", metrics.medianBeatsBeforePayoff.toFixed(1), BOOKING_METRIC_DESCRIPTIONS.medianBeatsBeforePayoff],
+    ["PLE build coverage", `${metrics.pleBuildCoverage.built}/${metrics.pleBuildCoverage.total} (${percent(metrics.pleBuildCoverage.share)})`, BOOKING_METRIC_DESCRIPTIONS.pleBuildCoverage],
+    ["Direct rematches", String(metrics.directRematches), BOOKING_METRIC_DESCRIPTIONS.directRematches],
+    ["Consecutive pairings", String(metrics.consecutivePairings), BOOKING_METRIC_DESCRIPTIONS.consecutivePairings],
+    ["Story advancement from segments", percent(metrics.segmentStoryAdvancementShare), BOOKING_METRIC_DESCRIPTIONS.segmentStoryAdvancementShare],
+    ["Escalation-order violations", String(metrics.escalationOrderViolations), BOOKING_METRIC_DESCRIPTIONS.escalationOrderViolations],
+    ["Revisions by cause", tokenCounts(metrics.revisionsByCause), "Plan revisions grouped by the trigger that caused them. Empty means replanning never fires."],
+    ["Revision responses", tokenCounts(metrics.revisionsByResponse), "Which of the six replanning responses were actually used."],
+    ["No-op revisions", String(metrics.noOpRevisions), BOOKING_METRIC_DESCRIPTIONS.noOpRevisions],
+    [
+      "Planned-finish adherence",
+      `${metrics.finishAdherence.adhered}/${metrics.finishAdherence.planned} (${percent(metrics.finishAdherence.rate)})${metrics.finishAdherence.deviated > 0 ? ` — deviations: ${tokenCounts(metrics.finishAdherence.deviationCauses)}` : ""}`,
+      BOOKING_METRIC_DESCRIPTIONS.finishAdherence,
+    ],
+    ["Distinct main-eventers", String(metrics.distinctMainEventers), BOOKING_METRIC_DESCRIPTIONS.distinctMainEventers],
+    ["Distinct title challengers", String(metrics.distinctTitleChallengers), BOOKING_METRIC_DESCRIPTIONS.distinctTitleChallengers],
+    ["Beats generated by type", tokenCounts(metrics.beatsGeneratedByType, { includeZero: true }), "Every beat the planner created, by type. A zero means that beat type is never generated at all."],
+    ["Beats resolved by type", tokenCounts(metrics.beatsResolvedByType, { includeZero: true }), "Beats that actually aired, by type."],
+    ["Beats by status", tokenCounts(metrics.beatsByStatus, { includeZero: true }), "Lifecycle spread across provisional, scheduled, resolved, skipped, and invalidated."],
+  ];
+  return [
+    "| Metric | Value | What it means |",
+    "| --- | --- | --- |",
+    ...rows.map(([label, value, description]) => `| ${label} | ${value} | ${description} |`),
+  ];
+}
+
+function outcomeView(analysis: SliceAnalysis, kind: "match" | "segment", view: { wrestlerId: string; finishFamily?: string; titleConsequence?: string; heatDirection?: string }): string {
+  const name = wrestlerName(analysis, view.wrestlerId);
+  if (kind === "segment") return `${name}${view.heatDirection ? ` (${view.heatDirection} heat)` : ""}`;
+  const stakes = view.titleConsequence !== undefined && view.titleConsequence !== "none" ? `, title ${view.titleConsequence}` : "";
+  return `${name}${view.finishFamily ? ` (${view.finishFamily}${stakes})` : ""}`;
+}
+
+/** "planned finish: X (clean) → actual: Y (clean) [deviated: injury]" — the planned-versus-actual read for one slot or beat. */
+function executionLabel(analysis: SliceAnalysis, kind: "match" | "segment", execution: SliceShowSlot["execution"]): string {
+  if (execution.planned === undefined) return "";
+  const label = kind === "match" ? "planned finish" : "planned focus";
+  const actual = execution.actual === undefined ? "" : ` → actual ${outcomeView(analysis, kind, execution.actual)}`;
+  const adherence = execution.adherence === undefined
+    ? ""
+    : ` [${execution.adherence}${execution.deviationCause ? `: ${execution.deviationCause.replace(/_/g, " ")}` : ""}]`;
+  return `; ${label} ${outcomeView(analysis, kind, execution.planned)}${actual}${adherence}`;
+}
+
+function beatLabel(slot: SliceShowSlot): string {
+  return slot.beat === undefined
+    ? ""
+    : ` [beat: ${slot.beat.type.replace(/_/g, " ")}, escalation ${slot.beat.escalationLevel}, ${slot.beat.programId}]`;
+}
+
+function programTimeline(analysis: SliceAnalysis, timeline: SliceProgramTimeline): string[] {
+  const participants = timeline.participants.map((participant) => `${wrestlerName(analysis, participant.wrestlerId)} (${participant.role})`).join(" vs. ");
+  const ending = timeline.endWeek === undefined ? "still open" : `ended week ${timeline.endWeek}`;
+  const lines = [
+    `- \`${timeline.programId}\` ${timeline.creativeObjective} · priority ${timeline.priority} · escalation ${timeline.escalation} · ${timeline.status}${timeline.stakesTitleId ? ` · stakes ${timeline.stakesTitleId}` : ""}`,
+    `  - ${participants}: week ${timeline.startWeek} → target payoff week ${timeline.targetPayoffWeek}; ${ending}. ${timeline.premise}`,
+    ...(timeline.openReason === undefined ? [] : [`  - unresolved because: ${timeline.openReason}`]),
+  ];
+  for (const beat of timeline.beats) {
+    const kind = beat.compatibleSlotKind === "segment" ? "segment" : "match";
+    const window = `window weeks ${beat.earliestWeek}-${beat.latestWeek}`;
+    const aired = beat.scheduledWeek === undefined ? "" : `, week ${beat.scheduledWeek}`;
+    const blocked = beat.blockedByBeatTypes.length === 0 ? "" : `; blocked by unresolved ${beat.blockedByBeatTypes.map((type) => type.replace(/_/g, " ")).join(", ")}`;
+    lines.push(`  - beat ${beat.type.replace(/_/g, " ")} [escalation ${beat.escalationLevel}, ${beat.compatibleSlotKind}] ${beat.status}${aired} (${window})${blocked}${executionLabel(analysis, kind, beat.execution)}`);
+  }
+  for (const revision of timeline.revisions) {
+    const response = revision.response === undefined ? "" : ` / ${revision.response}`;
+    const changed = revision.reason === "initial_plan"
+      ? "plan created"
+      : revision.changedFields.length === 0 ? "changed nothing" : `changed ${revision.changedFields.join(", ")}`;
+    lines.push(`  - revision week ${revision.week}: ${revision.reason}${response} — ${changed}`);
+  }
+  return lines;
 }
 
 function signalsTable(signals: SliceAnalysis["signals"]): string[] {
@@ -52,7 +153,12 @@ function signalsTable(signals: SliceAnalysis["signals"]): string[] {
 
 function seedReport(seed: string, analysis: SliceAnalysis): string[] {
   const lines = [
-    `## Seed: \`${seed}\``, "", ...criteriaTable(analysis.criteria), "",
+    `## Seed: \`${seed}\``, "",
+    ...(analysis.criteriaAdvisory
+      ? [`SL-1…SL-10 below are ${analysis.criteriaHorizonWeeks}-week criteria shown for reference; this run covered ${analysis.weeks} weeks.`, ""]
+      : []),
+    ...criteriaTable(analysis.criteria, sliceCriteriaScope(analysis)), "",
+    "### Booking metrics (booking_ai §12)", "", ...bookingMetricsTable(analysis), "",
     "### Signals (advisory — not gates)", "", ...signalsTable(analysis.signals), "",
     "### Title lineages",
   ];
@@ -72,6 +178,9 @@ function seedReport(seed: string, analysis: SliceAnalysis): string[] {
     const end = story.resolveTick === undefined ? "still active" : `week ${week(analysis, story.resolveTick)}${story.resolvedAtPle ? " (PLE blowoff)" : ""}`;
     lines.push(`- ${participants}: ${start} → ${end}. ${story.description}`);
   }
+  lines.push("", "### Program timelines");
+  if (analysis.programTimelines.length === 0) lines.push("- No program plans were created.");
+  for (const timeline of analysis.programTimelines) lines.push(...programTimeline(analysis, timeline));
   lines.push("", "### PLE cards");
   for (const card of analysis.pleCards) {
     lines.push(`- Week ${card.week}: ${card.matches.map((match) => `${match.position.replace(/_/g, " ")} — ${match.participants.map((id) => wrestlerName(analysis, id)).join(" vs. ")}${match.titleId ? " [title]" : ""}${match.storyId ? " [story]" : ""}`).join("; ")}`);
@@ -83,7 +192,7 @@ function seedReport(seed: string, analysis: SliceAnalysis): string[] {
       const outcome = slot.kind === "segment"
         ? `${slot.dominantWrestlerId ? `; dominant: ${wrestlerName(analysis, slot.dominantWrestlerId)}` : ""}${slot.heatDeltas ? `; heat: ${slot.heatDeltas.map((delta) => `${wrestlerName(analysis, delta.wrestlerId)} +${delta.positive}/-${delta.negative}`).join(", ")}` : ""}`
         : slot.winnerWrestlerId ? `; winner: ${wrestlerName(analysis, slot.winnerWrestlerId)}` : "";
-      return `${slot.position.replace(/_/g, " ")} ${slot.kind} — ${participants}${slot.storyId ? " [story]" : ""}${slot.titleId ? " [title]" : ""}${outcome}`;
+      return `${slot.position.replace(/_/g, " ")} ${slot.kind} — ${participants}${slot.storyId ? " [story]" : ""}${slot.titleId ? " [title]" : ""}${beatLabel(slot)}${outcome}${executionLabel(analysis, slot.kind, slot.execution)}`;
     });
     lines.push(`- Week ${card.week} ${card.kind.toUpperCase()}: ${slots.join("; ")}`);
   }
@@ -112,7 +221,8 @@ export function runSlice(args: readonly string[], ctx: CliContext): string {
   const seedOption = extractOption(scenarioOption.rest, "seeds");
   const weekOption = extractOption(seedOption.rest, "weeks");
   const reportOption = extractOption(weekOption.rest, "report");
-  if (reportOption.rest.length > 0) throw new Error(`slice: unexpected argument "${reportOption.rest[0]}"`);
+  const jsonOption = extractOption(reportOption.rest, "json");
+  if (jsonOption.rest.length > 0) throw new Error(`slice: unexpected argument "${jsonOption.rest[0]}"`);
   const scenarioId = scenarioOption.value ?? "wwe-2026";
   const seedCount = parsePositiveInt(seedOption.value, 3, "seeds");
   const scenario = loadScenario(scenarioId, ctx.dataRoot);
@@ -140,15 +250,30 @@ export function runSlice(args: readonly string[], ctx: CliContext): string {
     crossSeed,
     volatility,
   }), "utf8");
+  let jsonPath: string | undefined;
+  if (jsonOption.value !== undefined) {
+    jsonPath = resolve(jsonOption.value);
+    mkdirSync(dirname(jsonPath), { recursive: true });
+    writeFileSync(jsonPath, `${JSON.stringify(sliceJsonDump({
+      scenarioId,
+      scenarioName: scenario.manifest.name,
+      weeks,
+      runs: analyses,
+      crossSeed,
+      volatility,
+    }), null, 2)}\n`, "utf8");
+  }
+  const advisory = analyses.some(({ analysis }) => analysis.criteriaAdvisory);
   const lines = [
     `# Six-month slice validation: ${scenario.manifest.name}`,
     "",
     `Runs: ${seedCount}; weeks per run: ${weeks}; humans: 0.`,
     `HTML report: ${reportPath}`,
+    ...(jsonPath === undefined ? [] : [`JSON dump: ${jsonPath}`]),
     "",
     "## Combined signals (advisory — not gates; use these to decide whether to retune)",
     "",
-    ...criteriaTable([crossSeed]),
+    ...criteriaTable([crossSeed], sliceCriteriaScope({ criteriaAdvisory: advisory, criteriaHorizonWeeks: scenario.config.sliceWeeks, weeks })),
     "",
     `MUST criteria across every seed: ${mustPass ? "all pass" : "some below threshold"}.`,
     `Within-seed SHOULD criteria met on ${shouldPass}/${seedCount} seed(s); SL-10: ${crossSeed.pass ? "PASS" : "FAIL"}.`,

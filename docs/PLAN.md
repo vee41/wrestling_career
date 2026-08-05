@@ -540,6 +540,168 @@ Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, s
 
 ---
 
+## Phases 3.12.1–3.12.9 — Creative-booking repair series (added 2026-08-05)
+
+**Why this series exists.** An 8-week, 2-seed headless run (`slice --weeks 8 --seeds 2`) against the as-built 3.9–3.12 stack showed the creative gate is currently unpassable for reasons that are defects and structural gaps, not tuning:
+
+- Story segments are scored as **lost matches** — both promo participants take the match loss edge ([popularity.ts:233-236](../packages/sim/src/popularity.ts#L233-L236)), so weekly programs bury their own stars: zero SL-1 risers, champions bleeding ~15 popularity while winning every defense, `burial` moments firing from routine main-event promos.
+- **Beat escalation stalls in the live loop**: the establish promo repeats verbatim for three straight weeks while `confrontation`/`go_home_angle` sit `beat_precondition_unmet` in the trace; `attack_save_interference`, `showcase_contender_match`, and `direct_rivalry_match` are never generated at all. PLE payoffs arrive via the legacy peaking-blowoff pass, not `ple_payoff` beats — two parallel booking systems, and only the legacy one delivers.
+- **Programs never end**: 6–8 of 10 stories still open at week 8; `abandoned` and `payoff_ready` are never assigned; a plan whose payoff window passes goes invisible but stays `active`; story `cooling` has no exit ([stories.ts:50](../packages/sim/src/stories.ts#L50)).
+- **Titles change cold**: a world-title change landed in a *mid-card* PLE slot with no build, below a promo-built feud; a popularity-100 act took the midcard belt; `change_championship` is never chosen as a creative objective, so no title change is ever creatively intended — belts only move via injury deviations.
+- **Replanning is an audit-only no-op**: `accelerate`/`extend`/`cool_down`/`abandon` and the `crowd_response`/`repetition`/`payoff_capacity` triggers are unused; revisions record a reason but change nothing.
+- **Injuries never cost a show** (14 injuries, 0 missed shows) yet still flip world titles mid-show.
+
+Phases 3.12.1–3.12.8 block Phase 3.13. Phase 3.12.9 must land before the 26-week reconnection (3.13 tasks 10–12) is tuned and called done.
+
+**Series rules** (in addition to the cross-cutting rules):
+
+- After each phase, re-run `slice --weeks 8 --seeds 2` and record the observed behavioral change in `playtest-notes.md`, citing the phase id. If a phase claims a fix the report cannot show, extend the report first (that is what 3.12.1 is for).
+- Every new constant is a `bookingTuning`/`popularityTuning`/`rolesTuning` config knob with a default in [config.ts](../packages/contracts/src/config.ts) — none inline.
+- **Delete, don't accrete.** When a phase retires a legacy path (blowoff pass, cold title pass, `bookingObjective`), remove the code and its dead config in the same change. The root structural problem found in review is two parallel booking systems; do not leave a third.
+- Unit tests that pass in isolation have already failed to catch these defects. Each phase's regression tests MUST include at least one **live-loop test** driving `runTick` across multiple weeks and asserting on the resulting world/trace — not only isolated fixtures.
+
+---
+
+## Phase 3.12.1 — Booking observability first ⚙ blocks 3.13
+
+**Goal:** Make every later fix measurable before making it. The slice harness currently reports popularity/title/story outcomes but none of the booking-quality metrics the gate needs — a run whose booking is broken can only be diagnosed by reading raw cards.
+
+1. **Program metrics in `analyzeSlice`** ([slice.ts](../packages/sim/src/slice.ts)): program completion and abandonment counts, median program duration, beats-before-payoff, PLE build coverage (share of PLE story/title matches with ≥2 prior resolved beats), direct-rematch and consecutive-pairing frequency, share of story advancement from segments, escalation-order violations, revisions by cause, planned-finish adherence rate with deviation causes, main-event and challenger diversity, unresolved-program backlog. These are the booking_ai §12 list; 3.13 task 10 then only has to *enforce* them.
+2. **Beat semantics in the reports:** the markdown and HTML show cards must label each slot with its beat type, program id, escalation level, and planned-versus-actual finish/focus. Add a per-program timeline section (planned → scheduled → resolved/skipped/invalidated beats, with revisions). Today the run report never shows a beat type at all.
+3. **JSON dump:** `slice --json <path>` serializes the per-seed `SliceAnalysis` (including the new metrics and booking traces) for programmatic diffing. Update the usage string in [cli.ts](../apps/cli/src/cli.ts).
+4. **Scope the SL table:** when `--weeks` ≠ 26, label SL-1…SL-10 rows as advisory ("26-week criteria; shown for reference") so an 8-week run isn't read as failing a bar it isn't measuring.
+5. **Fix unbounded growth:** `world.programPlanCandidates` gains two entries per tick and is never pruned (unlike `world.events`, pruned at [tick.ts:108](../packages/sim/src/tick.ts#L108)). Window it the same way; keep enough history for the report.
+
+**Testing:** metric unit tests against a scripted world with known program history; a snapshot test that the 8-week report contains beat types and a program timeline; JSON round-trips through a schema.
+
+**Done when:** the 8-week report answers "which beats did program X run, what was planned vs. actual, and why is it unresolved" without reading source; candidates are pruned; metrics land in both report formats.
+
+**As built (2026-08-05):** `analyzeSlice` now returns `bookingMetrics` (the booking_ai §12 set: program completion/abandonment/backlog, median duration, beats before payoff, PLE build coverage, direct-rematch and consecutive-pairing counts, segment share of story advancement, escalation-order violations, revisions by cause *and* by response, no-op revisions, planned-finish adherence with deviation causes, main-event and challenger diversity, beat counts by type and status — computed in [booking-metrics.ts](../packages/sim/src/booking-metrics.ts)) plus `programTimelines` (planned → scheduled → resolved/skipped beats with windows, blocked prerequisites, planned-versus-actual execution, revisions with the intent fields each one actually changed, and an `openReason` for every unresolved plan). Every show-card slot carries its beat type, program id, escalation level, and planned-versus-actual finish/focus in both report formats. `slice --json <path>` writes a strict-schema dump of every per-seed analysis ([slice-json.ts](../apps/cli/src/slice-json.ts)), and SL rows on a run whose length differs from the scenario's `sliceWeeks` are labelled advisory. `world.programPlanCandidates` is windowed by the new `booking.programCandidateRetentionTicks` knob (30), holding the 26-week trace at 1168 entries instead of 1860-and-growing with identical run outcomes. Role utilization and action-to-consequence delay remain with Phase 3.13 task 10 as planned. Baseline metrics for the 8-week, 2-seed run are recorded in [playtest-notes.md](playtest-notes.md).
+
+---
+
+## Phase 3.12.2 — Segments are appearances, not lost matches ⚙ blocks 3.13
+
+**Goal:** Stop the popularity model from treating every promo participant as a match loser. This is the single highest-impact defect: it makes programs *cost* popularity, so the hottest acts are the most damaged, and no one can rise.
+
+1. **Guard the win/loss edge by result kind** ([popularity.ts:233-236](../packages/sim/src/popularity.ts#L233-L236)): `"winnerWrestlerId" in result` is false for segment results, so `won` is false for *everyone* and both participants eat `−lossEdgeBase` plus the "buried by a lesser opponent" term. For segments, derive the edge from the segment's own facts instead: the dominant participant gets a small positive edge scaled by opponent popularity gap (capped well below a match win); non-dominant participants get ~0, not a burial — losing a promo exchange is not losing clean in a main event. New knobs: `segmentDominantEdgeFactor`, `segmentNonDominantEdge` (default 0) in `popularityTuningSchema`.
+2. **Audit the intent→heat mapping** ([segment.ts](../packages/sim/src/segment.ts), [popularity.ts:211-221](../packages/sim/src/popularity.ts#L211-L221)): in the observed run, faces accumulate only negative heat from story promos week after week. A planned segment's `intendedHeatDirection` must translate to heat consistent with alignment — a face building sympathy gains `positiveHeat`, a heel generating hostility gains `negativeHeat`; `mixed` splits by alignment. Write the mapping as a table in a code comment and test each row.
+3. **Re-check `burial`/`breakout` moment attribution** ([popularity.ts:289-297](../packages/sim/src/popularity.ts#L289-L297)) after 1–2: a routine story promo between comparable stars must produce no moment at all; the `else reason = "burial"` fallback must not fire for segment appearances with near-zero edge.
+
+**Testing:** live-loop test: two top stars run a 3-week promo program; neither loses more than ~2 popularity and no `burial` events fire; a match burial still fires as before. Re-run the 8-week slice: expect champions to hold ~their starting popularity through a defended reign and net roster popularity near zero.
+
+**Done when:** segments never apply the match loss edge; heat direction respects alignment; the 8-week run shows a positive-or-flat popularity total and at least one wrestler visibly rising from a strong program.
+
+**As built (2026-08-05):** [popularity.ts](../packages/sim/src/popularity.ts) discriminates the result kind once (`isMatch`) and scores a segment on its own facts: the dominant participant takes `max(0, opponentGap) * popularity.segmentDominantEdgeFactor` (0.15, versus the 0.5 match-win factor) and everyone else takes `popularity.segmentNonDominantEdge` (0, bounded at −5 so a scenario cannot turn an appearance back into a burial). The same flag retires the terminal `burial` fallback for appearances with no competitive result, so a routine promo emits no moment at all. The intent→heat mapping is now two tables in [segment.ts](../packages/sim/src/segment.ts): `HEAT_INTENT` owns magnitude and direction, and `heatPool` resolves direction × alignment (stated `positive`/`negative` land as played, `mixed` is resolved by the character, `neutral` moves nothing) — a booked beat's `intendedHeatDirection` now actually drives heat, speaking for the wrestler it books as dominant while the segment runs as booked. Every row of that table is tested, plus two live `runTick` loops. Measured on the 8-week, 2-seed run: segment `burial` moments 16/18 → **0**, cumulative popularity from segments −60/−51 → +53/+57 (worst single act −18 → −3), net roster popularity −11/−50 → +57/+55, falls 2/3 → 0/0, and CM Punk's two-defence world-title reign 91→76 → 91→88 and 91→96. **One regression to hand on:** at 26 weeks this flips SL-1 from FAIL to PASS (1/0/1 → 4/3/4 risers) but SL-2 from PASS to FAIL (10/9/4 → 2/2/1 falls) — the old fall count was mostly promo burials, and GDD §10 requires falls to be *active* (burials, losing streaks, depushes, lost titles). Real fall sources are owed by 3.12.5's planned finishes and the 3.13 tuning pass; see [playtest-notes.md](playtest-notes.md).
+
+---
+
+## Phase 3.12.3 — Beat progression and plan lifecycle repair ⚙ blocks 3.13
+
+**Goal:** Make the four-beat skeleton actually advance in the live tick loop, and make every program end. Phase 3.10's isolated tests pass while the composed system repeats the establish promo forever — this phase fixes the wiring, not the model.
+
+1. **Root-cause resolved-beat feedback.** Write the failing live-loop test *first*: seed the default scenario, run 4 weeks of `runTick`, and assert the seeded programs advance through ≥3 distinct beat types with the prerequisite chain unblocking week over week. Known suspects, in order: (a) the participants-already-used revert at [gm.ts:384](../packages/sim/src/gm.ts#L384) bouncing beats back to `provisional` so the establish beat is re-selected instead of its successor; (b) the committed slot losing `plannedBeatId` between one-show-ahead commitment and `resolveCard` ([card.ts:10](../packages/sim/src/card.ts#L10)), so `recordResolvedBeat` ([planned-beats.ts:8](../packages/sim/src/planned-beats.ts#L8)) never fires; (c) the dangling no-op noted at [gm.ts:333-335](../packages/sim/src/gm.ts#L333-L335) ("make it eligible for the next composition attempt") — implement it.
+2. **One payoff authority.** The legacy peaking-blowoff pass ([gm.ts:411-436](../packages/sim/src/gm.ts#L411-L436)) currently delivers PLE story matches independently of beats, which is why stories resolve while their plans don't. Restrict it to stories *without* an active program plan (a shrinking legacy case), and make the `ple_payoff` beat the normal path: its resolution resolves the beat, the plan (`planned-beats.ts:18`), *and* the public story (winner momentum + relationship consequences, as `resolveBlowoff` does today at [stories.ts:73](../packages/sim/src/stories.ts#L73)). One resolved fact set, whichever path produced it.
+3. **Plans must terminate.** Assign the missing statuses: a plan whose final prerequisite beat resolves becomes `payoff_ready`; a plan whose `targetPayoffTick` passes unresolved gets an explicit revision — extend to the next PLE (once) or `abandoned` — never a silent zombie. Add the revision-reason token this needs (`payoff_missed`) to `programRevisionReasonSchema` and booking_ai §9 in the same change. World validation may then assert: no `active` plan whose payoff tick is in the past.
+4. **Story `cooling` gets an exit** ([stories.ts:50](../packages/sim/src/stories.ts#L50)): a cooling story either re-heats (interest recovers past the building threshold) or resolves quietly after N idle weeks (config `coolingResolveWeeks`), releasing its participants and abandoning its plan with a revision.
+5. **Skipped-beat hygiene:** when a beat is `skipped` by window expiry ([program-plans.ts:253](../packages/sim/src/program-plans.ts#L253)), the plan must respond (accelerate the next beat's window or extend) rather than silently thinning to nothing — wire this through the 3.12.4 revision primitives if landing together, or a minimal window-shift here.
+
+**Testing:** the live-loop test from task 1 (this is the phase's acceptance test); a fixture where a payoff window passes and the plan visibly extends once then abandons; a cooling story resolves and frees its participants; the blowoff pass never fires for a story with an active plan.
+
+**Done when:** an 8-week run shows programs advancing establish → complicate/escalate → payoff with no beat type repeated more than twice per program, zero `active` plans with past payoff ticks, and the unresolved-story backlog ≤2 at week 8.
+
+---
+
+## Phase 3.12.4 — Replanning with teeth ⚙ blocks 3.13
+
+**Goal:** Implement booking_ai §9 for real. Today `replanForExecutionDeviation`/`replanForTitleChange` ([program-plans.ts:398-409](../packages/sim/src/program-plans.ts#L398-L409)) pass the unchanged plan snapshot back, so every "revision" is a no-op audit entry, and only `substitute_beat`/`pivot` of the six response types exist.
+
+1. **Response primitives that mutate:** `accelerate` (pull `targetPayoffTick` to an earlier show, compress remaining beat windows), `extend` (push payoff to the next PLE, insert one keep-warm beat), `cool_down` (freeze beat scheduling for N ticks, story decays naturally), `abandon` (plan → `abandoned`, story → cooling/resolved, participants released). Each appends a revision whose previous/new intent snapshots actually differ; each emits `program_plan_revised`.
+2. **Wire the unused triggers:** `crowd_response` (story `audienceInterest` drops ≥N below its peak while the plan is active, or executed heat repeatedly contradicts the intended direction) → cool down, accelerate, or pivot; `repetition` (direct-match budget exhausted or the same beat type resolved 3× in one program) → accelerate or abandon; `payoff_capacity` (more payoff-ready programs than PLE card slots) → extend the coldest program. Thresholds are config knobs.
+3. **Deviation responses become real:** an execution deviation (e.g. the planned winner got injured mid-show) must produce a *changed* plan — pivot the intended payoff or accelerate — chosen deterministically from the deviation cause, not just recorded.
+4. **Player influence revises plans:** an accepted `pitch_feud` about a wrestler in an active program, or a proposal/reactive response that materially affects one (refused booking, accepted elevation), appends a `player_pitch`/`player_response` revision with a real effect — priority boost, participant catalyst, or accelerate — making the two unused revision-reason tokens reachable. The tick order already resolves interactions before card commitment (booking_ai §4), so no pipeline change is needed; pitches about wrestlers *not* in a program stay on the existing story-seeding path and become planner catalysts via 3.12.9.
+
+**Testing:** fixtures forcing each trigger produce the expected response with a materially-different intent snapshot; an accepted pitch fixture produces a `player_pitch` revision visible in the trace; deterministic same-seed replay reproduces identical revisions; the 8-week run's "revisions by cause" metric (3.12.1) is non-empty and explicable.
+
+**Done when:** every revision in a slice run changes the plan it revises; all six response tokens and every trigger reason listed here (including `player_pitch`/`player_response`) are reachable in tests; no revision-recording path passes `snapshot(plan)` unchanged.
+
+---
+
+## Phase 3.12.5 — Injuries that cost shows ⚙ blocks 3.13
+
+**Goal:** An injury must be a calendar fact, not a same-week condition dip. The observed run had 14 injuries, zero missed shows (SL-8 fail) — while an unlucky mid-show injury silently flipped a world title through a deviation.
+
+1. **Enforced absence:** when an injury event fires, set recovery so the wrestler stays below `BOOKABLE_CONDITION_THRESHOLD` for at least one full show week (tune recovery rate and injury severity so this holds; alternatively an explicit `unavailableUntilTick` on the wrestler, contracts change + schemaVersion bump). The existing missed-show/return arc emission then produces SL-8's shape.
+2. **Severity tiers as config**, not code: minor (misses ~1 show) / serious (misses a PLE cycle), rolled from `physicalCost` and condition at injury time.
+3. **Deviations get rarer and louder:** an injury-caused planned-finish deviation should be an uncommon, material story event. Ensure it also triggers a 3.12.4 replan (pivot or extend), and that the title consequence of a deviated finish is a planner decision on the replan, not an automatic mid-card title change.
+
+**Testing:** live-loop: an injured wrestler misses ≥1 show, their scheduled beats are invalidated and substituted (existing path at [program-plans.ts:219](../packages/sim/src/program-plans.ts#L219)), and they return; a deviation-injury on a title match produces a replan revision rather than a silent lineage change.
+
+**Done when:** an 8-week run shows at least one absence-and-return arc when injuries occur; no title changes hands as a side effect of an injury deviation without a corresponding plan revision.
+
+---
+
+## Phase 3.12.6 — Complete the beat catalog; vary the beat outcomes ⚙ blocks 3.13
+
+**Goal:** Programs must be built from more than promos. Three of the seven beat types are never generated ([program-plans.ts:196-205](../packages/sim/src/program-plans.ts#L196-L205) always emits promo → confrontation → go-home → payoff), every beat's intended dominant is the same wrestler, and no TV story *match* ever happens.
+
+1. **Skeleton archetypes per creative objective:** `establish_challenger` includes `showcase_contender_match` beats (the challenger beats a third-party opponent — pull from the bookable non-story roster; this is what makes a challenger *credible*); `settle_grudge` includes `attack_save_interference` and may spend a `direct_rivalry_match` on TV mid-program (respecting `directMatchCooldownTicks` and consuming `directMatchRepetitionBudget` — currently written, never read); `retain_championship`/`elevate_act` keep segment-heavy builds. Keep the catalog at the seven existing types.
+2. **Momentum trading:** vary `intendedDominantWrestlerId` and heat direction across the skeleton — the antagonist stands tall in the escalation/go-home beat, the protagonist takes the payoff (or inverted for a heel-win plan). A program where one side wins every beat reads as a squash, not a feud. Encode per-archetype in the skeleton generator; no new schema.
+3. **Third-party participants:** showcase and interference beats introduce wrestlers beyond the core pair via `optionalParticipantWrestlerIds` (schema already supports it). Hard constraints (availability, double-booking) already apply; verify the composer merges them (partially present at [gm.ts:376-393](../packages/sim/src/gm.ts#L376-L393)).
+
+**Testing:** golden programs per archetype asserting the beat-type sequence and alternating dominance; live-loop: an `establish_challenger` program produces ≥1 TV showcase win for the challenger before the PLE; direct-rivalry budget is consumed and enforced.
+
+**Done when:** an 8-week run generates all seven beat types across its programs (visible in the 3.12.1 report), at least one program advances through a TV match beat, and no program's beats share a single intended dominant throughout.
+
+---
+
+## Phase 3.12.7 — Card shape, score-driven selection, one objective system ⚙ blocks 3.13
+
+**Goal:** Make a week of TV read like TV, make the documented soft score actually select, and end the two-objective-systems split.
+
+1. **TV main event is usually a match.** Every observed TV main event was a promo. Add a card-shape rule: prefer a match in `main_event` on TV (config `tvMainEventMatchBias`, e.g. a strong score bonus for match candidates in the top slot); a segment main event stays possible for a white-hot angle. Ensure `assignPositions` ([gm.ts:249](../packages/sim/src/gm.ts#L249)) considers slot kind, not only heat.
+2. **Same-slot fatigue:** penalize placing the same program in the same position on consecutive shows (the run had identical main-event/opener assignments three weeks straight). Config `repeatPlacementPenalty`.
+3. **Score selects, order reserves.** Passes 1–2 of `bookShow` (due payoffs, closing windows, obligations) stay reservation-based per 3.12's design. Passes 3+ (other eligible beats, story slots, rotation) must rank candidates by `scoreComponents` ([gm.ts:262](../packages/sim/src/gm.ts#L262)) *before* commitment instead of computing it afterward for the trace. Add the missing `repeat-pairing penalty` term (PLAN 3.12's soft score lists it; it was never implemented) and make `promotion objective fit` discriminate (it is currently a flat 20.0 for every candidate — see any run trace).
+4. **One objective system.** Retire the legacy `bookingObjective` + `rotateBookingObjectiveIfDue` ([gm.ts:21](../packages/sim/src/gm.ts#L21), [world.ts:43-48](../packages/contracts/src/world.ts#L43-L48)) — Phase 3.9 task 5 required this and it never happened. `gmObjective` (PLE-cycle persistence) becomes the only creative direction; `objectiveFit` and slot `gmIntent` read from it; `prepare_major_event` gains its PLE-proximity meaning (favor program beats over rotation in go-home week) or is deleted. Contracts change + schemaVersion bump; migrate fixtures.
+5. **Rotation serves the midcard, not noise:** rotation filler results should feed the contender pipeline — track recent rotation win streaks and surface them to the planner as `establish_challenger`/`elevate_act` catalysts (consumed in 3.12.8/3.12.9). Minimal here: expose a derived "form" read (last-N rotation results) the planner can query; no new stored state.
+
+**Testing:** golden cards: TV with a match main event and a segment elsewhere; a program not repeating a position three shows running; a trace where two valid candidates' selection order matches their score order; grep-level test that `bookingObjective` no longer exists in contracts or sim.
+
+**Done when:** the 8-week run's TV cards each have a match main event unless a program is peaking hot; traces show score-ordered selection with a live repeat-pairing penalty; one objective system remains.
+
+---
+
+## Phase 3.12.8 — Title programs: challengers built, changes planned ⚙ blocks 3.13
+
+**Goal:** No cold title matches. A belt is defended as the payoff of a program; title changes are creative decisions made weeks ahead; title stature governs placement and eligibility. This finishes what Phase 3.11 started when it moved title policy out of `resolveMatch`.
+
+1. **The staleness clock triggers the planner, not a match.** Replace the day-of PLE passes (stale-title contender reservation [gm.ts:397-408](../packages/sim/src/gm.ts#L397-L408) and cold title defense [gm.ts:440-463](../packages/sim/src/gm.ts#L440-L463)): when a belt approaches staleness (`titleDefenseStalenessWeeks − leadWeeks`) or a contender is ready, the *planner* creates a title program (`retain_championship` or `change_championship`) targeting the next PLE, with the champion as participant and the challenger chosen by `highestScoringContender` ([gm.ts:167](../packages/sim/src/gm.ts#L167)) — which becomes a planning input, not a booking pass. A same-week cold defense remains only as a last-resort fallback when no program could be formed in time; it must be logged in the trace as `fallback_cold_defense`.
+2. **`change_championship` becomes reachable.** `objectiveFor` ([program-plans.ts:31](../packages/sim/src/program-plans.ts#L31)) selects it when structured conditions hold: champion momentum sustained negative, reign length past a config threshold, or a challenger whose popularity+momentum exceeds the champion's by a margin — thresholds in `bookingTuningSchema`. `finishForPlannedBeat` ([gm.ts:134](../packages/sim/src/gm.ts#L134)) already honors it. A planned title change at a PLE payoff is the *only* normal route for a belt to move. Finish-family selection follows booking_ai §7's alignment-texture tendencies as config-weighted biases (heel winner leans `dirty`/`interference` when the program should continue, `clean` for a decisive statement; face winner leans `clean`) — alignment biases the *texture*, never the winner.
+3. **Title stature rules:** (a) a world-title match may never be placed below `upper` (hard constraint in `assignPositions` — the stakes bonus usually main-events it; this floor catches the pathological case observed, a world-title change in a mid slot); (b) midcard-title challengers respect a stature ceiling — a wrestler above `midcardTitleStarPowerCeiling` (config, ~80) does not chase the IC belt, keeping it a proving ground (extends the role-based `titleEligibility` from 3.7.3 with a status axis).
+4. **The champion always has direction:** when a title program resolves, the planner immediately starts the next one or explicitly rests the belt with a revision (bounded by the staleness clock). The world champion should effectively never be programless — that is what keeps them on TV.
+5. **Kill the 8% TV title roll** ([gm.ts:476](../packages/sim/src/gm.ts#L476)): TV title matches happen only as planned program beats (story-justified), per Phase 3.5 task 4's original intent.
+
+**Testing:** golden fixtures: a challenger built through ≥2 TV beats into a PLE title match (this is 3.13 fixture 4 — build it here); a planned `change_championship` program moves the belt at the PLE with a `dirty`/`clean` finish as planned; a world-title match never appears below `upper` across a multi-seed run; a top-starPower act is never booked for the IC belt; a belt with no formable program falls back with the trace marker.
+
+**Done when:** in an 8-week run every title match is a program payoff (or a trace-marked fallback), at least one title program includes a planned finish whose consequence (`retain`/`change`) was decided at plan time, and title lineage changes only through planned finishes or explicit replans.
+
+---
+
+## Phase 3.12.9 — Story variety, post-payoff life, and the long horizon ⚙ before 26-week tuning
+
+**Goal:** Break the one-new-clone-story-per-week rhythm, give feuds aftermath, and give the calendar identity. Required before 3.13's 26-week reconnection is tuned; the 8-week gate can pass without the calendar work but not without catalyst variety.
+
+1. **Catalyst diversity** ([director.ts:25-56](../packages/sim/src/director.ts#L25-L56)): stop pairing "the top two idle wrestlers" every week. Generate candidate catalysts from world facts per booking_ai §8: relationship extremes (high `rivalry` → `grudge`; high `affinity` + competing pushes → `alliance_strain` and, on a triggering event, `betrayal`), title scene (contender form from 3.12.7 task 5 → `title_pursuit`), crowd response (a hot mid-carder → elevation catalyst), finish texture of recently resolved programs (an unjust finish → rematch/grudge catalyst, per booking_ai §7), and alignment: prefer face-vs-heel pairings (soft score term, config `alignmentOppositionBonus`) — booking_ai §8 lists "alignment and relationship fit" and nothing implements it. `betrayal`, `redemption`, `authority_defiance` tensions must each be reachable from a structured condition; `turn_character`/`redeem_act` objectives are designed in booking_ai §16 and land in Phase 3.14 — they stay in the enums, dormant, and this phase must not block on them.
+2. **Portfolio-driven cadence:** create a new story/program when the active portfolio drops below its target band (3–5), not one per show tick unconditionally ([director.ts:56](../packages/sim/src/director.ts#L56)). The observed run mechanically opened a story every week into a growing backlog.
+3. **Post-payoff aftermath:** after a payoff resolves, both participants get a rotation-rest bias for N weeks (config `postPayoffRestWeeks`) and a direct-match cooldown extension; a close, high-quality blowoff *or an unjust finish* (`dirty`/`interference` — finish texture per booking_ai §7) may spawn a follow-up program (`extend`-style revision or a new plan with escalated stakes and the remaining `directMatchRepetitionBudget`) — replacing the current 40% same-story reopen at [stories.ts:73](../packages/sim/src/stories.ts#L73) with a planner decision. Losers pivot: the planner may seed the loser into a `redeem_act`/`elevate_act` catalyst rather than dropping them to pure rotation.
+4. **PLE identity:** read `promotion.pleCalendar` (loaded since Phase 3.6, never consumed) — name shows in events/reports, and add an optional `tier: "marquee" | "standard"` to the calendar schema (update [scenario-data-spec.md](scenario-data-spec.md) and `data/wwe-2026/promotion.json` in the same change). The planner may target a marquee PLE with a longer, two-cycle program (payoff at the marquee event, a keep-warm beat cadence in between) for its highest-priority program. This is the minimal long-horizon mechanism — full season arcs stay out of scope.
+
+**Testing:** multi-seed 8-week runs produce ≥3 distinct tension types and at least one face-vs-heel program; portfolio size stays in band with no unbounded backlog; a resolved feud's participants rest ≥1 show from rotation; a marquee-targeted program spans two cycles in a scripted fixture.
+
+**Done when:** story premises in a slice read as varied wrestling reasons rather than one cloned sentence; the backlog metric stays bounded over 26 weeks; PLEs have names in the report; at least one program pays off on a marquee event across the seed set.
+
+---
+
 ## Phase 3.13 — Eight-week / two-PLE creative-booking slice ⚠ THE CREATIVE GATE
 
 **Goal:** Prove `ProgramPlan → beats → planned finishes → weekly card composition` in an eight-week headless run covering two four-week PLE cycles. This is the fast readability gate before reconnecting the architecture to the full 26-week balance gate.
@@ -560,11 +722,30 @@ Bigger than 3.7.2 — touches contracts, sim (booking, resolution, popularity, s
 9. Conduct and record a qualitative read-through in `playtest-notes.md`. The report must be describable as premises, escalation, consequences, and payoffs rather than as meter changes or repeated pairings.
 
 **Reconnect the 26-week gate:**
-10. Run the same planner through the existing 26-week harness. Extend analysis with program completion/abandonment, beats-before-payoff, PLE build coverage, direct-rematch frequency, segment share, escalation violations, revisions by cause, finish adherence, main-event/challenger diversity, role utilization, action-to-consequence delay, and unresolved-program backlog.
+10. Run the same planner through the existing 26-week harness. The booking metrics (program completion/abandonment, beats-before-payoff, PLE build coverage, direct-rematch frequency, segment share, escalation violations, revisions by cause, finish adherence, main-event/challenger diversity, unresolved-program backlog) land in Phase 3.12.1 — this step verifies them at 26 weeks and adds the remainder: role utilization and action-to-consequence delay.
 11. Change the automated slice gate so every MUST criterion actually fails the test when below threshold. Treat prior prose in `playtest-notes.md` as historical; record fresh results for the implemented planner and current tuning.
 12. Tune program, card, title, roster, and popularity behavior together across multiple fixed seeds. Do not tune popularity in isolation to compensate for incoherent booking.
 
 **Done when:** the eight-week creative gate passes every deterministic and qualitative requirement; the 26-week harness uses the new planner, enforces MUST failures, and has fresh recorded results; root tests/typecheck pass; Phase 4 narrative work can consume stable match, segment, plan-revision, and show facts without inventing booking logic.
+
+---
+
+## Phase 3.14 — Character turns (after the creative gate)
+
+**Goal:** Booking-driven face/heel turns per [booking_ai §16](booking_ai.md#16-character-turns): the sim recognizes when the crowd or a relationship has made a turn right, plans it as a `turn_character` program, and executes it on a beat. Not required by the 3.13 gate; may run in parallel with Phase 4. The player-side path (spec's turn proposal, `propose_character_change`) already exists — this phase adds the GM-initiated path and the shared execution mechanics.
+
+**Contracts:**
+1. A structured `character_turned` event (wrestler, previous/new alignment, trigger cause, program/beat refs) and any plan field the turn beat needs (e.g. `turnsWrestlerId` on the plan or beat). Bump `schemaVersion`; regenerate fixtures. New tuning knobs in `bookingTuningSchema`/`popularityTuningSchema`: contradiction margin + duration, staleness window, heat conversion factor, protection-window weeks.
+
+**Sim:**
+2. **Triggers** (all config-gated, rare — booking_ai §16): crowd contradiction (a heel whose `positiveHeat` exceeds `negativeHeat` by the margin for the duration, or the inverse for a face); staleness (cold at current alignment past the window); betrayal catalyst (resentment/rivalry thresholds crossed inside an `alliance_strain` program); accepted player request. Each produces a `turn_character` program candidate through the normal 3.12.9 catalyst path. **Hard constraint: at most one active `turn_character` program.**
+3. **Execution through beats:** the flip happens at resolution of a designated beat (typically `attack_save_interference`, or the payoff) — no new beat type. On resolution: flip `alignment`, emit `character_turned`, and *convert* heat by the conversion factor rather than resetting it (the crowd energy that motivated the turn carries over).
+4. **Aftermath:** seed the follow-up per booking_ai §7/§16 — heel turn → grudge/`betrayal` program against the former ally; face turn → `redeem_act` arc — and apply a protection window (planner avoids burying the turned act for N weeks).
+5. **Consent and refusal:** human-controlled wrestlers turn only via an accepted proposal/response; an AI wrestler may refuse based on stance/personality, cancelling the plan with a recorded revision (reuse the 3.12.4 machinery).
+
+**Testing:** a cheered-heel fixture crosses the contradiction threshold → turn program → beat resolution flips alignment with converted heat and a `character_turned` event; a refusal fixture cancels with a revision; the one-active-turn constraint holds; a 26-week run produces ≤2 turns, each narratable from events alone (trigger → program → beat → consequence).
+
+**Done when:** `turn_character` and `redeem_act` are reachable in live runs; turns are rare, consented where required, and fully explainable from the event log; `slice.test.ts` and the 3.13 gate tests still pass.
 
 ---
 

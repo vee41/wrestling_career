@@ -1,11 +1,38 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_WORLD_CONFIG,
   careerStanceSchema,
+  configFileSchema,
+  promotionSchema,
+  relationshipsFileSchema,
+  rosterFileSchema,
+  scenarioManifestSchema,
+  scenarioSchema,
+  storiesFileSchema,
+  titlesFileSchema,
   type CareerStance,
+  type Scenario,
   type WorldState,
 } from "@wrestling/contracts";
 import { createRng } from "./rng.js";
+
+const DEFAULT_SCENARIO_DIRECTORY = fileURLToPath(new URL("../../../data/wwe-2026/", import.meta.url));
+
+/** The shipped default scenario, loaded straight from `data/` for tests that need real world content. */
+export function loadDefaultScenario(): Scenario {
+  const json = (filename: string): unknown => JSON.parse(readFileSync(`${DEFAULT_SCENARIO_DIRECTORY}${filename}`, "utf8"));
+  return scenarioSchema.parse({
+    manifest: scenarioManifestSchema.parse(json("scenario.json")),
+    promotion: promotionSchema.parse(json("promotion.json")),
+    roster: rosterFileSchema.parse(json("roster.json")),
+    titles: titlesFileSchema.parse(json("titles.json")),
+    relationships: relationshipsFileSchema.parse(json("relationships.json")),
+    stories: storiesFileSchema.parse(json("stories.json")),
+    config: configFileSchema.parse(json("config.json")),
+  });
+}
 
 const STANCES = careerStanceSchema.options;
 

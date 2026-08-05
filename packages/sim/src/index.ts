@@ -17,7 +17,12 @@ export { planPrograms, reviseProgramPlan, createBeatSkeleton, selectPlannedBeats
 export { resolveCard, type CardResolution } from "./card.js";
 export { resolveSegment, resolveSegments } from "./segment.js";
 export {
-  analyzeSlice, CROSS_SEED_INTRO, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, SL_CRITERION_DESCRIPTIONS,
-  type CrossSeedSignals, type SliceAnalysis, type SliceCriterion, type SliceMatchImpact,
+  analyzeSlice, CROSS_SEED_INTRO, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, SL_CRITERION_DESCRIPTIONS, sliceCriteriaScope,
+  type CrossSeedSignals, type SliceAnalysis, type SliceCriterion, type SliceMatchImpact, type SliceShowCard, type SliceShowSlot,
   type SlicePopularityLogEntry, type SlicePopularityTotals, type SliceRun, type SliceSignals,
 } from "./slice.js";
+export {
+  analyzeBooking, BOOKING_METRIC_DESCRIPTIONS,
+  type SliceBookingMetrics, type SliceOutcomeView, type SlicePlannedExecution,
+  type SliceProgramBeat, type SliceProgramRevision, type SliceProgramTimeline, type SliceSlotBeat,
+} from "./booking-metrics.js";

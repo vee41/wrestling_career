@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MatchResult } from "@wrestling/contracts";
+import type { MatchResult, SegmentResult, WorldState } from "@wrestling/contracts";
 import { updatePopularity } from "./popularity.js";
 import { createTestWorld } from "./test-helpers.js";
 import { findPopularity } from "./lookups.js";
@@ -10,6 +10,27 @@ import { updateChampionships } from "./title.js";
 
 function ctxAt(tick: number): TickContext {
   return { tick, rng: createRng(`popularity-test:${tick}`), ids: createIdFactory(tick), events: [] };
+}
+
+function levelAt(world: WorldState, popularityValue: number, ...wrestlerIds: string[]): void {
+  for (const id of wrestlerIds) {
+    const popularity = findPopularity(world, id);
+    popularity.generalPopularity = popularity.starPower = popularity.currentReaction = popularityValue;
+    popularity.momentum = 0;
+  }
+}
+
+/** A promo with no winner, so the model has to score it as an appearance. */
+function promoResult(participantWrestlerIds: string[], dominantWrestlerId: string): SegmentResult {
+  return {
+    id: "promo", segmentSlotId: "promo-slot", showId: "show", participantWrestlerIds, dominantWrestlerId,
+    quality: 55, crowdResponse: 55, storyAdvancement: 20,
+    intents: Object.fromEntries(participantWrestlerIds.map((id) => [id, "escalate_rivalry" as const])),
+    performances: participantWrestlerIds.map((id) => ({
+      wrestlerId: id, performanceScore: 55,
+      positiveHeatDelta: id === dominantWrestlerId ? 2 : 1, negativeHeatDelta: 0, storyAdvancement: 12,
+    })),
+  };
 }
 
 describe("updatePopularity", () => {
@@ -35,6 +56,65 @@ describe("updatePopularity", () => {
     // credibility edge rather than a workrate-derived climb or collapse.
     expect(findPopularity(world, "wrestler-0").generalPopularity).toBe(50);
     expect(findPopularity(world, "wrestler-1").generalPopularity).toBe(47);
+  });
+
+  it("never applies the match loss edge to a segment appearance", () => {
+    const world = createTestWorld({ wrestlerCount: 2, humanCount: 0 });
+    levelAt(world, 70, "wrestler-0", "wrestler-1");
+    const promo = promoResult(["wrestler-0", "wrestler-1"], "wrestler-0");
+    updatePopularity(world, ctxAt(1), [], [promo]);
+
+    // Comparable stars, so neither carried a gap: the exchange is worth no
+    // edge either way, and specifically not `-lossEdgeBase` for both.
+    for (const performance of promo.performances) expect(performance.popularityImpact?.edge).toBe(0);
+    expect(findPopularity(world, "wrestler-0").generalPopularity).toBeGreaterThanOrEqual(69);
+    expect(findPopularity(world, "wrestler-1").generalPopularity).toBeGreaterThanOrEqual(69);
+    // A routine promo between equals is not a moment of any kind.
+    expect(world.events.filter((event) => event.type === "popularity_changed")).toHaveLength(0);
+  });
+
+  it("gives the dominant promo participant a modest edge over a bigger name, far below a match win", () => {
+    const world = createTestWorld({ wrestlerCount: 2, humanCount: 0 });
+    levelAt(world, 40, "wrestler-0");
+    levelAt(world, 90, "wrestler-1");
+    const promo = promoResult(["wrestler-0", "wrestler-1"], "wrestler-0");
+    updatePopularity(world, ctxAt(1), [], [promo]);
+
+    const carried = promo.performances[0]!.popularityImpact!.edge;
+    const outTalked = promo.performances[1]!.popularityImpact!.edge;
+    // popularity.ts scores a match win over the same 50-point gap at gap * 0.5.
+    const matchWinEdge = 50 * 0.5;
+    expect(carried).toBeGreaterThan(0);
+    expect(carried).toBeLessThan(matchWinEdge / 2);
+    expect(outTalked).toBe(0);
+  });
+
+  it("does not read a solo promo as a clean loss to a lesser opponent", () => {
+    const world = createTestWorld({ wrestlerCount: 1, humanCount: 0 });
+    levelAt(world, 80, "wrestler-0");
+    const promo = promoResult(["wrestler-0"], "wrestler-0");
+    updatePopularity(world, ctxAt(1), [], [promo]);
+
+    // With no opponent at all the match edge would have read the wrestler's
+    // own popularity as the gap they lost to.
+    expect(promo.performances[0]!.popularityImpact?.edge).toBe(0);
+    expect(world.events.some((event) => event.data.reason === "burial")).toBe(false);
+  });
+
+  it("still fires a burial when a top star loses clean to a much smaller opponent", () => {
+    const world = createTestWorld({ wrestlerCount: 2, humanCount: 0 });
+    levelAt(world, 90, "wrestler-0");
+    levelAt(world, 50, "wrestler-1");
+    const upsetLoss: MatchResult = {
+      id: "burial-match", matchSlotId: "slot", showId: "show", participantWrestlerIds: ["wrestler-0", "wrestler-1"], winnerWrestlerId: "wrestler-1",
+      quality: 50, crowdResponse: 50, chemistry: 50, storyAdvancement: 0,
+      performances: [
+        { wrestlerId: "wrestler-0", performanceScore: 50, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+        { wrestlerId: "wrestler-1", performanceScore: 50, characterCredibilityDelta: 0, physicalCost: 0, gmReactionDelta: 0, backstageReactionDelta: 0 },
+      ],
+    };
+    updatePopularity(world, ctxAt(1), [upsetLoss]);
+    expect(world.events.some((event) => event.type === "popularity_changed" && event.data.reason === "burial")).toBe(true);
   });
 
   it("GDD §14 hard requirement: a losing wrestler can still gain popularity from a strong performance", () => {

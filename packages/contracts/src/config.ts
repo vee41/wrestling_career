@@ -31,6 +31,19 @@ export const popularityTuningSchema = z.object({
   crowdIgnitionMomentumMin: z.number().int().min(0).max(100).default(20),
   crowdIgnitionMomentumMax: z.number().int().min(0).max(100).default(30),
   lossEdgeBase: z.number().min(0).default(8),
+  /**
+   * A segment has no winner, so its edge comes from the popularity gap the
+   * dominant participant carried the exchange over. Deliberately far below the
+   * match-win factor: out-talking a bigger star is a real gain, but it is not
+   * beating them.
+   */
+  segmentDominantEdgeFactor: z.number().min(0).max(0.5).default(0.15),
+  /**
+   * The edge every other segment participant takes. Losing a promo exchange is
+   * not losing clean in a main event, so the default is exactly zero; the
+   * bound keeps a scenario from turning an appearance back into a burial.
+   */
+  segmentNonDominantEdge: z.number().min(-5).max(0).default(0),
   pleMainEventStarPowerGain: z.number().int().min(0).max(100).default(2),
   sustainedMomentumStarPowerChange: z.number().int().min(0).max(100).default(1),
   worldTitleWinStarPowerGain: z.number().int().min(0).max(100).default(12),
@@ -120,6 +133,12 @@ export const bookingTuningSchema = z.object({
   contenderReadyMomentumThreshold: z.number().min(-100).max(100).default(20),
   /** Chance for an eligible TV building-story slot to become a non-match beat. */
   segmentChance: z.number().min(0).max(1).default(0.25),
+  /**
+   * How long the private planner candidate trace is kept. Two candidates are
+   * appended every planning pass, so this is windowed like `world.events`;
+   * the default holds several PLE cycles of history for the booking report.
+   */
+  programCandidateRetentionTicks: z.number().int().min(1).default(30),
 });
 export type BookingTuning = z.infer<typeof bookingTuningSchema>;
 

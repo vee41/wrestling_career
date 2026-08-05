@@ -1,5 +1,10 @@
 import type { BookingTrace, MatchResult, PopularityChangeReason, SegmentResult, Show, WorldEvent, WorldState } from "@wrestling/contracts";
 import { isShowTick, weekForTick } from "./booking.js";
+import {
+  analyzeBooking, matchExecutionView, segmentExecutionView, slotBeat,
+  type SliceBookingMetrics, type SlicePlannedExecution, type SliceProgramTimeline, type SliceSlotBeat,
+} from "./booking-metrics.js";
+import { median, pearson, spearman, stdDev } from "./stats.js";
 import { runTick } from "./tick.js";
 
 /** Signal thresholds — advisory framing only (see `SliceSignals`), tunable here without touching scenario config. */
@@ -37,6 +42,17 @@ export interface SliceCriterion {
   shouldPass?: boolean;
 }
 
+/**
+ * How far an SL row's verdict actually counts. SL-1...SL-10 are calibrated for
+ * the scenario's full slice horizon, so a shorter or longer run only shows them
+ * for reference — the single source of that wording for every report format.
+ */
+export function sliceCriteriaScope(analysis: Pick<SliceAnalysis, "criteriaAdvisory" | "criteriaHorizonWeeks" | "weeks">): string {
+  return analysis.criteriaAdvisory
+    ? `advisory — ${analysis.criteriaHorizonWeeks}-week criteria; shown for reference on this ${analysis.weeks}-week run`
+    : `${analysis.criteriaHorizonWeeks}-week gate`;
+}
+
 /** What each criterion actually asks for (six-month-slice.md §3), for card tooltips — a single source of truth alongside `SIGNAL_DESCRIPTIONS`. */
 export const SL_CRITERION_DESCRIPTIONS: Record<string, string> = {
   "SL-1": "Rises: at least 3 wrestlers end the slice 15+ general-popularity points above where they started.",
@@ -53,6 +69,16 @@ export const SL_CRITERION_DESCRIPTIONS: Record<string, string> = {
 
 export interface SliceAnalysis {
   criteria: SliceCriterion[];
+  /** Weeks actually simulated. */
+  weeks: number;
+  /** The horizon SL-1...SL-10 were calibrated for (the scenario's `sliceWeeks`). */
+  criteriaHorizonWeeks: number;
+  /** True when this run is shorter or longer than the criteria horizon, so the SL rows are reference-only. */
+  criteriaAdvisory: boolean;
+  /** booking_ai §12 creative-booking observability, independent of popularity outcomes. */
+  bookingMetrics: SliceBookingMetrics;
+  /** Per-program planned → scheduled → resolved beat history, with revisions. */
+  programTimelines: SliceProgramTimeline[];
   titleLineages: SliceTitleLineage[];
   stories: SliceStoryTimeline[];
   pleCards: SlicePleCard[];
@@ -189,6 +215,10 @@ export interface SliceShowSlot {
   dominantWrestlerId?: string;
   impacts: SliceMatchImpact[];
   heatDeltas?: Array<{ wrestlerId: string; positive: number; negative: number; storyAdvancement: number }>;
+  /** The program beat this slot executes, when it executes one — the creative label for the slot. */
+  beat?: SliceSlotBeat;
+  /** Planned versus actual finish (matches) or focus (segments), with the deviation cause when they differ. */
+  execution: SlicePlannedExecution;
 }
 
 export interface SliceShowCard {
@@ -285,60 +315,6 @@ function stringData(event: WorldEvent, key: string): string | undefined {
 function boolData(event: WorldEvent, key: string): boolean | undefined {
   const value = event.data[key];
   return typeof value === "boolean" ? value : undefined;
-}
-
-function stdDev(values: readonly number[]): number {
-  if (values.length === 0) return 0;
-  const mean = values.reduce((total, value) => total + value, 0) / values.length;
-  const variance = values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
-  return Math.sqrt(variance);
-}
-
-/** 1-based ranks with ties averaged (standard Spearman tie handling). */
-function ranks(values: readonly number[]): number[] {
-  const order = values.map((_, index) => index).sort((a, b) => values[a]! - values[b]!);
-  const result = new Array<number>(values.length);
-  let i = 0;
-  while (i < order.length) {
-    let j = i;
-    while (j + 1 < order.length && values[order[j + 1]!] === values[order[i]!]) j += 1;
-    const averageRank = (i + j) / 2 + 1;
-    for (let k = i; k <= j; k += 1) result[order[k]!] = averageRank;
-    i = j + 1;
-  }
-  return result;
-}
-
-function pearson(xs: readonly number[], ys: readonly number[]): number {
-  const n = xs.length;
-  if (n === 0) return 0;
-  const meanX = xs.reduce((total, value) => total + value, 0) / n;
-  const meanY = ys.reduce((total, value) => total + value, 0) / n;
-  let numerator = 0;
-  let denomX = 0;
-  let denomY = 0;
-  for (let i = 0; i < n; i += 1) {
-    const dx = xs[i]! - meanX;
-    const dy = ys[i]! - meanY;
-    numerator += dx * dy;
-    denomX += dx * dx;
-    denomY += dy * dy;
-  }
-  const denom = Math.sqrt(denomX * denomY);
-  return denom === 0 ? 0 : numerator / denom;
-}
-
-function spearman(xs: readonly number[], ys: readonly number[]): number {
-  return pearson(ranks(xs), ranks(ys));
-}
-
-function median(values: readonly number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = values.slice().sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
-    : sorted[middle] ?? 0;
 }
 
 function showForMatch(world: WorldState, matchId: string): Show | undefined {
@@ -552,11 +528,14 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
     week: weekForTick(show.tick, finalWorld.config), showId: show.id, kind: show.kind,
     ...(show.bookingTrace === undefined ? {} : { bookingTrace: show.bookingTrace }),
     slots: show.card.map((slot) => {
+      const beat = slotBeat(finalWorld, slot);
       if (slot.kind === "segment") {
         const result = finalWorld.segmentResults.find((candidate) => candidate.showId === show.id && candidate.segmentSlotId === slot.id);
         return {
           kind: "segment" as const, position: slot.position, participants: slot.participantWrestlerIds,
           ...(slot.storyId ? { storyId: slot.storyId } : {}),
+          ...(beat === undefined ? {} : { beat }),
+          execution: segmentExecutionView(slot, result),
           ...(result ? {
             quality: result.quality, crowdResponse: result.crowdResponse, dominantWrestlerId: result.dominantWrestlerId,
             impacts: segmentImpacts(result),
@@ -568,6 +547,8 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
       return {
         kind: "match" as const, position: slot.position, participants: slot.participantWrestlerIds,
         ...(slot.storyId ? { storyId: slot.storyId } : {}), ...(slot.titleId ? { titleId: slot.titleId } : {}),
+        ...(beat === undefined ? {} : { beat }),
+        execution: matchExecutionView(slot, result),
         ...(result ? { quality: result.quality, crowdResponse: result.crowdResponse, winnerWrestlerId: result.winnerWrestlerId, impacts: matchImpacts(result) } : { impacts: [] }),
       };
     }),
@@ -652,12 +633,22 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
     unresolvedStoryCount: finalWorld.stories.filter((story) => story.phase !== "resolved").length,
   };
 
+  const ticksPerWeek = finalWorld.config.decisionTicksPerWeek + 1;
+  const weeks = Math.round((finalWorld.tick - initialWorld.tick) / ticksPerWeek);
+  const criteriaHorizonWeeks = finalWorld.config.sliceWeeks;
+  const { metrics: bookingMetrics, timelines: programTimelines } = analyzeBooking(initialWorld, finalWorld);
+
   return {
-    criteria, titleLineages, stories, pleCards, showCards, injuryArcs, trajectories,
+    criteria,
+    weeks,
+    criteriaHorizonWeeks,
+    criteriaAdvisory: weeks !== criteriaHorizonWeeks,
+    bookingMetrics, programTimelines,
+    titleLineages, stories, pleCards, showCards, injuryArcs, trajectories,
     popularityLogs: popularityLogs(finalWorld),
     popularityTotals,
     topWrestlerId: finalRanking[0]?.wrestlerId ?? "unknown",
-    ticksPerWeek: finalWorld.config.decisionTicksPerWeek + 1,
+    ticksPerWeek,
     rises, falls, nonMonotonicCount: nonMonotonic, rosterSize,
     signals,
   };

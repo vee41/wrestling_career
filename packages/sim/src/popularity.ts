@@ -198,11 +198,12 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     }
 
     const { result, performanceScore, physicalCost } = appearance;
+    const isMatch = "matchSlotId" in result;
     // Resolve the booked position before calculating the segment. Historical
     // expectations below use the same lookup, so a main-event performance is
     // compared against the right-sized stage rather than a hidden default.
     const show = world.shows.find((candidate) => candidate.id === result.showId);
-    const slot = show?.card.find((candidate) => candidate.id === ("matchSlotId" in result ? result.matchSlotId : result.segmentSlotId));
+    const slot = show?.card.find((candidate) => candidate.id === (isMatch ? result.matchSlotId : result.segmentSlotId));
     const position = slot?.position ?? "mid";
     const beforePopularity = popularity.generalPopularity;
     const beforeMomentum = popularity.momentum;
@@ -230,10 +231,19 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
     const expected = expectedSegment(world, wrestler.id, result.id, segment);
     const opponents = result.participantWrestlerIds.filter((id) => id !== wrestler.id);
     const opponentAveragePopularity = opponents.reduce((sum, id) => sum + (popularityAtStart.get(id) ?? 0), 0) / Math.max(1, opponents.length);
-    const won = "winnerWrestlerId" in result && result.winnerWrestlerId === wrestler.id;
-    const edge = won
-      ? Math.max(0, opponentAveragePopularity - beforePopularity) * 0.5
-      : -Math.max(0, beforePopularity - opponentAveragePopularity) * 0.5 - world.config.popularity.lossEdgeBase;
+    const won = isMatch && result.winnerWrestlerId === wrestler.id;
+    // A segment has no winner, so the match edge would read every promo
+    // participant — including a solo interview — as a clean loss to a lesser
+    // opponent. An appearance is scored on its own facts instead: carrying the
+    // exchange over a bigger name is a modest gain, and being the one who got
+    // talked to costs nothing.
+    const edge = isMatch
+      ? (won
+        ? Math.max(0, opponentAveragePopularity - beforePopularity) * 0.5
+        : -Math.max(0, beforePopularity - opponentAveragePopularity) * 0.5 - world.config.popularity.lossEdgeBase)
+      : (result.dominantWrestlerId === wrestler.id
+        ? Math.max(0, opponentAveragePopularity - beforePopularity) * world.config.popularity.segmentDominantEdgeFactor
+        : world.config.popularity.segmentNonDominantEdge);
     // A higher card position makes the same above- or below-expectation
     // outcome more consequential. The popularity cap remains unchanged, so
     // this strengthens the signal rather than widening every appearance's
@@ -266,7 +276,7 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
       popularity.currentReaction = clampScale100(popularity.currentReaction + 10);
     }
 
-    if ("winnerWrestlerId" in result && show?.kind === "ple" && slot?.position === "main_event" && result.crowdResponse >= 70) {
+    if (isMatch && show?.kind === "ple" && slot?.position === "main_event" && result.crowdResponse >= 70) {
       adjustStarPower(world, ctx, wrestler.id, world.config.popularity.pleMainEventStarPowerGain, `${wrestler.name} leaves the major main event with elevated status.`);
     }
     if (won && opponents.some((opponentId) => {
@@ -294,7 +304,12 @@ export function updatePopularity(world: WorldState, ctx: TickContext, matchResul
       else if (positionWeightedEdge >= 15) reason = "upset";
       else if (positionWeightedEdge <= -15) reason = "burial";
       else if (segment - expected >= 15 || delta > 0 || crossedPositive) reason = "breakout";
-      else reason = "burial";
+      // An appearance with no competitive result cannot be a burial — nobody
+      // was beaten. With no signal above, a routine promo is quiet drift and
+      // reports nothing, exactly like an unremarkable match night.
+      else if (isMatch) reason = "burial";
+    }
+    if (reason !== undefined) {
       const direction = delta > 0 || (delta === 0 && popularity.momentum >= beforeMomentum) ? "rise" : "fall";
       const summaries: Record<PopularityChangeReason, string> = {
         breakout: `${wrestler.name} is building real audience momentum after an above-expectation showing.`,

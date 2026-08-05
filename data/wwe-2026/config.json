@@ -24,6 +24,8 @@
     "crowdIgnitionMomentumMin": 20,
     "crowdIgnitionMomentumMax": 30,
     "lossEdgeBase": 14,
+    "segmentDominantEdgeFactor": 0.15,
+    "segmentNonDominantEdge": 0,
     "pleMainEventStarPowerGain": 6,
     "sustainedMomentumStarPowerChange": 2,
     "worldTitleWinStarPowerGain": 18,
@@ -72,6 +74,7 @@
     "midcardTitleStakesHeatBonus": 12,
     "titleDefenseStalenessWeeks": 4,
     "contenderReadyMomentumThreshold": 20,
-    "segmentChance": 0.75
+    "segmentChance": 0.75,
+    "programCandidateRetentionTicks": 30
   }
 }

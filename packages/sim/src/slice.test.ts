@@ -1,18 +1,7 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import {
-  configFileSchema,
-  promotionSchema,
-  relationshipsFileSchema,
-  rosterFileSchema,
-  scenarioManifestSchema,
-  scenarioSchema,
-  storiesFileSchema,
-  titlesFileSchema,
-} from "@wrestling/contracts";
 import { describe, expect, it } from "vitest";
 import { analyzeSlice, crossSeedCriterion, crossSeedSignals, runHeadlessSlice, SIGNAL_DESCRIPTIONS, type SliceAnalysis } from "./slice.js";
 import { worldFromScenario } from "./scenario.js";
+import { loadDefaultScenario } from "./test-helpers.js";
 
 function signalLine(analysis: SliceAnalysis): string {
   const s = analysis.signals;
@@ -27,24 +16,6 @@ function signalLine(analysis: SliceAnalysis): string {
   ].join(", ");
 }
 
-const DATA_DIRECTORY = fileURLToPath(new URL("../../../data/wwe-2026/", import.meta.url));
-
-function json(filename: string): unknown {
-  return JSON.parse(readFileSync(`${DATA_DIRECTORY}${filename}`, "utf8"));
-}
-
-function defaultScenario() {
-  return scenarioSchema.parse({
-    manifest: scenarioManifestSchema.parse(json("scenario.json")),
-    promotion: promotionSchema.parse(json("promotion.json")),
-    roster: rosterFileSchema.parse(json("roster.json")),
-    titles: titlesFileSchema.parse(json("titles.json")),
-    relationships: relationshipsFileSchema.parse(json("relationships.json")),
-    stories: storiesFileSchema.parse(json("stories.json")),
-    config: configFileSchema.parse(json("config.json")),
-  });
-}
-
 // PLAN Phase 3.7's regression net, now advisory rather than a hard gate (decision
 // 2026-07-29): the SL-1...SL-10 thresholds were calibrated against the punchier
 // 3.7.1-3.7.5 popularity constants, and a calmer tuning pass legitimately trades
@@ -55,7 +26,7 @@ function defaultScenario() {
 // the test — those indicate a bug, not a tuning outcome.
 describe("slice gate", () => {
   it("runs three fixed default-scenario seeds and reports every SL criterion and signal", () => {
-    const scenario = defaultScenario();
+    const scenario = loadDefaultScenario();
     const runs = ["slice-wwe-2026-1", "slice-wwe-2026-2", "slice-wwe-2026-3"].map((seed) =>
       runHeadlessSlice(worldFromScenario(scenario, seed), seed),
     );

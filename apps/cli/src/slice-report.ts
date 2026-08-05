@@ -1,4 +1,8 @@
-import { CROSS_SEED_INTRO, SIGNAL_DESCRIPTIONS, SL_CRITERION_DESCRIPTIONS, type CrossSeedSignals, type SliceAnalysis, type SliceCriterion, type SliceMatchImpact, type SliceSignals } from "@wrestling/sim";
+import {
+  BOOKING_METRIC_DESCRIPTIONS, CROSS_SEED_INTRO, SIGNAL_DESCRIPTIONS, SL_CRITERION_DESCRIPTIONS, sliceCriteriaScope,
+  type CrossSeedSignals, type SliceAnalysis, type SliceCriterion, type SliceMatchImpact, type SlicePlannedExecution,
+  type SliceProgramTimeline, type SliceShowSlot, type SliceSignals,
+} from "@wrestling/sim";
 
 export interface SliceReportRun {
   seed: string;
@@ -55,17 +59,120 @@ function popularityLogEntries(analysis: SliceAnalysis, wrestlerId: string): stri
   </ul></li>`).join("")}</ul>`;
 }
 
-function criterionCard(criterion: SliceCriterion): string {
+function criterionCard(criterion: SliceCriterion, scope: string): string {
   const tooltip = SL_CRITERION_DESCRIPTIONS[criterion.id] ?? "";
-  return `<article class="${criterion.pass ? "pass" : "fail"}" title="${html(tooltip)}"><span>${html(criterion.id)} <small>[${html(criterion.strength)}]</small><span class="info" aria-hidden="true">ⓘ</span></span><b>${criterion.pass ? "PASS" : "FAIL"}</b><small>${html(criterion.observed)}${criterion.detail ? `<br>${html(criterion.detail)}` : ""}</small></article>`;
+  return `<article class="${criterion.pass ? "pass" : "fail"}" title="${html(tooltip)}"><span>${html(criterion.id)} <small>[${html(criterion.strength)}]</small><span class="info" aria-hidden="true">ⓘ</span></span><b>${criterion.pass ? "PASS" : "FAIL"}</b><small>${html(criterion.observed)}${criterion.detail ? `<br>${html(criterion.detail)}` : ""}<br><em>${html(scope)}</em></small></article>`;
 }
 
-function criteriaCards(criteria: readonly SliceCriterion[]): string {
-  return `<div class="signals criteria-cards">${criteria.map(criterionCard).join("")}</div>`;
+function criteriaCards(criteria: readonly SliceCriterion[], scope: string): string {
+  return `<div class="signals criteria-cards">${criteria.map((criterion) => criterionCard(criterion, scope)).join("")}</div>`;
 }
 
 function crossSeedCard(label: string, value: string, tooltip: string, tone?: "pass" | "fail"): string {
   return `<article class="${tone ?? ""}" title="${html(tooltip)}"><span>${html(label)}<span class="info" aria-hidden="true">ⓘ</span></span><b>${html(value)}</b></article>`;
+}
+
+function percent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function tokenCounts(counts: Record<string, number>, { includeZero = false } = {}): string {
+  const entries = Object.entries(counts).filter(([, count]) => includeZero || count > 0);
+  if (entries.length === 0) return "none";
+  return entries.map(([token, count]) => `${token.replaceAll("_", " ")} ${count}`).join(", ");
+}
+
+function metricCard(label: string, value: string, tooltip: string, detail?: string): string {
+  return `<article title="${html(tooltip)}"><span>${html(label)}<span class="info" aria-hidden="true">ⓘ</span></span><b>${html(value)}</b>${detail ? `<small>${html(detail)}</small>` : ""}</article>`;
+}
+
+/** booking_ai §12: the creative-booking read that popularity outcomes cannot give. */
+function bookingMetricsPanel(analysis: SliceAnalysis): string {
+  const metrics = analysis.bookingMetrics;
+  const adherence = metrics.finishAdherence;
+  return `<div class="signals" aria-label="Booking metrics">
+    ${metricCard("Programs created", String(metrics.programsCreated), BOOKING_METRIC_DESCRIPTIONS.programsCreated)}
+    ${metricCard("Resolved", `${metrics.programsResolved} · ${percent(metrics.completionRate)}`, BOOKING_METRIC_DESCRIPTIONS.completionRate)}
+    ${metricCard("Abandoned", `${metrics.programsAbandoned} · ${percent(metrics.abandonmentRate)}`, BOOKING_METRIC_DESCRIPTIONS.abandonmentRate)}
+    ${metricCard("Backlog", String(metrics.programsOpen), BOOKING_METRIC_DESCRIPTIONS.programsOpen)}
+    ${metricCard("Median duration", `${metrics.medianProgramDurationWeeks.toFixed(1)} wk`, BOOKING_METRIC_DESCRIPTIONS.medianProgramDurationWeeks)}
+    ${metricCard("Beats before payoff", metrics.medianBeatsBeforePayoff.toFixed(1), BOOKING_METRIC_DESCRIPTIONS.medianBeatsBeforePayoff)}
+    ${metricCard("PLE build coverage", percent(metrics.pleBuildCoverage.share), BOOKING_METRIC_DESCRIPTIONS.pleBuildCoverage, `${metrics.pleBuildCoverage.built}/${metrics.pleBuildCoverage.total} PLE story/title matches`)}
+    ${metricCard("Direct rematches", String(metrics.directRematches), BOOKING_METRIC_DESCRIPTIONS.directRematches)}
+    ${metricCard("Consecutive pairings", String(metrics.consecutivePairings), BOOKING_METRIC_DESCRIPTIONS.consecutivePairings)}
+    ${metricCard("Story from segments", percent(metrics.segmentStoryAdvancementShare), BOOKING_METRIC_DESCRIPTIONS.segmentStoryAdvancementShare)}
+    ${metricCard("Escalation violations", String(metrics.escalationOrderViolations), BOOKING_METRIC_DESCRIPTIONS.escalationOrderViolations)}
+    ${metricCard("Finish adherence", percent(adherence.rate), BOOKING_METRIC_DESCRIPTIONS.finishAdherence, `${adherence.adhered}/${adherence.planned} planned outcomes${adherence.deviated > 0 ? ` · deviations: ${tokenCounts(adherence.deviationCauses)}` : ""}`)}
+    ${metricCard("No-op revisions", String(metrics.noOpRevisions), BOOKING_METRIC_DESCRIPTIONS.noOpRevisions)}
+    ${metricCard("Revisions by cause", tokenCounts(metrics.revisionsByCause), "Plan revisions grouped by the trigger that caused them. Empty means replanning never fires.")}
+    ${metricCard("Revision responses", tokenCounts(metrics.revisionsByResponse), "Which of the six replanning responses were actually used.")}
+    ${metricCard("Main-eventers", String(metrics.distinctMainEventers), BOOKING_METRIC_DESCRIPTIONS.distinctMainEventers)}
+    ${metricCard("Title challengers", String(metrics.distinctTitleChallengers), BOOKING_METRIC_DESCRIPTIONS.distinctTitleChallengers)}
+    ${metricCard("Beats generated", tokenCounts(metrics.beatsGeneratedByType, { includeZero: true }), "Every beat the planner created, by type. A zero means that beat type is never generated at all.")}
+    ${metricCard("Beats resolved", tokenCounts(metrics.beatsResolvedByType, { includeZero: true }), "Beats that actually aired, by type.")}
+    ${metricCard("Beat statuses", tokenCounts(metrics.beatsByStatus, { includeZero: true }), "Lifecycle spread across provisional, scheduled, resolved, skipped, and invalidated.")}
+  </div>`;
+}
+
+function outcomeView(analysis: SliceAnalysis, kind: "match" | "segment", view: NonNullable<SlicePlannedExecution["planned"]>): string {
+  const name = wrestlerName(analysis, view.wrestlerId);
+  if (kind === "segment") return `${name}${view.heatDirection ? ` (${view.heatDirection} heat)` : ""}`;
+  const stakes = view.titleConsequence !== undefined && view.titleConsequence !== "none" ? `, title ${view.titleConsequence}` : "";
+  return `${name}${view.finishFamily ? ` (${view.finishFamily}${stakes})` : ""}`;
+}
+
+/** Planned versus actual for one slot or beat — the creative instruction next to what actually happened. */
+function executionLine(analysis: SliceAnalysis, kind: "match" | "segment", execution: SlicePlannedExecution): string {
+  if (execution.planned === undefined) return "";
+  const label = kind === "match" ? "Planned finish" : "Planned focus";
+  const actual = execution.actual === undefined ? "" : ` → actual ${outcomeView(analysis, kind, execution.actual)}`;
+  const adherence = execution.adherence === undefined
+    ? ""
+    : ` · ${execution.adherence}${execution.deviationCause ? `: ${execution.deviationCause.replaceAll("_", " ")}` : ""}`;
+  return `<li>${html(label)}: ${html(outcomeView(analysis, kind, execution.planned))}${html(actual)}${html(adherence)}</li>`;
+}
+
+function beatChip(slot: SliceShowSlot): string {
+  return slot.beat === undefined
+    ? ""
+    : `<i>${html(slot.beat.type.replaceAll("_", " "))} · esc ${slot.beat.escalationLevel}</i>`;
+}
+
+function programTimelines(analysis: SliceAnalysis): string {
+  if (analysis.programTimelines.length === 0) return `<p class="empty">No program plans were created.</p>`;
+  return `<div class="story-list">${analysis.programTimelines.map((timeline) => {
+    const participants = timeline.participants.map((participant) => `${wrestlerName(analysis, participant.wrestlerId)} (${participant.role})`).join(" vs. ");
+    const ending = timeline.endWeek === undefined ? "still open" : `ended week ${timeline.endWeek}`;
+    return `<details class="story"><summary><b>${html(participants)}</b><span>${html(timeline.creativeObjective.replaceAll("_", " "))} · ${html(timeline.status)} · week ${timeline.startWeek} → target week ${timeline.targetPayoffWeek} · ${html(ending)}</span></summary>
+      <p>${html(timeline.premise)}</p>
+      <ul class="breakdown"><li>Program <code>${html(timeline.programId)}</code> · story <code>${html(timeline.storyId)}</code> · priority ${timeline.priority} · escalation ${timeline.escalation}${timeline.stakesTitleId ? ` · stakes ${html(timeline.stakesTitleId)}` : ""}</li>
+      ${timeline.openReason === undefined ? "" : `<li>Unresolved because: ${html(timeline.openReason)}</li>`}</ul>
+      ${beatRows(analysis, timeline)}
+      ${revisionRows(timeline)}</details>`;
+  }).join("")}</div>`;
+}
+
+function beatRows(analysis: SliceAnalysis, timeline: SliceProgramTimeline): string {
+  if (timeline.beats.length === 0) return `<p class="empty">No beats were planned.</p>`;
+  return `<ul class="impacts">${timeline.beats.map((beat) => {
+    const kind = beat.compatibleSlotKind === "segment" ? "segment" : "match";
+    const aired = beat.scheduledWeek === undefined ? "" : ` · week ${beat.scheduledWeek}`;
+    return `<li><b>${html(beat.type.replaceAll("_", " "))}</b> <small class="delta">${html(beat.status)}</small><ul class="breakdown">
+      <li>Escalation ${beat.escalationLevel} · ${html(beat.compatibleSlotKind)} · window weeks ${beat.earliestWeek}-${beat.latestWeek}${html(aired)}</li>
+      <li>${html(beat.intendedStoryEffect)}</li>
+      ${beat.blockedByBeatTypes.length === 0 ? "" : `<li>Blocked by unresolved ${html(beat.blockedByBeatTypes.map((type) => type.replaceAll("_", " ")).join(", "))}</li>`}
+      ${executionLine(analysis, kind, beat.execution)}
+    </ul></li>`;
+  }).join("")}</ul>`;
+}
+
+function revisionRows(timeline: SliceProgramTimeline): string {
+  return `<ul class="breakdown">${timeline.revisions.map((revision) => {
+    const changed = revision.reason === "initial_plan"
+      ? "plan created"
+      : revision.changedFields.length === 0 ? "changed nothing" : `changed ${revision.changedFields.join(", ")}`;
+    return `<li>Week ${revision.week} revision: ${html(revision.reason.replaceAll("_", " "))}${revision.response ? ` / ${html(revision.response.replaceAll("_", " "))}` : ""} — ${html(changed)}</li>`;
+  }).join("")}</ul>`;
 }
 
 function crossSeedCards(crossSeed: SliceCriterion, volatility: CrossSeedSignals): string {
@@ -114,7 +221,10 @@ function showCards(analysis: SliceAnalysis): string {
     const result = slot.kind === "segment"
       ? `${slot.dominantWrestlerId ? `<i>Dominant: ${html(wrestlerName(analysis, slot.dominantWrestlerId))}</i>` : ""}${slot.heatDeltas ? `<ul class="breakdown">${slot.heatDeltas.map((delta) => `<li>${html(wrestlerName(analysis, delta.wrestlerId))}: +heat ${delta.positive}, -heat ${delta.negative}, story +${delta.storyAdvancement}</li>`).join("")}</ul>` : ""}`
       : `${slot.winnerWrestlerId ? `<i>Winner: ${html(wrestlerName(analysis, slot.winnerWrestlerId))}</i>` : ""}`;
-    return `<details class="match"><summary><span>${html(slot.position.replaceAll("_", " "))} · ${html(slot.kind)}</span><b>${names}</b>${slot.titleId ? "<i>Title</i>" : ""}${slot.storyId ? "<i>Story</i>" : ""}${slot.quality !== undefined ? `<i>Quality: ${slot.quality}</i>` : ""}</summary>${result}${matchBreakdown(analysis, slot.impacts)}</details>`;
+    const creative = slot.beat === undefined && slot.execution.planned === undefined
+      ? ""
+      : `<ul class="breakdown">${slot.beat === undefined ? "" : `<li>Beat ${html(slot.beat.type.replaceAll("_", " "))} · escalation ${slot.beat.escalationLevel} · program <code>${html(slot.beat.programId)}</code></li>`}${executionLine(analysis, slot.kind, slot.execution)}</ul>`;
+    return `<details class="match"><summary><span>${html(slot.position.replaceAll("_", " "))} · ${html(slot.kind)}</span><b>${names}</b>${beatChip(slot)}${slot.titleId ? "<i>Title</i>" : ""}${slot.storyId ? "<i>Story</i>" : ""}${slot.quality !== undefined ? `<i>Quality: ${slot.quality}</i>` : ""}</summary>${creative}${result}${matchBreakdown(analysis, slot.impacts)}</details>`;
   }).join("")}${bookingTrace(analysis, card)}</article>`).join("")}</div>`;
 }
 
@@ -171,11 +281,13 @@ function seedPanel(run: SliceReportRun, index: number): string {
   const { seed, analysis } = run;
   return `<section class="seed-panel" id="seed-${index}" ${index === 0 ? "" : "hidden"}>
     <div class="seed-heading"><div><span class="eyebrow">Simulation seed</span><h2>${html(seed)}</h2></div><p>Final #1: <b>${html(wrestlerName(analysis, analysis.topWrestlerId))}</b></p></div>
-    <section><h2>Criteria <small class="section-note">(advisory — watch these and react on your own judgment, they don't block anything)</small></h2>${criteriaCards(analysis.criteria)}</section>
+    <section><h2>Criteria <small class="section-note">(advisory — watch these and react on your own judgment, they don't block anything)</small></h2>${analysis.criteriaAdvisory ? `<p class="cross-seed-intro">${html(`SL-1…SL-10 are ${analysis.criteriaHorizonWeeks}-week criteria; this run covered ${analysis.weeks} weeks, so every row below is shown for reference only.`)}</p>` : ""}${criteriaCards(analysis.criteria, sliceCriteriaScope(analysis))}</section>
+    <section><h2>Booking metrics <small class="section-note">(booking_ai §12 — creative-booking health, independent of popularity)</small></h2>${bookingMetricsPanel(analysis)}</section>
     <section><h2>Signals <small class="section-note">(advisory — watch these and react on your own judgment, they don't block anything)</small></h2>${signalsPanel(analysis.signals)}</section>
     <section><div class="section-heading"><div><h2>Popularity trajectories</h2><p>Sorted by end popularity. Select a header to change the order; each line shows weekly general popularity.</p></div><label>Find wrestler <input class="trajectory-filter" type="search" placeholder="e.g. Cody Rhodes"></label></div>${popularityTotals(analysis)}<div class="table-wrap"><table class="trajectories"><thead><tr><th><button class="trajectory-sort" type="button" data-sort="name">Wrestler</button></th><th><button class="trajectory-sort" type="button" data-sort="start">Start</button></th><th aria-sort="descending"><button class="trajectory-sort" type="button" data-sort="end">End</button></th><th><button class="trajectory-sort" type="button" data-sort="change">Change</button></th><th><button class="trajectory-sort" type="button" data-sort="trend" title="Sort by weekly popularity range">Weekly trend</button></th></tr></thead><tbody>${trajectoryRows(analysis)}</tbody></table></div></section>
     <section><h2>Title lineages</h2><div class="lineages">${titleLineages(analysis)}</div></section>
     <section><h2>Story timelines</h2>${stories(analysis)}</section>
+    <section><h2>Program timelines <small class="section-note">(developer/admin — private GM plan detail, never a player projection)</small></h2>${programTimelines(analysis)}</section>
     <section><h2>PLE cards</h2>${pleCards(analysis)}</section>
     <section><h2>Complete show cards</h2>${showCards(analysis)}</section>
     <section><h2>Injury and return arcs</h2>${injuries(analysis)}</section>
