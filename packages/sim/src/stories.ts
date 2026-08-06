@@ -48,6 +48,9 @@ export function advanceStories(world: WorldState, ctx: TickContext, matchResults
       story.audienceInterest = clampScale100(story.audienceInterest - IDLE_INTEREST_DECAY);
     }
 
+    // The peak the `crowd_response` trigger measures against. It only ever
+    // rises here; the planner re-bases it when it acts on the gap.
+    story.peakAudienceInterest = Math.max(story.peakAudienceInterest ?? story.audienceInterest, story.audienceInterest);
     applyPhaseTransition(world, ctx, story, advancement !== undefined);
   }
 }

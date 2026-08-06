@@ -1,4 +1,5 @@
 import type {
+  ExecutionDeviationCause,
   ProgramCreativeObjective,
   ProgramIntentSnapshot,
   ProgramParticipant,
@@ -8,6 +9,8 @@ import type {
   ProgramRevisionResponse,
   PlannedBeat,
   PlannedBeatType,
+  ReactiveDecisionType,
+  ReactiveResponseToken,
   Story,
   WorldState,
 } from "@wrestling/contracts";
@@ -265,6 +268,194 @@ function snapshot(plan: ProgramPlan): ProgramIntentSnapshot {
   };
 }
 
+/**
+ * Every response restates what the program now intends, after the separator so
+ * the original statement survives repeated revisions. booking_ai §9 calls the
+ * previous and new intent permanent audit facts; a revision whose two snapshots
+ * are identical records a decision nobody made.
+ */
+const RESTATEMENT = " — ";
+
+function restate(plan: ProgramPlan, note: string): string {
+  return `${plan.intendedPayoff.split(RESTATEMENT)[0]!}${RESTATEMENT}${note}`;
+}
+
+function nameOf(world: WorldState, wrestlerId: string): string {
+  return world.wrestlers.find((wrestler) => wrestler.id === wrestlerId)?.name ?? wrestlerId;
+}
+
+type IntentChange = Partial<ProgramIntentSnapshot> & { clearStakesTitleId?: boolean };
+
+/**
+ * The single guard behind "no revision-recording path passes an unchanged
+ * snapshot": a response that would leave the intent exactly as it was records
+ * nothing and reports that it did nothing, so its caller can try the next one.
+ */
+function revise(
+  world: WorldState,
+  ctx: TickContext,
+  plan: ProgramPlan,
+  reason: ProgramRevisionReason,
+  response: ProgramRevisionResponse,
+  change: IntentChange,
+): boolean {
+  const previous = snapshot(plan);
+  const { clearStakesTitleId, ...fields } = change;
+  const next: ProgramIntentSnapshot = { ...previous, ...fields };
+  if (clearStakesTitleId === true) delete next.stakesTitleId;
+  if (JSON.stringify(next) === JSON.stringify(previous)) return false;
+  reviseProgramPlan(world, ctx, plan.id, reason, next, response);
+  return true;
+}
+
+function beatsOf(world: WorldState, plan: ProgramPlan): PlannedBeat[] {
+  return world.plannedBeats.filter((candidate) => candidate.programId === plan.id);
+}
+
+/** Build beats still waiting for a show, in the order the program means to run them. */
+function openBuildBeats(world: WorldState, plan: ProgramPlan): PlannedBeat[] {
+  return beatsOf(world, plan)
+    .filter((candidate) => candidate.status === "provisional" && candidate.type !== "ple_payoff")
+    .sort((a, b) => a.escalationLevel - b.escalationLevel || a.id.localeCompare(b.id));
+}
+
+function openPayoffBeats(world: WorldState, plan: ProgramPlan): PlannedBeat[] {
+  return beatsOf(world, plan).filter((candidate) => candidate.type === "ple_payoff" && candidate.status === "provisional");
+}
+
+function revisionCount(plan: ProgramPlan, reason: ProgramRevisionReason): number {
+  return plan.revisions.filter((revision) => revision.reason === reason).length;
+}
+
+/** Lays open build beats over the shows that remain, one opening per show. */
+function applyBuildWindows(beats: readonly PlannedBeat[], buildTicks: readonly number[], fallbackTick: number): void {
+  const last = buildTicks.at(-1) ?? fallbackTick;
+  beats.forEach((candidate, index) => {
+    candidate.earliestTick = buildTicks[index] ?? last;
+    candidate.latestTick = last;
+  });
+}
+
+/**
+ * Makes a participant the one the program is *for*. The role — not the
+ * protected list — is what `finishForPlannedBeat` reads to decide who wins the
+ * payoff, so a pivot that leaves the roles alone would change the audit trail
+ * and nothing the audience ever sees.
+ */
+function makeProtagonist(plan: ProgramPlan, wrestlerId: string): void {
+  for (const participant of plan.participants) {
+    if (participant.wrestlerId === wrestlerId) participant.role = "protagonist";
+    else if (participant.role === "protagonist") participant.role = "antagonist";
+  }
+}
+
+/** Re-points the beats still to come at the wrestler the program now favours. */
+function pointBeatsAt(world: WorldState, plan: ProgramPlan, wrestlerId: string): void {
+  for (const candidate of openBuildBeats(world, plan)) {
+    const planned = candidate.plannedSegmentOutcome;
+    if (planned === undefined || !candidate.requiredParticipantWrestlerIds.includes(wrestlerId)) continue;
+    planned.intendedDominantWrestlerId = wrestlerId;
+    planned.protectedWrestlerIds = [wrestlerId];
+  }
+}
+
+/**
+ * Get to the payoff sooner: aim at the earliest event the program can still
+ * reach, spend the complications there is no longer room for, and open every
+ * remaining beat's window now. A program with nothing resolved has no build to
+ * cash in, so it declines and lets its caller choose another response.
+ */
+export function accelerateProgramPlan(
+  world: WorldState, ctx: TickContext, plan: ProgramPlan, reason: ProgramRevisionReason, why: string,
+): boolean {
+  if (plan.completedBeatIds.length === 0) return false;
+  const payoffTick = Math.min(nextPleTick(world, ctx.tick + 1), plan.targetPayoffTick);
+  const buildTicks = buildShowTicks(world, ctx.tick, payoffTick);
+  const open = openBuildBeats(world, plan);
+  // Lowest escalation goes first: the go-home angle survives an acceleration,
+  // the complication it was still waiting to run does not.
+  for (const spent of open.slice(0, Math.max(0, open.length - buildTicks.length))) skipBeat(world, ctx, plan, spent);
+  applyBuildWindows(openBuildBeats(world, plan), buildTicks, ctx.tick);
+  for (const payoff of openPayoffBeats(world, plan)) {
+    payoff.earliestTick = payoffTick;
+    payoff.latestTick = payoffTick;
+  }
+  return revise(world, ctx, plan, reason, "accelerate", {
+    targetPayoffTick: payoffTick,
+    intendedPayoff: restate(plan, `brought forward: ${why}`),
+  });
+}
+
+/**
+ * Hold the program over to the next event it can reach, moving the remaining
+ * build with it. An extended program that has run out of beats gets one
+ * keep-warm promo so the extra cycle is not dead air; it is deliberately not a
+ * prerequisite of the payoff, so a `payoff_ready` plan stays payoff-ready.
+ */
+export function extendProgramPlan(
+  world: WorldState, ctx: TickContext, plan: ProgramPlan, reason: ProgramRevisionReason, why: string,
+): boolean {
+  const extended = targetPayoffTick(world, ctx.tick);
+  if (extended <= plan.targetPayoffTick) return false;
+  const buildTicks = buildShowTicks(world, ctx.tick, extended);
+  const open = openBuildBeats(world, plan);
+  applyBuildWindows(open, buildTicks, ctx.tick);
+  for (const payoff of openPayoffBeats(world, plan)) {
+    payoff.earliestTick = extended;
+    payoff.latestTick = extended;
+  }
+  if (open.length === 0 && buildTicks.length > 0) {
+    const warm = beat(
+      world, ctx, plan, "promo_interview", buildTicks[0]!, buildTicks.at(-1)!,
+      "Keep the program in front of the crowd until the payoff.", Math.min(3, plan.escalation),
+    );
+    world.plannedBeats.push(warm);
+    plan.plannedBeatIds.push(warm.id);
+  }
+  return revise(world, ctx, plan, reason, "extend", {
+    targetPayoffTick: extended,
+    intendedPayoff: restate(plan, `held over: ${why}`),
+  });
+}
+
+/**
+ * Take the program off television for a while and let the story decay on its
+ * own. Beats that the freeze leaves no room for are spliced out rather than
+ * silently expiring, so the chain behind them still terminates.
+ */
+export function coolDownProgramPlan(
+  world: WorldState, ctx: TickContext, plan: ProgramPlan, reason: ProgramRevisionReason, why: string,
+): boolean {
+  const until = ctx.tick + world.config.booking.coolDownTicks;
+  const lastBuild = buildShowTicks(world, ctx.tick, plan.targetPayoffTick).at(-1);
+  for (const frozen of openBuildBeats(world, plan)) {
+    if (lastBuild === undefined || until > lastBuild) { skipBeat(world, ctx, plan, frozen); continue; }
+    frozen.earliestTick = Math.max(frozen.earliestTick, until);
+    frozen.latestTick = Math.max(frozen.latestTick, frozen.earliestTick);
+  }
+  plan.beatsFrozenUntilTick = until;
+  return revise(world, ctx, plan, reason, "cool_down", { intendedPayoff: restate(plan, `cooled off: ${why}`) });
+}
+
+/**
+ * Change what the program is for rather than when it lands: the wrestler the
+ * crowd — or the locker room — actually backs becomes the protected one, and
+ * every beat still to come speaks for them.
+ */
+export function pivotProgramPlan(
+  world: WorldState, ctx: TickContext, plan: ProgramPlan, reason: ProgramRevisionReason, why: string,
+  favouredWrestlerId: string, extra: IntentChange = {},
+): boolean {
+  if (!plan.participants.some((participant) => participant.wrestlerId === favouredWrestlerId)) return false;
+  makeProtagonist(plan, favouredWrestlerId);
+  pointBeatsAt(world, plan, favouredWrestlerId);
+  return revise(world, ctx, plan, reason, "pivot", {
+    protectedWrestlerIds: [favouredWrestlerId],
+    intendedPayoff: restate(plan, `pivoted to ${nameOf(world, favouredWrestlerId)}: ${why}`),
+    ...extra,
+  });
+}
+
 function invalidateAndSubstitute(world: WorldState, ctx: TickContext, plan: ProgramPlan, invalid: PlannedBeat, targetTick: number): void {
   invalid.status = "invalidated";
   const available = invalid.requiredParticipantWrestlerIds.filter((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) >= MINIMUM_AVAILABLE_CONDITION);
@@ -288,7 +479,11 @@ function invalidateAndSubstitute(world: WorldState, ctx: TickContext, plan: Prog
     wrestlerIds: invalid.requiredParticipantWrestlerIds, storyId: plan.storyId,
     data: { programPlanId: plan.id, plannedBeatId: invalid.id, response: "substitute_beat", ...(substitute === undefined ? {} : { substituteBeatId: substitute.id }), unblockedBeatIds: unblocked },
   });
-  reviseProgramPlan(world, ctx, plan.id, "participant_unavailable", snapshot(plan), "substitute_beat");
+  revise(world, ctx, plan, "participant_unavailable", "substitute_beat", {
+    intendedPayoff: restate(plan, substitute === undefined
+      ? `the ${invalid.type.replace(/_/g, " ")} was lost to an unavailable participant.`
+      : `re-shaped around whoever is available for the ${invalid.type.replace(/_/g, " ")}.`),
+  });
 }
 
 /**
@@ -356,6 +551,8 @@ export function selectPlannedBeatsForShow(world: WorldState, ctx: TickContext, t
   const activePlans = world.programPlans.filter(isActive).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
   for (const plan of activePlans) {
     if (selected.length >= capacity) break;
+    // A cooled-down program is off television until its freeze lifts.
+    if (plan.beatsFrozenUntilTick !== undefined && targetTick < plan.beatsFrozenUntilTick) continue;
     const beats = world.plannedBeats.filter((candidate) => candidate.programId === plan.id && candidate.status === "provisional")
       .sort((a, b) => a.escalationLevel - b.escalationLevel || a.id.localeCompare(b.id));
     for (const candidate of beats) {
@@ -509,7 +706,7 @@ export function reviseProgramPlan(
  * story engine's cooling exit something to close.
  */
 export function abandonProgramPlan(world: WorldState, ctx: TickContext, plan: ProgramPlan, reason: ProgramRevisionReason, why: string): void {
-  reviseProgramPlan(world, ctx, plan.id, reason, { ...snapshot(plan), intendedPayoff: `Abandon the program: ${why}` }, "abandon");
+  revise(world, ctx, plan, reason, "abandon", { intendedPayoff: restate(plan, `abandoned: ${why}`) });
   plan.status = "abandoned";
   for (const beat of world.plannedBeats) {
     if (beat.programId !== plan.id) continue;
@@ -532,35 +729,200 @@ export function advanceProgramPlanLifecycle(world: WorldState, ctx: TickContext)
   for (const plan of world.programPlans) {
     if (!isActive(plan) || plan.targetPayoffTick > ctx.tick) continue;
     const extensions = plan.revisions.filter((revision) => revision.reason === "payoff_missed" && revision.response === "extend").length;
-    if (extensions >= world.config.booking.maxPayoffExtensions) {
-      abandonProgramPlan(world, ctx, plan, "payoff_missed", "the payoff window closed again with the build unfinished.");
-      continue;
-    }
-    const extended = targetPayoffTick(world, ctx.tick);
-    const buildTicks = buildShowTicks(world, ctx.tick, extended);
-    const lastBuildTick = buildTicks.at(-1) ?? ctx.tick;
-    for (const beat of world.plannedBeats) {
-      if (beat.programId !== plan.id || beat.status !== "provisional") continue;
-      const payoff = beat.type === "ple_payoff";
-      beat.earliestTick = payoff ? extended : Math.min(Math.max(beat.earliestTick, buildTicks[0] ?? ctx.tick), lastBuildTick);
-      beat.latestTick = payoff ? extended : lastBuildTick;
-    }
-    // The status is deliberately untouched: a plan that had already reached
-    // `payoff_ready` is still payoff-ready, only later.
-    reviseProgramPlan(world, ctx, plan.id, "payoff_missed", { ...snapshot(plan), targetPayoffTick: extended }, "extend");
+    // The extension deliberately leaves the status alone: a plan that had
+    // already reached `payoff_ready` is still payoff-ready, only later.
+    const extended = extensions < world.config.booking.maxPayoffExtensions
+      && extendProgramPlan(world, ctx, plan, "payoff_missed", "the payoff window closed with the build unfinished.");
+    if (!extended) abandonProgramPlan(world, ctx, plan, "payoff_missed", "the payoff window closed again with the build unfinished.");
   }
 }
 
-/** Execution facts are a replanning input, never a silent change to a program's premise. */
-export function replanForExecutionDeviation(world: WorldState, ctx: TickContext, programPlanId: string): void {
-  const plan = world.programPlans.find((candidate) => candidate.id === programPlanId);
-  if (plan === undefined || !isActive(plan)) return;
-  reviseProgramPlan(world, ctx, plan.id, "execution_deviation", snapshot(plan), "pivot");
+/**
+ * booking_ai §9's state-driven triggers, read once a tick immediately before
+ * the next card is composed — the last moment a decision can still change what
+ * airs. The event-driven triggers (a participant lost, a finish deviated, a
+ * belt moved, a wrestler pitched) fire from their own paths instead.
+ */
+export function replanBeforeBooking(world: WorldState, ctx: TickContext): void {
+  for (const plan of world.programPlans.filter(isActive).sort((a, b) => a.id.localeCompare(b.id))) {
+    if (!isActive(plan)) continue;
+    if (respondToRepetition(world, ctx, plan)) continue;
+    respondToCrowd(world, ctx, plan);
+  }
+  enforcePayoffCapacity(world, ctx);
 }
 
-/** A title holder is itself planned state; a surprise change makes linked plans auditablely reconsider it. */
+/**
+ * A program that keeps running the same beat, or has already spent the rivalry
+ * match it was rationing, is out of things to say. The first time it is told to
+ * get to the point; if it repeats itself again after that, it is abandoned. The
+ * threshold rises with each response so one stalled program cannot re-trigger
+ * every tick on the same evidence.
+ */
+function respondToRepetition(world: WorldState, ctx: TickContext, plan: ProgramPlan): boolean {
+  const responses = revisionCount(plan, "repetition");
+  const resolved = beatsOf(world, plan).filter((candidate) => candidate.status === "resolved");
+  const byType = new Map<PlannedBeatType, number>();
+  for (const candidate of resolved) byType.set(candidate.type, (byType.get(candidate.type) ?? 0) + 1);
+  const repeated = [...byType.values()].some((count) => count >= world.config.booking.repeatedBeatTypeLimit + responses);
+  const directSpent = resolved.filter((candidate) => candidate.spendsDirectMatchup && candidate.type !== "ple_payoff").length;
+  if (!repeated && directSpent <= plan.directMatchRepetitionBudget + responses) return false;
+  const why = repeated ? "the program keeps running the same beat." : "the rivalry match is already spent.";
+  if (responses === 0) return accelerateProgramPlan(world, ctx, plan, "repetition", why);
+  abandonProgramPlan(world, ctx, plan, "repetition", "it repeated itself again with no payoff in reach.");
+  return true;
+}
+
+const OPPOSITE_HEAT: Record<string, string | undefined> = { positive: "negative", negative: "positive" };
+
+/** Resolved beats of this program whose heat landed the opposite way to the plan. */
+function heatContradictions(world: WorldState, plan: ProgramPlan): number {
+  const resultIds = new Set(beatsOf(world, plan).flatMap((candidate) => candidate.resultIds));
+  return world.segmentResults.filter((result) =>
+    resultIds.has(result.id) && result.plannedOutcome !== undefined && result.actualOutcome !== undefined
+    && OPPOSITE_HEAT[result.plannedOutcome.intendedHeatDirection] === result.actualOutcome.heatDirection,
+  ).length;
+}
+
+/** Whoever the program's segments actually made the dominant act, plan or no plan. */
+function crowdFavoured(world: WorldState, plan: ProgramPlan): string | undefined {
+  const resultIds = new Set(beatsOf(world, plan).flatMap((candidate) => candidate.resultIds));
+  const counts = new Map<string, number>();
+  for (const result of world.segmentResults) {
+    if (!resultIds.has(result.id) || result.actualOutcome === undefined) continue;
+    const id = result.actualOutcome.dominantWrestlerId;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+}
+
+/**
+ * The crowd gets a vote. Heat that repeatedly lands against the booked
+ * direction pivots the program behind whoever they are actually reacting to;
+ * interest falling away from its own peak either cashes the build in early or,
+ * when there is no build to cash, takes the program off television. Responding
+ * re-bases the peak, so the trigger re-arms instead of firing forever.
+ */
+function respondToCrowd(world: WorldState, ctx: TickContext, plan: ProgramPlan): boolean {
+  const story = world.stories.find((candidate) => candidate.id === plan.storyId);
+  if (story === undefined || story.phase === "resolved") return false;
+  const favoured = crowdFavoured(world, plan);
+  if (favoured !== undefined && heatContradictions(world, plan) >= world.config.booking.heatContradictionLimit
+    && pivotProgramPlan(world, ctx, plan, "crowd_response", "the heat keeps landing the other way", favoured)) {
+    story.peakAudienceInterest = story.audienceInterest;
+    return true;
+  }
+  const peak = story.peakAudienceInterest ?? story.audienceInterest;
+  if (peak - story.audienceInterest < world.config.booking.crowdResponseInterestDrop) return false;
+  story.peakAudienceInterest = story.audienceInterest;
+  return accelerateProgramPlan(world, ctx, plan, "crowd_response", "interest is falling away from its peak.")
+    || coolDownProgramPlan(world, ctx, plan, "crowd_response", "the crowd stopped caring before the build began.");
+}
+
+/**
+ * An event of nothing but blowoffs makes none of them matter. When more
+ * programs are due to pay off on the upcoming event than it can carry, the
+ * coldest are held over — the hot ones keep the date.
+ */
+function enforcePayoffCapacity(world: WorldState, ctx: TickContext): void {
+  const upcoming = ctx.tick + 1;
+  if (!isShowTick(upcoming, world.config) || showKindForTick(upcoming, world.config) !== "ple") return;
+  const due = world.programPlans.filter(isActive).filter((plan) => openPayoffBeats(world, plan)
+    .some((payoff) => payoff.earliestTick <= upcoming && upcoming <= payoff.latestTick));
+  const overflow = due.length - world.config.booking.maxPayoffsPerEvent;
+  if (overflow <= 0) return;
+  const coldest = due
+    .map((plan) => ({ plan, interest: world.stories.find((story) => story.id === plan.storyId)?.audienceInterest ?? 0 }))
+    .sort((a, b) => a.interest - b.interest || a.plan.id.localeCompare(b.plan.id))
+    .slice(0, overflow);
+  for (const { plan } of coldest) {
+    extendProgramPlan(world, ctx, plan, "payoff_capacity", "the event could not pay off every program at once.");
+  }
+}
+
+/**
+ * Execution facts are a replanning input, never a silent change to a premise —
+ * and the cause decides the answer. Someone got hurt, so the program is held
+ * over; someone refused or simply took the segment somewhere else, so the plan
+ * pivots behind whoever execution actually favoured; a run-in that failed has
+ * nothing left to hide behind, so the payoff is brought forward.
+ */
+export function replanForExecutionDeviation(
+  world: WorldState, ctx: TickContext, programPlanId: string,
+  cause: ExecutionDeviationCause | undefined, favouredWrestlerId: string,
+): void {
+  const plan = world.programPlans.find((candidate) => candidate.id === programPlanId);
+  if (plan === undefined || !isActive(plan)) return;
+  const why = `the ${(cause ?? "execution").replace(/_/g, " ")} changed what happened`;
+  const pivot = (): boolean => pivotProgramPlan(world, ctx, plan, "execution_deviation", why, favouredWrestlerId);
+  const accelerate = (): boolean => accelerateProgramPlan(world, ctx, plan, "execution_deviation", `${why}.`);
+  const extend = (): boolean => extendProgramPlan(world, ctx, plan, "execution_deviation", `${why}.`);
+  if (cause === "injury") { if (extend() || pivot()) return; }
+  else if (cause === "failed_interference") { if (accelerate() || pivot()) return; }
+  else if (pivot() || accelerate()) return;
+}
+
+/**
+ * A title holder is itself planned state. A belt that moves to someone inside
+ * the program makes them what it is about; a belt that leaves the program
+ * entirely takes the stakes with it, and what remains is the grudge.
+ */
 export function replanForTitleChange(world: WorldState, ctx: TickContext, titleId: string): void {
+  const holderId = world.titles.find((title) => title.id === titleId)?.holderId;
   for (const plan of world.programPlans) {
-    if (plan.stakesTitleId === titleId && isActive(plan)) reviseProgramPlan(world, ctx, plan.id, "title_change", snapshot(plan), "pivot");
+    if (plan.stakesTitleId !== titleId || !isActive(plan)) continue;
+    if (holderId !== undefined && pivotProgramPlan(world, ctx, plan, "title_change", "the championship changed hands mid-program", holderId)) continue;
+    revise(world, ctx, plan, "title_change", "pivot", {
+      creativeObjective: "settle_grudge",
+      clearStakesTitleId: true,
+      intendedPayoff: restate(plan, "the championship left the program; the grudge is what is left."),
+    });
+  }
+}
+
+/**
+ * An accepted pitch about a wrestler already inside a program is creative
+ * input, not just a story boost. A participant who pitched it bends the program
+ * their way; a pitch aimed at someone in a program pushes that program towards
+ * its payoff. Either way it moves up the planner's priority list, and it counts
+ * once — a wrestler cannot re-pitch their way to the top every week.
+ */
+export function replanForPlayerPitch(world: WorldState, ctx: TickContext, pitcherId: string, subjectId: string): void {
+  const plan = world.programPlans.filter(isActive)
+    .filter((candidate) => candidate.participants.some((participant) => participant.wrestlerId === pitcherId || participant.wrestlerId === subjectId))
+    .sort((a, b) => a.id.localeCompare(b.id))[0];
+  if (plan === undefined || revisionCount(plan, "player_pitch") > 0) return;
+  const pitching = plan.participants.some((participant) => participant.wrestlerId === pitcherId);
+  const revised = pitching
+    ? pivotProgramPlan(world, ctx, plan, "player_pitch", "they asked the GM for this program", pitcherId)
+    : accelerateProgramPlan(world, ctx, plan, "player_pitch", `${nameOf(world, pitcherId)} is pushing to be part of it.`);
+  if (revised) plan.priority = Math.min(5, plan.priority + 1);
+}
+
+/**
+ * What a wrestler answers to a reactive decision lands on the program they are
+ * in: refusing the booking they were handed pivots it behind them, taking a
+ * risk or accepting a turn is momentum the program spends now.
+ */
+export function replanForPlayerResponse(
+  world: WorldState, ctx: TickContext, wrestlerId: string,
+  decisionType: ReactiveDecisionType, response: ReactiveResponseToken,
+): void {
+  const plan = world.programPlans.filter(isActive)
+    .filter((candidate) => candidate.participants.some((participant) => participant.wrestlerId === wrestlerId))
+    .sort((a, b) => a.id.localeCompare(b.id))[0];
+  if (plan === undefined) return;
+  const defiant = response === "refuse" || response === "escalate";
+  const cooperative = response === "accept" || response === "cooperate_conditionally";
+  if (defiant && (decisionType === "booking_request" || decisionType === "finish_changed")) {
+    pivotProgramPlan(world, ctx, plan, "player_response", "they refused the booking they were handed", wrestlerId);
+    return;
+  }
+  if (cooperative && decisionType === "turn_proposal") {
+    pivotProgramPlan(world, ctx, plan, "player_response", "they agreed to turn", wrestlerId);
+    return;
+  }
+  if (cooperative && decisionType === "risky_opportunity") {
+    accelerateProgramPlan(world, ctx, plan, "player_response", `${nameOf(world, wrestlerId)} took the risk that was offered.`);
   }
 }

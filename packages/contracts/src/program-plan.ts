@@ -85,6 +85,12 @@ export const programPlanSchema = z.object({
   completedBeatIds: z.array(idSchema),
   directMatchCooldownTicks: z.number().int().min(0),
   directMatchRepetitionBudget: z.number().int().min(0),
+  /**
+   * A `cool_down` response takes the program off television until this tick:
+   * beat selection skips the plan, its story decays on its own, and the build
+   * resumes afterwards. Absent unless the planner has actually cooled it.
+   */
+  beatsFrozenUntilTick: tickSchema.optional(),
   revisions: z.array(programPlanRevisionSchema).min(1),
 }).superRefine((plan, ctx) => {
   if (plan.targetPayoffTick < plan.startTick) {

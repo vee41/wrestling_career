@@ -245,7 +245,11 @@ For each trigger, the planner chooses and records one response:
 - cool down temporarily;
 - abandon and resolve the plan.
 
-Revision reason, previous intent, and new intent are permanent audit facts. Replanning must not silently rewrite history.
+Each response is a mutation, not a label. `accelerate` aims at the earliest event the program can still reach, spends the complications there is no longer room for, and opens the rest now — it declines on a program with nothing resolved, because there is no build to cash in. `extend` moves the payoff and the remaining beat windows to the next reachable event and adds one keep-warm beat when the build is spent; that beat is never a prerequisite of the payoff, so a payoff-ready program stays payoff-ready. `cool_down` takes the program off television for a fixed window and lets the story decay on its own. `pivot` changes who the program is *for*: the favoured participant becomes the protagonist — which is what decides the payoff winner — and every beat still to come speaks for them. `substitute_beat` and `abandon` are as described in §6 and above.
+
+Revision reason, previous intent, and new intent are permanent audit facts. Replanning must not silently rewrite history — and must not pretend to have written any. **A revision whose new intent equals its previous intent is a defect, not a record**: a response that would change nothing declines instead, so its caller can try the next one. Every response therefore restates the plan's `intendedPayoff` alongside whatever else it moves.
+
+The state-driven triggers (`crowd_response`, `repetition`, `payoff_capacity`) are read once a tick immediately before the next card is composed — the last moment a decision can still change what airs. The event-driven ones (`participant_unavailable`, `execution_deviation`, `title_change`, `player_pitch`, `player_response`) fire from the paths that produce them. A trigger re-arms rather than re-firing on the same evidence: `crowd_response` re-bases the story's interest peak when it acts, and `repetition` raises its own threshold with each response so a program is accelerated on the third repeat and abandoned only if it repeats again.
 
 Every plan terminates. A `payoff_missed` trigger buys the program one extension to the next PLE it can actually reach — its remaining beat windows move with it — and abandons it on the second miss. An open plan whose payoff tick has passed is a defect, not a state: `worldStateSchema` rejects it.
 

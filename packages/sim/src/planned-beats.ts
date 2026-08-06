@@ -27,7 +27,12 @@ export function recordResolvedBeat(world: WorldState, ctx: TickContext, result: 
     matchId: result.id, showId: result.showId,
     data: { programPlanId: beat.programId, plannedBeatId: beat.id, resultId: result.id, type: beat.type },
   });
-  if (result.adherence === "deviated") replanForExecutionDeviation(world, ctx, beat.programId);
+  // The plan answers to the fact, and to who execution actually favoured — the
+  // wrestler who won or stood tall, not the one the beat was written for.
+  if (result.adherence === "deviated") {
+    const favoured = "winnerWrestlerId" in result ? result.winnerWrestlerId : result.dominantWrestlerId;
+    replanForExecutionDeviation(world, ctx, beat.programId, result.deviationCause, favoured);
+  }
 }
 
 /** Whether every beat between here and the payoff has had its say. */

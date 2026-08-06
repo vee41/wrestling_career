@@ -7,6 +7,7 @@ import type {
 import { addEvent, type TickContext } from "./context.js";
 import { applyRelationshipDelta, findPopularity, requireWrestler } from "./lookups.js";
 import { clampDelta100, clampScale100 } from "./clamp.js";
+import { replanForPlayerResponse } from "./program-plans.js";
 
 /**
  * GDD §4 pipeline step 4: resolve reactive-decision responses and proposal
@@ -29,6 +30,9 @@ export function resolveReactiveResponses(
         continue;
       }
       applyReactiveConsequence(world, decision, response.response, ctx);
+      // What they answered is a fact about the program they are in, not only
+      // about them (booking_ai §9: player action is a replanning trigger).
+      replanForPlayerResponse(world, ctx, decision.targetWrestlerId, decision.type, response.response);
       decision.status = "responded";
       byId.delete(decision.id);
       const wrestler = requireWrestler(world, decision.targetWrestlerId);

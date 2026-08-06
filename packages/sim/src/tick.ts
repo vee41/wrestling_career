@@ -20,7 +20,7 @@ import { updatePopularity } from "./popularity.js";
 import { updateChampionships } from "./title.js";
 import { advanceStories } from "./stories.js";
 import { generateReactiveDecisions, scanForNewStory } from "./director.js";
-import { advanceProgramPlanLifecycle, planPrograms } from "./program-plans.js";
+import { advanceProgramPlanLifecycle, planPrograms, replanBeforeBooking } from "./program-plans.js";
 import { buildNarrativeJobs } from "./narrative.js";
 
 // Comfortably larger than the patience (6-tick) and training-plateau
@@ -80,6 +80,10 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   // Resolve current social choices before committing a future card. Existing
   // shows stay untouched, so their player intents remain attached.
   planPrograms(draft, ctx);
+  // The state-driven replanning triggers get the last word before the card is
+  // composed: after this the next show is committed and nothing they decide
+  // could still change what airs on it.
+  replanBeforeBooking(draft, ctx);
   bookUpcomingShowIfDue(draft, ctx);
 
   // Step 5 — resolve the show (show ticks only).

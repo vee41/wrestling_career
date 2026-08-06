@@ -78,6 +78,11 @@
     "minimumProgramBuildShows": 2,
     "maxPayoffExtensions": 1,
     "coolingResolveWeeks": 3,
+    "crowdResponseInterestDrop": 20,
+    "heatContradictionLimit": 2,
+    "coolDownTicks": 3,
+    "repeatedBeatTypeLimit": 3,
+    "maxPayoffsPerEvent": 4,
     "programCandidateRetentionTicks": 30
   }
 }

@@ -528,3 +528,83 @@ keep it in.
 Three knobs carry the change, all scenario-owned: `booking.minimumProgramBuildShows`
 (2), `booking.maxPayoffExtensions` (1), and `booking.coolingResolveWeeks` (3),
 plus the `tvCardSize` re-authoring above.
+
+## Phase 3.12.4 replanning with teeth
+
+`slice --weeks 8 --seeds 2` and `--weeks 26 --seeds 3`, default scenario, run
+against the 3.12.3 baseline recorded above.
+
+Before this phase every replanning path handed the *unchanged* plan snapshot
+back. Four of the six response tokens did not exist, three of the trigger
+reasons were unreachable, and the two revisions a slice did produce were audit
+entries recording a decision nobody had made. The single number that says this
+is fixed is **no-op revisions 1 → 0** on every seed at both lengths: a response
+that would change nothing now declines instead of writing a lie, and its caller
+falls through to the next one.
+
+| | 3.12.3 | 3.12.4 |
+| --- | --- | --- |
+| No-op revisions (8wk) | 1 · 0 | **0 · 0** |
+| Revisions by cause (8wk, seed 1) | participant unavailable 1, execution deviation 3 | participant unavailable 1, execution deviation 3, **crowd response 1** |
+| Revisions by cause (26wk, seed 1) | as above, all no-op pivots | execution deviation 11, participant unavailable 2, crowd response 1, title change 1 |
+| Programs resolved (8wk) | 7 · 7 | 7 · 7 |
+| Unresolved backlog (8wk) | 2 · 1 | 2 · 1 |
+| PLE build coverage (8wk) | 6/10 · 7/11 | 6/10 · 7/11 |
+| Beats resolved / skipped (8wk) | 26/1 · 26/1 | 26/1 · 26/1 |
+| MUST failures (26wk) | 5 / 3 / 3 | 5 / 3 / 3 |
+
+### The replanning is live but SL-neutral, and that was checked rather than assumed
+
+Every booking metric except the revision counters is unchanged, and the 26-week
+MUST rows are identical row for row. That is a real result, not a sign the code
+is inert: re-running seed 1 with 3.12.4's behaviour switched off gives a
+*different* final roster — six wrestlers land 6–10 popularity points away from
+where they land with it on. The replanning moves the world; it does not yet move
+a criterion. Two reasons, both of which later phases address:
+
+- All 15 execution deviations on seed 1 are `refusal`, 11 of them in segments.
+  The pivot they trigger changes who the program is for, and with it who wins the
+  blowoff — but the criteria that would notice (SL-4/SL-5 title movement, SL-7
+  main-event diversity) are gated on title booking, which is 3.12.8.
+- `repetition`, `payoff_capacity` and `payoff_missed` never fire on the shipped
+  tuning. Programs reach their payoffs, run three distinct beat types, and never
+  crowd an event past four payoffs. These are backstops with fixtures, and
+  3.12.6's richer skeletons and 3.12.8's title programs are what should make the
+  first two live. They should not be tuned down to make them fire.
+
+### `pivot` had to reach the roles to mean anything
+
+The first implementation moved `protectedWrestlerIds` and the open beats'
+intended dominant. It was measurably almost inert, because
+`finishForPlannedBeat` derives the payoff winner from participant **roles** —
+protagonist beats antagonist unless a title holder overrides — and never reads
+the protected list. A pivot now makes the favoured wrestler the protagonist. It
+is the difference between recording that the program changed direction and the
+program actually changing direction.
+
+### `maxPayoffsPerEvent` landed at 4, not 3
+
+Three payoffs an event reads defensibly on paper, and at 3 the trigger fired on
+the shipped scenario — but what it held over were programs the event had room
+for, costing a point of backlog (2 → 3) and of PLE build coverage (60% → 56%) on
+seed 1. Against a 6–8 match PLE, four program payoffs is still half the card
+with room for the rotation. At 4 the trigger stays a genuine constraint (five
+concurrent programs all peaking will hit it) without delaying work the card can
+carry.
+
+### Handoffs
+
+- **`MAX_ACTIVE_PROGRAMS` is double-counted.** The seat check adds `selectedIds.size`
+  to a `world.programPlans` array the same loop has already pushed into, so the
+  portfolio saturates around three or four concurrent programs rather than the
+  five the constant names. Found while building the coverage fixture, left alone
+  deliberately: it changes program volume across the board and belongs with
+  3.12.9's portfolio-driven cadence, which owns the 3–5 band.
+- `player_pitch` and `player_response` are unreachable in a headless run by
+  design — AI wrestlers are barred from pitching feuds to the GM, and nothing
+  answers reactive decisions. Both are covered by driving the real interaction
+  and reactive-response slots in tests, and both come alive with a human player.
+
+Five knobs carry the change, all scenario-owned: `booking.crowdResponseInterestDrop`
+(20), `booking.heatContradictionLimit` (2), `booking.coolDownTicks` (3),
+`booking.repeatedBeatTypeLimit` (3), and `booking.maxPayoffsPerEvent` (4).

@@ -25,6 +25,13 @@ export const storySchema = z.object({
   tensionDescription: z.string().min(1),
   stakes: z.string().min(1),
   audienceInterest: scale100Schema,
+  /**
+   * The highest `audienceInterest` the story has reached since the planner last
+   * acted on a crowd-response revision. The gap between this and the current
+   * value is what the `crowd_response` replanning trigger measures; resetting it
+   * when the planner responds re-arms the trigger instead of firing forever.
+   */
+  peakAudienceInterest: scale100Schema.optional(),
   momentum: deltaScale100Schema,
   coherence: scale100Schema,
   phase: storyPhaseSchema,

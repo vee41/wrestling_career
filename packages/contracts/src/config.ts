@@ -152,6 +152,30 @@ export const bookingTuningSchema = z.object({
    */
   coolingResolveWeeks: z.number().int().min(1).default(3),
   /**
+   * How far a story's audience interest may fall below its own peak before the
+   * planner treats the crowd as having answered: the `crowd_response` trigger.
+   */
+  crowdResponseInterestDrop: z.number().min(1).max(100).default(20),
+  /**
+   * How many resolved segment beats may execute against their intended heat
+   * direction before the crowd response is read as a pivot rather than a dip.
+   */
+  heatContradictionLimit: z.number().int().min(1).default(2),
+  /** How long a `cool_down` response keeps a program off television. */
+  coolDownTicks: z.number().int().min(1).default(3),
+  /**
+   * How often one program may resolve the same beat type before the build is
+   * repetitive: the `repetition` trigger. The first occurrence accelerates the
+   * program to its payoff, a second abandons it.
+   */
+  repeatedBeatTypeLimit: z.number().int().min(2).default(3),
+  /**
+   * How many program payoffs one event may carry. A card of nothing but
+   * blowoffs makes none of them matter, so the coldest programs beyond this are
+   * extended to the next event: the `payoff_capacity` trigger.
+   */
+  maxPayoffsPerEvent: z.number().int().min(1).default(4),
+  /**
    * How long the private planner candidate trace is kept. Two candidates are
    * appended every planning pass, so this is windowed like `world.events`;
    * the default holds several PLE cycles of history for the booking report.

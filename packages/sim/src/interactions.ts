@@ -18,6 +18,7 @@ import {
 } from "./lookups.js";
 import { clamp01, clampDelta100, clampScale100 } from "./clamp.js";
 import { countRecentInteractions, patienceMultiplier, recentPerformanceReaction } from "./patience.js";
+import { replanForPlayerPitch } from "./program-plans.js";
 import { stanceWeights } from "./ai/stance-weights.js";
 
 // Spec §3.3: "many intents create a proposal" when the target is human.
@@ -184,7 +185,12 @@ function resolveOneInteraction(world: WorldState, interaction: Interaction, ctx:
 
       if (interaction.intent === "pitch_feud" && interaction.subjectWrestlerId) {
         const subject = findWrestler(world, interaction.subjectWrestlerId);
-        if (subject) seedOrBoostFeud(world, ctx, proposer, subject);
+        if (subject) {
+          // A pitch about wrestlers nobody is building stays on the
+          // story-seeding path; one that touches a live program revises it.
+          seedOrBoostFeud(world, ctx, proposer, subject);
+          replanForPlayerPitch(world, ctx, proposer.id, subject.id);
+        }
       }
     }
     addEvent(world, ctx, {
