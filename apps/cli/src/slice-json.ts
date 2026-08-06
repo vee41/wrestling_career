@@ -185,6 +185,23 @@ export const sliceAnalysisJsonSchema = z.strictObject({
       titleId: z.string().optional(),
       impacts: z.array(impactSchema),
     })),
+    segments: z.array(z.strictObject({
+      tick: z.number(),
+      showKind: showKindSchema,
+      position: z.string(),
+      participants: z.array(z.string()),
+      dominantWrestlerId: z.string(),
+      quality: z.number(),
+      crowdResponse: z.number(),
+      storyAdvancement: z.number(),
+      impacts: z.array(impactSchema),
+      heatDeltas: z.array(z.strictObject({
+        wrestlerId: z.string(),
+        positive: z.number(),
+        negative: z.number(),
+        storyAdvancement: z.number(),
+      })),
+    })),
   })),
   pleCards: z.array(z.strictObject({
     week: z.number(),

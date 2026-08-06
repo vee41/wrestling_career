@@ -187,6 +187,19 @@ export interface SliceStoryMatch {
   impacts: SliceMatchImpact[];
 }
 
+export interface SliceStorySegment {
+  tick: number;
+  showKind: "tv" | "ple";
+  position: string;
+  participants: string[];
+  dominantWrestlerId: string;
+  quality: number;
+  crowdResponse: number;
+  storyAdvancement: number;
+  impacts: SliceMatchImpact[];
+  heatDeltas: Array<{ wrestlerId: string; positive: number; negative: number; storyAdvancement: number }>;
+}
+
 export interface SliceStoryTimeline {
   storyId: string;
   description: string;
@@ -195,6 +208,7 @@ export interface SliceStoryTimeline {
   resolveTick?: number;
   resolvedAtPle: boolean;
   matches: SliceStoryMatch[];
+  segments: SliceStorySegment[];
 }
 
 export interface SlicePleCard {
@@ -494,6 +508,30 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
       };
     })
     .sort((a, b) => a.tick - b.tick);
+  const storySegments = (storyId: string): SliceStorySegment[] => finalWorld.segmentResults
+    .filter((result) => result.storyId === storyId)
+    .map((result) => {
+      const show = finalWorld.shows.find((candidate) => candidate.id === result.showId);
+      const slot = show?.card.find((candidate) => candidate.id === result.segmentSlotId);
+      return {
+        tick: show?.tick ?? 0,
+        showKind: show?.kind ?? "tv",
+        position: slot?.position ?? "mid",
+        participants: result.participantWrestlerIds,
+        dominantWrestlerId: result.dominantWrestlerId,
+        quality: result.quality,
+        crowdResponse: result.crowdResponse,
+        storyAdvancement: result.storyAdvancement,
+        impacts: segmentImpacts(result),
+        heatDeltas: result.performances.map((performance) => ({
+          wrestlerId: performance.wrestlerId,
+          positive: performance.positiveHeatDelta,
+          negative: performance.negativeHeatDelta,
+          storyAdvancement: performance.storyAdvancement,
+        })),
+      };
+    })
+    .sort((a, b) => a.tick - b.tick);
   const stories = [...new Set([...storyStarts, ...storyResolutions].map((event) => event.storyId).filter((id): id is string => id !== undefined))].map((storyId) => {
     const start = startByStory.get(storyId);
     const resolution = storyResolutions.find((event) => event.storyId === storyId);
@@ -507,6 +545,7 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
       ...(resolution ? { resolveTick: resolution.tick } : {}),
       resolvedAtPle: show?.kind === "ple",
       matches: storyMatches(storyId),
+      segments: storySegments(storyId),
     };
   });
   const resolvedStories = stories.filter((story) => story.resolveTick !== undefined);
