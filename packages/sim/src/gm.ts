@@ -3,6 +3,7 @@ import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
 import { recentPerformanceReaction } from "./patience.js";
+import { releaseUncommittedBeats } from "./planned-beats.js";
 import { selectPlannedBeatsForShow } from "./program-plans.js";
 
 // The MVP has no tag division. Keep its legacy token in contracts for old
@@ -330,8 +331,6 @@ function compositionTrace(world: WorldState, composedAtTick: number, targetTick:
           ? "outside this show's scheduling window"
           : "capacity reserved for higher-priority candidates",
     });
-    // This beat was not actually committed; make it eligible for the next
-    // composition attempt instead of leaving a phantom scheduled beat.
   }
   return { composedAtTick, targetTick, candidates };
 }
@@ -380,8 +379,8 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       .filter((id, index, all) => all.indexOf(id) === index);
     if (participants.some((id) => used.has(id))) {
       // `selectPlannedBeatsForShow` is intentionally program-local; the
-      // composer is the final no-double-booking authority.
-      plannedBeat.status = "provisional";
+      // composer is the final no-double-booking authority. The beat is released
+      // back to the pool with every other uncommitted one below.
       continue;
     }
     participants.forEach((id) => used.add(id));
@@ -407,13 +406,17 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     }
   }
 
-  // A PLE first reserves a genuine blowoff for every peaking story.
+  // A PLE reserves a genuine blowoff for every peaking story no program is
+  // building. A planned program's climax is its own `ple_payoff` beat, booked
+  // by the pass above — this legacy fallback must not deliver it a second time,
+  // which is how stories used to resolve while their plans stayed open.
   if (kind === "ple") {
     for (const story of world.stories.filter((candidate) => candidate.phase === "peaking" && candidate.participantWrestlerIds.length >= 2)) {
       const participants = story.participantWrestlerIds;
       if (participants.some((id) => used.has(id) || !eligible.has(id))) continue;
       const linkedPlan = world.programPlans.find((plan) => plan.storyId === story.id && (plan.status === "active" || plan.status === "payoff_ready"));
-      if (directMatchOnCooldown(world, participants, targetTick, linkedPlan?.id)) continue;
+      if (linkedPlan !== undefined) continue;
+      if (directMatchOnCooldown(world, participants, targetTick)) continue;
       if (blocksStaleTitleDefense(world, participants, targetTick)) continue;
       const title = world.titles.find((candidate) =>
         candidate.holderId !== undefined && participants.includes(candidate.holderId) && participantsTitleEligible(world, participants, candidate.tier),
@@ -560,6 +563,10 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       data: { programPlanId: plannedBeat.programId, plannedBeatId: plannedBeat.id, type: plannedBeat.type },
     });
   }
+  // Selection marks a beat `scheduled` before the composer has the final say on
+  // double booking; anything that did not reach the card goes back in the pool
+  // for the next show rather than staying a phantom claim on this one.
+  releaseUncommittedBeats(world, plannedBeats);
   world.shows.push(show);
   for (const wrestlerId of slots.flatMap((booked) => booked.participantWrestlerIds)) {
     const hasUnreturnedAbsence = world.events.some((event) =>

@@ -32,6 +32,9 @@ export const programRevisionReasonSchema = z.enum([
   "player_response",
   "title_change",
   "execution_deviation",
+  // A plan whose payoff window passed unresolved is never a silent zombie: it
+  // extends to the next viable PLE once, then abandons.
+  "payoff_missed",
   "crowd_response",
   "repetition",
   "payoff_capacity",

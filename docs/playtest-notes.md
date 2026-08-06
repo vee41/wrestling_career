@@ -436,3 +436,95 @@ appearances costly again.
 Two knobs carry the change, both scenario-owned:
 `popularity.segmentDominantEdgeFactor` (0.15, against the 0.5 match-win
 factor) and `popularity.segmentNonDominantEdge` (0, bounded at −5).
+
+## Phase 3.12.3 beat progression and plan lifecycle repair
+
+Same harness as every phase in this series: `slice --weeks 8 --seeds 2` on
+`wwe-2026`, plus the 26-week, 3-seed gate for the criteria table. Baseline is
+commit `90a8950` (3.12.1 and 3.12.2).
+
+The stall was in the **beat windows**, not the beat feedback. `createBeatSkeleton`
+placed windows at fixed offsets from the payoff (`payoff − 6 / − 3 / − 1`), so a
+plan created within two shows of its PLE was born with every window already
+closed — the card for that tick had been composed a tick earlier. Each beat then
+expired in turn, and because a skipped beat stayed in its successors'
+preconditions, the rest of the chain waited forever on something that could never
+resolve. Windows are now laid over the television shows that exist, and retiring
+a beat splices it out of the chain.
+
+| 8-week, 2 seeds | before | after |
+| --- | --- | --- |
+| Programs resolved | 3 / 2 | 7 / 7 |
+| Open program backlog at week 8 | 5 / 5 | 2 / 1 |
+| Beats resolved | 16 / 12 | 26 / 26 |
+| Beats skipped | 11 / 15 | 1 / 1 |
+| PLE build coverage | 4/11 · 4/11 | 6/10 · 7/11 |
+| Stories resolved / still open | 3 of 10 / 7 · 4 of 10 / 6 | 7 of 10 / 3 (both) |
+| Net roster popularity | +57 / +55 | +71 / +76 |
+
+Every open plan's `openReason` changed character with it. Before, all five read
+"payoff window closed in week 4 with the plan still active" — the zombie state.
+After, the open plans read "confrontation is due between weeks 9 and 11" and
+"promo_interview is due between weeks 9 and 11": programs mid-build, not
+programs abandoned in place. `worldStateSchema` now rejects the old state
+outright, so it cannot come back silently.
+
+At 26 weeks the booking picture changes scale rather than degree: programs
+created 8 → 28 (plans that end release their participants, so the planner is no
+longer holding five permanent zombies), resolved 3 → 23, beats resolved 14 → 93,
+skipped 18 → 1, PLE build coverage 13% → 66%, story backlog 10 → 5, and the
+median story lifespan 8.0 → 5.0 weeks with 100% of resolutions still landing on
+a PLE.
+
+### The TV card was sized for a show without segments
+
+Making beats actually air exposed a scenario-data fault. `tvCardSize` was
+`{min: 4, max: 6}`, authored when story segments barely happened; with five live
+programs each claiming a beat, the same card went from **3.2 matches + 1.6
+segments** a week to **1.2 matches + 3.5 segments**. Rotation matches and title
+defences were what got squeezed out, and four MUST rows went with them. Real
+television runs both, so the scenario now books **8–10 slots** — measured at
+5.3 matches + 3.5 segments, against a PLE's 7.3 matches and no segments. TV has
+more *slots*; a PLE still has more *matches*.
+
+| 26-week MUST | before | 3.12.3, cards 4–6 | 3.12.3, cards 8–10 |
+| --- | --- | --- | --- |
+| SL-1 rises | PASS ×3 | PASS ×3 | PASS ×3 (5 / 5 / 4) |
+| SL-2 falls | FAIL ×3 (2/2/1) | FAIL ×3 (1/0/0) | FAIL · **PASS · PASS** (1/4/4) |
+| SL-3 non-monotonic | 7 / 6 / 4 | 11 / 9 / 8 | 12 / 9 / 17 |
+| SL-4 world title | PASS ×3 | FAIL · PASS · PASS | PASS · **FAIL · FAIL** (3 changes) |
+| SL-5 IC title | PASS · FAIL · PASS | FAIL ×3 | FAIL ×3 |
+| SL-7 card mobility | PASS ×3 | PASS · PASS · FAIL | **FAIL** · PASS · PASS |
+| SL-9 spread | PASS ×3 | FAIL ×3 (min 1/2/2) | FAIL · FAIL · **PASS** |
+| MUST failures per seed | 2 / 3 / 2 | 5 / 4 / 5 | 5 / **3 / 3** |
+
+The bigger card buys back most of the regression and gives the roster real
+losses again (SL-2 passes on two seeds for the first time since 3.12.2 removed
+promo burials). What is left is not card size:
+
+- **SL-5 on every seed, SL-4 on two.** 0–2 midcard changes against 4–5 defences,
+  and 3 world-title changes where the spec wants 0–2. Belts are still moving on
+  match results rather than as a program's planned payoff — Phase 3.12.8's remit,
+  and the largest remaining gap against the pre-phase gate.
+- **SL-9 on two seeds, by one wrestler each.** Both name Damian Priest at 1–2
+  matches. That is the rotation pass's `restPenalty` holding a high-popularity
+  act off cards that now have room for him, not slot starvation; it belongs with
+  3.12.7's card-shape pass.
+- The TV main event is still usually a promo, and `selectPlannedBeatsForShow` is
+  still handed the whole card as its capacity. Both are 3.12.7, and should now be
+  designed against the 8–10 card rather than the old one.
+
+Two smaller findings worth recording. The chain healing exposed a live defect in
+the substitute-beat path: a stand-in booked only the wrestlers who could appear
+but kept the whole program's planned outcome, so it resolved as a `refusal`
+deviation against a wrestler who was never in the segment. Raw refusal counts
+still rise at 26 weeks (10/12/8 → 25/22/17) purely because far more planned
+segments now run at all; the adherence *rate* moves little (0.84/0.79/0.86 →
+0.75/0.79/0.84). And `payoff_missed` fires zero times on the shipped scenario
+now that programs reach their payoffs — the extend-once-then-abandon path is a
+tested backstop rather than observed behaviour, which is the state 3.12.4 should
+keep it in.
+
+Three knobs carry the change, all scenario-owned: `booking.minimumProgramBuildShows`
+(2), `booking.maxPayoffExtensions` (1), and `booking.coolingResolveWeeks` (3),
+plus the `tvCardSize` re-authoring above.

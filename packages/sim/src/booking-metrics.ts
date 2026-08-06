@@ -332,7 +332,7 @@ export function analyzeBooking(initialWorld: WorldState, finalWorld: WorldState)
       })),
       ...(plan.status === "resolved" || plan.status === "abandoned"
         ? {}
-        : { openReason: openReason(plan, beats, beatById, finalWorld.tick, config) }),
+        : { openReason: openReason(beats, beatById, config) }),
     };
   });
 
@@ -482,17 +482,18 @@ export function analyzeBooking(initialWorld: WorldState, finalWorld: WorldState)
 }
 
 /** Why an open plan has not paid off — the question the 8-week report could not answer before Phase 3.12.1. */
+/**
+ * Why a program has not paid off yet. There is deliberately no "payoff window
+ * closed" case: since Phase 3.12.3 an open plan whose payoff tick has passed
+ * either extended or was abandoned before the tick ended, and `worldStateSchema`
+ * asserts it — so an open plan always has its payoff still ahead of it.
+ */
 function openReason(
-  plan: ProgramPlan,
   beats: readonly PlannedBeat[],
   beatById: Map<string, PlannedBeat>,
-  endTick: number,
   config: WorldState["config"],
 ): string {
   const week = (tick: number) => weekForTick(tick, config);
-  if (plan.targetPayoffTick < endTick) {
-    return `payoff window closed in week ${week(plan.targetPayoffTick)} with the plan still ${plan.status}`;
-  }
   const pending = beats.filter((beat) => beat.status === "provisional" || beat.status === "scheduled");
   if (pending.length === 0) return "every planned beat was skipped or invalidated";
   const next = pending[0]!;

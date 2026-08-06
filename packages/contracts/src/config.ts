@@ -134,6 +134,24 @@ export const bookingTuningSchema = z.object({
   /** Chance for an eligible TV building-story slot to become a non-match beat. */
   segmentChance: z.number().min(0).max(1).default(0.25),
   /**
+   * How many television shows a program must have between its start and its
+   * payoff before it may aim at that PLE. A plan seeded days before an event
+   * has no runway to build one, so it aims at the following one instead of
+   * booking beats into windows that have already closed.
+   */
+  minimumProgramBuildShows: z.number().int().min(1).default(2),
+  /**
+   * How many times a plan whose payoff window passed unresolved may extend to
+   * the next viable PLE before it is abandoned. Zero abandons immediately.
+   */
+  maxPayoffExtensions: z.number().int().min(0).default(1),
+  /**
+   * How long a `cooling` story may sit without advancement before it resolves
+   * quietly, releasing its participants. This is the exit that keeps cold
+   * programs from accumulating as a permanent backlog.
+   */
+  coolingResolveWeeks: z.number().int().min(1).default(3),
+  /**
    * How long the private planner candidate trace is kept. Two candidates are
    * appended every planning pass, so this is windowed like `world.events`;
    * the default holds several PLE cycles of history for the booking report.

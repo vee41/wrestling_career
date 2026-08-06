@@ -129,6 +129,12 @@ export const worldStateSchema = z
           snapshot?.protectedWrestlerIds.forEach((id, k) => requireKnownWrestler(id, ["programPlans", i, "revisions", j, "protectedWrestlerIds", k]));
         }
       });
+      // A plan whose payoff window has passed must have extended, resolved, or
+      // been abandoned before the tick ended. An open plan pointing at a tick
+      // in the past is the zombie state Phase 3.12.3 removed.
+      if ((plan.status === "active" || plan.status === "payoff_ready") && plan.targetPayoffTick < world.tick) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "an open program plan must not target a payoff tick in the past", path: ["programPlans", i, "targetPayoffTick"] });
+      }
       for (const beatId of [...plan.plannedBeatIds, ...plan.completedBeatIds]) {
         if (!beatIds.has(beatId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `references unknown planned beat id "${beatId}"`, path: ["programPlans", i] });
       }

@@ -78,8 +78,36 @@ describe("planned beats", () => {
     const plan = world.programPlans[0]!;
     const original = world.plannedBeats.find((beat) => beat.programId === plan.id && beat.type === "promo_interview")!;
     expect(original.status).toBe("invalidated");
-    expect(world.plannedBeats.some((beat) => beat.programId === plan.id && beat.id !== original.id && beat.intendedStoryEffect.includes("replacing"))).toBe(true);
+    const substitute = world.plannedBeats.find((beat) => beat.programId === plan.id && beat.id !== original.id && beat.intendedStoryEffect.includes("replacing"))!;
+    expect(substitute).toBeDefined();
     expect(plan.revisions.at(-1)?.response).toBe("substitute_beat");
     expect(show.card.some((slot) => slot.plannedBeatId === original.id)).toBe(false);
+
+    // The stand-in only books the wrestler who can appear, so its planned
+    // outcome cannot keep naming the absent one — that resolved as a refusal
+    // deviation against someone who was never in the segment.
+    expect(substitute.requiredParticipantWrestlerIds).toEqual(["wrestler-1"]);
+    expect(substitute.plannedSegmentOutcome?.intendedDominantWrestlerId).toBe("wrestler-1");
+    expect(substitute.plannedSegmentOutcome?.protectedWrestlerIds).not.toContain("wrestler-0");
+    // ...and the rest of the chain now waits on the stand-in rather than on a
+    // beat that can never resolve.
+    const confrontation = world.plannedBeats.find((beat) => beat.programId === plan.id && beat.type === "confrontation")!;
+    expect(confrontation.preconditions.requiredResolvedBeatIds).toEqual([substitute.id]);
+  });
+
+  it("splices a beat whose window closed out of the chain instead of blocking it", () => {
+    const world = worldWithProgram();
+    const plan = world.programPlans[0]!;
+    const beats = world.plannedBeats.filter((beat) => beat.programId === plan.id);
+    const establish = beats.find((beat) => beat.type === "promo_interview")!;
+    const complicate = beats.find((beat) => beat.type === "confrontation")!;
+    // Close the establish beat's window without ever airing it.
+    establish.latestTick = 2;
+
+    const show = bookShow(world, context(4), 5);
+    expect(establish.status).toBe("skipped");
+    expect(complicate.preconditions.requiredResolvedBeatIds).toEqual([]);
+    expect(show.card.some((slot) => slot.plannedBeatId === complicate.id)).toBe(true);
+    expect(world.events.some((event) => event.type === "planned_beat_skipped")).toBe(true);
   });
 });

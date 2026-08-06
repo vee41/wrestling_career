@@ -1,7 +1,7 @@
 {
   "decisionTicksPerWeek": 2,
   "pleIntervalWeeks": 4,
-  "tvCardSize": { "min": 4, "max": 6 },
+  "tvCardSize": { "min": 8, "max": 10 },
   "pleCardSize": { "min": 6, "max": 8 },
   "sliceWeeks": 26,
   "popularity": {
@@ -75,6 +75,9 @@
     "titleDefenseStalenessWeeks": 4,
     "contenderReadyMomentumThreshold": 20,
     "segmentChance": 0.75,
+    "minimumProgramBuildShows": 2,
+    "maxPayoffExtensions": 1,
+    "coolingResolveWeeks": 3,
     "programCandidateRetentionTicks": 30
   }
 }

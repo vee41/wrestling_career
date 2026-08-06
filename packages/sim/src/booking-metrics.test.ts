@@ -23,6 +23,7 @@ const WEEK_ONE = 2;
 const WEEK_TWO = 5;
 const WEEK_THREE = 8;
 const WEEK_FOUR_PLE = 11;
+const WEEK_EIGHT_PLE = 23;
 
 function story(id: string, participants: string[]): Story {
   return {
@@ -132,7 +133,7 @@ function scriptedWorld(): { initialWorld: WorldState; finalWorld: WorldState } {
     status: "resolved", escalation: 3, priority: 5,
   });
   const stalled = plan({
-    id: "program-stalled", storyId: "story-stalled", startTick: WEEK_ONE,
+    id: "program-stalled", storyId: "story-stalled", startTick: WEEK_ONE, targetPayoffTick: WEEK_EIGHT_PLE,
     participants: [{ wrestlerId: rivalA, role: "protagonist" }, { wrestlerId: rivalB, role: "antagonist" }],
     revisions: [
       { id: "program-stalled-rev-0", tick: WEEK_ONE, reason: "initial_plan", newIntent: {
@@ -142,10 +143,10 @@ function scriptedWorld(): { initialWorld: WorldState; finalWorld: WorldState } {
       { id: "program-stalled-rev-1", tick: WEEK_TWO, reason: "crowd_response", response: "cool_down",
         previousIntent: { creativeObjective: "settle_grudge", targetPayoffTick: WEEK_FOUR_PLE, intendedPayoff: "Settle it at the PLE.", protectedWrestlerIds: [] },
         newIntent: { creativeObjective: "settle_grudge", targetPayoffTick: WEEK_FOUR_PLE, intendedPayoff: "Settle it at the PLE.", protectedWrestlerIds: [] } },
-      // A revision that genuinely moves the payoff.
+      // A revision that genuinely moves the payoff to the following PLE.
       { id: "program-stalled-rev-2", tick: WEEK_THREE, reason: "title_change", response: "extend",
         previousIntent: { creativeObjective: "settle_grudge", targetPayoffTick: WEEK_FOUR_PLE, intendedPayoff: "Settle it at the PLE.", protectedWrestlerIds: [] },
-        newIntent: { creativeObjective: "settle_grudge", targetPayoffTick: WEEK_FOUR_PLE, intendedPayoff: "Settle it one PLE later.", protectedWrestlerIds: [] } },
+        newIntent: { creativeObjective: "settle_grudge", targetPayoffTick: WEEK_EIGHT_PLE, intendedPayoff: "Settle it one PLE later.", protectedWrestlerIds: [] } },
     ],
   });
 
@@ -159,7 +160,7 @@ function scriptedWorld(): { initialWorld: WorldState; finalWorld: WorldState } {
     beat({ id: "beat-s1", programId: stalled.id, type: "attack_save_interference", requiredParticipantWrestlerIds: [rivalA, rivalB], escalationLevel: 1, status: "resolved", scheduledShowId: "show-w1", resultIds: ["segment-s1"] }),
     beat({ id: "beat-s2", programId: stalled.id, type: "promo_interview", requiredParticipantWrestlerIds: [rivalA, rivalB], escalationLevel: 0, status: "resolved", scheduledShowId: "show-w2", resultIds: ["segment-s2"] }),
     beat({ id: "beat-s3", programId: stalled.id, type: "go_home_angle", requiredParticipantWrestlerIds: [rivalA, rivalB], escalationLevel: 2, status: "skipped", earliestTick: WEEK_THREE, latestTick: WEEK_THREE }),
-    beat({ id: "beat-s4", programId: stalled.id, type: "ple_payoff", requiredParticipantWrestlerIds: [rivalA, rivalB], escalationLevel: 3, status: "provisional", earliestTick: WEEK_FOUR_PLE, latestTick: WEEK_FOUR_PLE, preconditions: { requiredResolvedBeatIds: ["beat-s3"], requirePle: true } }),
+    beat({ id: "beat-s4", programId: stalled.id, type: "ple_payoff", requiredParticipantWrestlerIds: [rivalA, rivalB], escalationLevel: 3, status: "provisional", earliestTick: WEEK_EIGHT_PLE, latestTick: WEEK_EIGHT_PLE, preconditions: { requiredResolvedBeatIds: ["beat-s3"], requirePle: true } }),
   ];
   built.plannedBeatIds = ["beat-b1", "beat-b2", "beat-b3", "beat-b4"];
   built.completedBeatIds = ["beat-b1", "beat-b2", "beat-b3", "beat-b4"];
@@ -262,7 +263,7 @@ describe("booking metrics", () => {
     expect(metrics.revisionsByResponse).toMatchObject({ cool_down: 1, extend: 1, pivot: 0 });
     expect(metrics.noOpRevisions).toBe(1);
     const stalled = timelines.find((timeline) => timeline.programId === "program-stalled")!;
-    expect(stalled.revisions.map((revision) => revision.changedFields)).toEqual([[], [], ["intendedPayoff"]]);
+    expect(stalled.revisions.map((revision) => revision.changedFields)).toEqual([[], [], ["targetPayoffTick", "intendedPayoff"]]);
   });
 
   it("tracks planned-finish adherence with its deviation causes", () => {
@@ -294,7 +295,9 @@ describe("booking metrics", () => {
     });
 
     const stalled = timelines.find((timeline) => timeline.programId === "program-stalled")!;
-    expect(stalled.openReason).toContain("payoff window closed in week 4");
+    // The plan extended to week 8 rather than sitting on a window that closed:
+    // what is left to explain is the prerequisite its payoff still waits on.
+    expect(stalled.openReason).toBe("ple_payoff waits on unresolved go_home_angle (skipped)");
     expect(stalled.beats.find((beat) => beat.type === "ple_payoff")!.blockedByBeatTypes).toEqual(["go_home_angle"]);
     expect(stalled.beats.find((beat) => beat.type === "attack_save_interference")!.execution).toMatchObject({
       adherence: "deviated", deviationCause: "refusal",

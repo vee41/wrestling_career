@@ -232,7 +232,8 @@ Material triggers include:
 - an unexpected performance or popularity surge;
 - a program becoming repetitive or losing coherence;
 - a championship changing hands;
-- a target PLE slot becoming unavailable.
+- a target PLE slot becoming unavailable;
+- a payoff window passing with the program unresolved (`payoff_missed`).
 
 For each trigger, the planner chooses and records one response:
 
@@ -245,6 +246,8 @@ For each trigger, the planner chooses and records one response:
 - abandon and resolve the plan.
 
 Revision reason, previous intent, and new intent are permanent audit facts. Replanning must not silently rewrite history.
+
+Every plan terminates. A `payoff_missed` trigger buys the program one extension to the next PLE it can actually reach — its remaining beat windows move with it — and abandons it on the second miss. An open plan whose payoff tick has passed is a defect, not a state: `worldStateSchema` rejects it.
 
 ## 10. Weekly card composition
 

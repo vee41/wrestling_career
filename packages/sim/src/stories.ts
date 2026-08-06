@@ -1,5 +1,7 @@
 import type { MatchResult, SegmentResult, Story, WorldState } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
+import { abandonProgramPlan } from "./program-plans.js";
+import { weekForTick } from "./booking.js";
 import { clampDelta100, clampScale100 } from "./clamp.js";
 
 const RESOLVE_INTEREST_FLOOR = 15;
@@ -34,7 +36,10 @@ export function advanceStories(world: WorldState, ctx: TickContext, matchResults
 
       const blowoff = matchResults.find((result) => result.storyId === story.id &&
         world.shows.find((show) => show.id === result.showId)?.kind === "ple");
-      if (story.phase === "peaking" && blowoff) {
+      // The legacy blowoff is the fallback for stories no program is building.
+      // A planned program's climax is its `ple_payoff` beat, which resolves the
+      // story itself (planned-beats.ts) — one payoff authority, not two.
+      if (story.phase === "peaking" && blowoff && !hasOpenPlan(world, story)) {
         resolveBlowoff(world, ctx, story, blowoff);
         continue;
       }
@@ -43,14 +48,24 @@ export function advanceStories(world: WorldState, ctx: TickContext, matchResults
       story.audienceInterest = clampScale100(story.audienceInterest - IDLE_INTEREST_DECAY);
     }
 
-    applyPhaseTransition(world, ctx, story);
+    applyPhaseTransition(world, ctx, story, advancement !== undefined);
   }
 }
 
-function applyPhaseTransition(world: WorldState, ctx: TickContext, story: Story): void {
+function hasOpenPlan(world: WorldState, story: Story): boolean {
+  return world.programPlans.some((plan) =>
+    plan.storyId === story.id && (plan.status === "active" || plan.status === "payoff_ready"),
+  );
+}
+
+function applyPhaseTransition(world: WorldState, ctx: TickContext, story: Story, advanced: boolean): void {
   // Peaking stories are protected until their booked PLE blowoff. They no
   // longer evaporate from passive interest decay while the climax is pending.
   if (story.phase === "peaking") return;
+  if (story.phase === "cooling") {
+    resolveOrReheatCooling(world, ctx, story, advanced);
+    return;
+  }
   if (story.audienceInterest < RESOLVE_INTEREST_FLOOR) {
     // A cold program is not abruptly erased mid-week. It is marked for the
     // next PLE card, where the result can close it with a visible payoff.
@@ -67,7 +82,46 @@ function applyPhaseTransition(world: WorldState, ctx: TickContext, story: Story)
   }
   if (story.phase === "building" && story.momentum < COOLING_MOMENTUM_THRESHOLD) {
     story.phase = "cooling";
+    story.coolingSinceTick = ctx.tick;
   }
+}
+
+/**
+ * Cooling is a phase, not a grave. A story that gets booked again and works
+ * climbs back into the build; one that nobody touches for
+ * `booking.coolingResolveWeeks` closes quietly, which releases its participants
+ * for new stories and retires whatever plan was still nominally building it.
+ * Before this, `cooling` had no exit at all and cold programs accumulated for
+ * the length of the run.
+ */
+function resolveOrReheatCooling(world: WorldState, ctx: TickContext, story: Story, advanced: boolean): void {
+  if (advanced && story.momentum > COOLING_MOMENTUM_THRESHOLD) {
+    story.phase = "building";
+    delete story.coolingSinceTick;
+    addEvent(world, ctx, {
+      type: "story_developed",
+      summary: `"${story.tensionDescription}" recovered enough interest to build again.`,
+      wrestlerIds: story.participantWrestlerIds, storyId: story.id,
+      data: { reheated: true, audienceInterest: story.audienceInterest, momentum: story.momentum },
+    });
+    return;
+  }
+  const since = story.coolingSinceTick ?? ctx.tick;
+  story.coolingSinceTick = since;
+  if (weekForTick(ctx.tick, world.config) - weekForTick(since, world.config) < world.config.booking.coolingResolveWeeks) return;
+  story.phase = "resolved";
+  delete story.coolingSinceTick;
+  for (const plan of world.programPlans) {
+    if (plan.storyId === story.id && (plan.status === "active" || plan.status === "payoff_ready")) {
+      abandonProgramPlan(world, ctx, plan, "crowd_response", "the story went cold before it could be paid off.");
+    }
+  }
+  addEvent(world, ctx, {
+    type: "story_resolved",
+    summary: `"${story.tensionDescription}" faded out without a blowoff and the participants moved on.`,
+    wrestlerIds: story.participantWrestlerIds, storyId: story.id,
+    data: { quiet: true, audienceInterest: story.audienceInterest },
+  });
 }
 
 function resolveBlowoff(world: WorldState, ctx: TickContext, story: Story, result: MatchResult): void {
@@ -87,7 +141,18 @@ function resolveBlowoff(world: WorldState, ctx: TickContext, story: Story, resul
     });
     return;
   }
+  resolveStoryPayoff(world, ctx, story, result);
+}
+
+/**
+ * The one place a decided story ends: winner momentum, the relationship
+ * consequences of having settled it, and the public `story_resolved` fact.
+ * Shared by the planned `ple_payoff` beat and the legacy blowoff fallback so
+ * both paths produce the same resolved facts.
+ */
+export function resolveStoryPayoff(world: WorldState, ctx: TickContext, story: Story, result: MatchResult): void {
   story.phase = "resolved";
+  delete story.coolingSinceTick;
   story.momentum = clampDelta100(story.momentum + 10);
   for (const relationship of world.relationships.filter((candidate) =>
     candidate.fromWrestlerId === result.winnerWrestlerId || candidate.toWrestlerId === result.winnerWrestlerId,

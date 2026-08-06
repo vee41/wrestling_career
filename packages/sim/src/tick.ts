@@ -20,7 +20,7 @@ import { updatePopularity } from "./popularity.js";
 import { updateChampionships } from "./title.js";
 import { advanceStories } from "./stories.js";
 import { generateReactiveDecisions, scanForNewStory } from "./director.js";
-import { planPrograms } from "./program-plans.js";
+import { advanceProgramPlanLifecycle, planPrograms } from "./program-plans.js";
 import { buildNarrativeJobs } from "./narrative.js";
 
 // Comfortably larger than the patience (6-tick) and training-plateau
@@ -93,6 +93,9 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
 
   // Step 7 — story engine + dramatic director.
   advanceStories(draft, ctx, matchResults, segmentResults);
+  // Program lifecycle runs after the show that could have paid a plan off, so a
+  // payoff window is only ever judged missed once its own show has aired.
+  advanceProgramPlanLifecycle(draft, ctx);
   scanForNewStory(draft, ctx);
   planPrograms(draft, ctx);
   generateReactiveDecisions(draft, ctx);

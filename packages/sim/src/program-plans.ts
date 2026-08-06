@@ -52,6 +52,34 @@ function nextPleTick(world: WorldState, currentTick: number): number {
   return candidate;
 }
 
+/**
+ * The television ticks a program can actually build on. A card is composed one
+ * tick ahead of airing, so the show on `afterTick` itself is already booked and
+ * is not a build opportunity for a plan created now.
+ */
+function buildShowTicks(world: WorldState, afterTick: number, payoffTick: number): number[] {
+  const ticks: number[] = [];
+  for (let tick = afterTick + 1; tick < payoffTick; tick++) {
+    if (isShowTick(tick, world.config) && showKindForTick(tick, world.config) === "tv") ticks.push(tick);
+  }
+  return ticks;
+}
+
+/**
+ * A plan seeded a show or two before an event has no runway to build one, and
+ * its beats would be born into windows that have already closed. Aim past that
+ * PLE at the first one the program can actually reach.
+ */
+function targetPayoffTick(world: WorldState, startTick: number): number {
+  let candidate = nextPleTick(world, startTick);
+  const cycle = world.config.pleIntervalWeeks * (world.config.decisionTicksPerWeek + 1);
+  while (buildShowTicks(world, startTick, candidate).length < world.config.booking.minimumProgramBuildShows) {
+    candidate = nextPleTick(world, candidate + 1);
+    if (candidate > startTick + cycle * 2) break;
+  }
+  return candidate;
+}
+
 function participantsFor(world: WorldState, story: Story, titleId: string | undefined): ProgramParticipant[] {
   const titleHolder = titleId === undefined ? undefined : world.titles.find((title) => title.id === titleId)?.holderId;
   return story.participantWrestlerIds.map((wrestlerId, index) => {
@@ -120,7 +148,7 @@ function unavailableReasons(world: WorldState, participantIds: readonly string[]
 
 function makePlan(world: WorldState, ctx: TickContext, story: Story, selected: ProgramPlanCandidate): ProgramPlan {
   const stakesTitleId = titleForStory(world, story);
-  const targetPayoffTick = nextPleTick(world, ctx.tick);
+  const payoffTick = targetPayoffTick(world, ctx.tick);
   const participants = participantsFor(world, story, stakesTitleId);
   const protectedWrestlerIds = protectedParticipants(world, story.participantWrestlerIds, stakesTitleId);
   const intendedPayoff = stakesTitleId === undefined
@@ -129,7 +157,7 @@ function makePlan(world: WorldState, ctx: TickContext, story: Story, selected: P
   const intent = {
     creativeObjective: selected.creativeObjective,
     ...(stakesTitleId === undefined ? {} : { stakesTitleId }),
-    targetPayoffTick,
+    targetPayoffTick: payoffTick,
     intendedPayoff,
     protectedWrestlerIds,
   };
@@ -142,7 +170,7 @@ function makePlan(world: WorldState, ctx: TickContext, story: Story, selected: P
     creativeObjective: selected.creativeObjective,
     priority: Math.max(1, Math.min(5, Math.ceil(story.audienceInterest / 20))),
     startTick: ctx.tick,
-    targetPayoffTick,
+    targetPayoffTick: payoffTick,
     intendedPayoff,
     protectedWrestlerIds,
     escalation: 0,
@@ -192,18 +220,39 @@ function beat(world: WorldState, ctx: TickContext, plan: ProgramPlan, type: Plan
   };
 }
 
-/** A compact four-show cadence: premise, complication, escalation, payoff. */
+/** The escalating build, in order. The payoff is appended to whatever fits. */
+const BUILD_BEATS: readonly { type: PlannedBeatType; effect: string; escalationLevel: number }[] = [
+  { type: "promo_interview", effect: "Establish the conflict and stakes.", escalationLevel: 0 },
+  { type: "confrontation", effect: "Complicate the conflict without spending the rivalry match.", escalationLevel: 1 },
+  { type: "go_home_angle", effect: "Escalate the conflict and make the payoff unavoidable.", escalationLevel: 2 },
+];
+
+/**
+ * A premise → complication → escalation → payoff cadence laid over the shows
+ * that exist. Each build beat opens on its own television show and stays open
+ * until the last one before the payoff: the prerequisite chain enforces the
+ * order, so the slack only decides how late a beat may still catch up. The
+ * previous fixed `payoff − 6 / − 3 / − 1` arithmetic collapsed every window to
+ * a single already-booked tick whenever a plan started close to its PLE, which
+ * is what stranded late programs with every beat skipped.
+ */
 export function createBeatSkeleton(world: WorldState, ctx: TickContext, plan: ProgramPlan): PlannedBeat[] {
-  const firstLatest = Math.max(plan.startTick, plan.targetPayoffTick - 6);
-  const secondEarliest = firstLatest;
-  const secondLatest = Math.max(secondEarliest, plan.targetPayoffTick - 3);
-  const thirdEarliest = secondLatest;
-  const thirdLatest = Math.max(thirdEarliest, plan.targetPayoffTick - 1);
-  const establish = beat(world, ctx, plan, "promo_interview", plan.startTick, firstLatest, "Establish the conflict and stakes.", 0);
-  const complicate = beat(world, ctx, plan, "confrontation", secondEarliest, secondLatest, "Complicate the conflict without spending the rivalry match.", 1, [establish.id]);
-  const goHome = beat(world, ctx, plan, "go_home_angle", thirdEarliest, thirdLatest, "Escalate the conflict and make the payoff unavoidable.", 2, [complicate.id]);
-  const payoff = beat(world, ctx, plan, "ple_payoff", plan.targetPayoffTick, plan.targetPayoffTick, plan.intendedPayoff, 3, [goHome.id]);
-  return [establish, complicate, goHome, payoff];
+  const buildTicks = buildShowTicks(world, plan.startTick, plan.targetPayoffTick);
+  const lastBuildTick = buildTicks.at(-1) ?? plan.startTick;
+  const build: PlannedBeat[] = [];
+  for (const [index, template] of BUILD_BEATS.slice(0, buildTicks.length).entries()) {
+    const previous = build.at(-1);
+    build.push(beat(
+      world, ctx, plan, template.type, buildTicks[index]!, lastBuildTick,
+      template.effect, template.escalationLevel, previous === undefined ? [] : [previous.id],
+    ));
+  }
+  const last = build.at(-1);
+  const payoff = beat(
+    world, ctx, plan, "ple_payoff", plan.targetPayoffTick, plan.targetPayoffTick,
+    plan.intendedPayoff, 3, last === undefined ? [] : [last.id],
+  );
+  return [...build, payoff];
 }
 
 function snapshot(plan: ProgramPlan): ProgramIntentSnapshot {
@@ -218,22 +267,82 @@ function snapshot(plan: ProgramPlan): ProgramIntentSnapshot {
 
 function invalidateAndSubstitute(world: WorldState, ctx: TickContext, plan: ProgramPlan, invalid: PlannedBeat, targetTick: number): void {
   invalid.status = "invalidated";
-  addEvent(world, ctx, {
-    type: "planned_beat_invalidated", summary: `A planned ${invalid.type.replace(/_/g, " ")} could not proceed because a participant was unavailable.`,
-    wrestlerIds: invalid.requiredParticipantWrestlerIds, storyId: plan.storyId,
-    data: { programPlanId: plan.id, plannedBeatId: invalid.id, response: "substitute_beat" },
-  });
   const available = invalid.requiredParticipantWrestlerIds.filter((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) >= MINIMUM_AVAILABLE_CONDITION);
-  if (available.length > 0 && targetTick <= invalid.latestTick) {
-    const substitute: PlannedBeat = {
+  const substitute = available.length > 0 && targetTick <= invalid.latestTick
+    ? scopeToParticipants({
       ...beat(world, ctx, plan, "promo_interview", targetTick, invalid.latestTick, `Keep the program visible while replacing ${invalid.type.replace(/_/g, " ")}.`, invalid.escalationLevel),
       requiredParticipantWrestlerIds: available,
-      preconditions: { requiredResolvedBeatIds: [], requirePle: false },
-    };
+      preconditions: { requiredResolvedBeatIds: [...invalid.preconditions.requiredResolvedBeatIds], requirePle: false },
+    }, available)
+    : undefined;
+  if (substitute !== undefined) {
     world.plannedBeats.push(substitute);
     plan.plannedBeatIds.push(substitute.id);
   }
+  // The rest of the chain required the beat that just died. Point it at the
+  // stand-in instead, or past it when there is none, so the program keeps
+  // escalating rather than waiting forever on a beat that will never resolve.
+  const unblocked = retireFromChain(world, plan, invalid, substitute === undefined ? [] : [substitute.id]);
+  addEvent(world, ctx, {
+    type: "planned_beat_invalidated", summary: `A planned ${invalid.type.replace(/_/g, " ")} could not proceed because a participant was unavailable.`,
+    wrestlerIds: invalid.requiredParticipantWrestlerIds, storyId: plan.storyId,
+    data: { programPlanId: plan.id, plannedBeatId: invalid.id, response: "substitute_beat", ...(substitute === undefined ? {} : { substituteBeatId: substitute.id }), unblockedBeatIds: unblocked },
+  });
   reviseProgramPlan(world, ctx, plan.id, "participant_unavailable", snapshot(plan), "substitute_beat");
+}
+
+/**
+ * A beat booked for a subset of the program cannot keep the whole program's
+ * planned outcome: naming an absent wrestler as the intended dominant makes the
+ * segment resolve as a refusal deviation against someone who was never in it.
+ */
+function scopeToParticipants(candidate: PlannedBeat, participants: readonly string[]): PlannedBeat {
+  const planned = candidate.plannedSegmentOutcome;
+  if (planned === undefined) return candidate;
+  return {
+    ...candidate,
+    plannedSegmentOutcome: {
+      ...planned,
+      intendedDominantWrestlerId: participants.includes(planned.intendedDominantWrestlerId) ? planned.intendedDominantWrestlerId : participants[0]!,
+      protectedWrestlerIds: planned.protectedWrestlerIds.filter((id) => participants.includes(id)),
+    },
+  };
+}
+
+/**
+ * Re-points every beat that required `retired` at its replacements, or at
+ * whatever `retired` itself was waiting on when there is no replacement. A
+ * retired beat that stays in its successors' preconditions is a chain that can
+ * never unblock — the program then silently thins to nothing.
+ */
+function retireFromChain(world: WorldState, plan: ProgramPlan, retired: PlannedBeat, replacementIds: readonly string[]): string[] {
+  const inherited = replacementIds.length > 0 ? replacementIds : retired.preconditions.requiredResolvedBeatIds;
+  const unblocked: string[] = [];
+  for (const successor of world.plannedBeats) {
+    if (successor.programId !== plan.id) continue;
+    const required = successor.preconditions.requiredResolvedBeatIds;
+    if (!required.includes(retired.id)) continue;
+    successor.preconditions.requiredResolvedBeatIds = [...new Set([...required.filter((id) => id !== retired.id), ...inherited])];
+    unblocked.push(successor.id);
+  }
+  return unblocked;
+}
+
+/**
+ * A beat whose window closed is spliced out of the chain rather than left to
+ * block it. Its successors inherit its prerequisites, so the program skips the
+ * complication and keeps escalating instead of thinning to nothing behind a
+ * requirement that can never be satisfied.
+ */
+function skipBeat(world: WorldState, ctx: TickContext, plan: ProgramPlan, skipped: PlannedBeat): void {
+  skipped.status = "skipped";
+  const healed = retireFromChain(world, plan, skipped, []);
+  addEvent(world, ctx, {
+    type: "planned_beat_skipped",
+    summary: `A planned ${skipped.type.replace(/_/g, " ")} beat ran out of shows to air on.`,
+    wrestlerIds: skipped.requiredParticipantWrestlerIds, storyId: plan.storyId,
+    data: { programPlanId: plan.id, plannedBeatId: skipped.id, type: skipped.type, unblockedBeatIds: healed },
+  });
 }
 
 /**
@@ -250,7 +359,7 @@ export function selectPlannedBeatsForShow(world: WorldState, ctx: TickContext, t
     const beats = world.plannedBeats.filter((candidate) => candidate.programId === plan.id && candidate.status === "provisional")
       .sort((a, b) => a.escalationLevel - b.escalationLevel || a.id.localeCompare(b.id));
     for (const candidate of beats) {
-      if (targetTick > candidate.latestTick) { candidate.status = "skipped"; continue; }
+      if (targetTick > candidate.latestTick) { skipBeat(world, ctx, plan, candidate); continue; }
       if (targetTick < candidate.earliestTick || candidate.preconditions.requirePle !== isPle) continue;
       const prerequisites = candidate.preconditions.requiredResolvedBeatIds;
       if (!prerequisites.every((id) => world.plannedBeats.find((beat) => beat.id === id)?.status === "resolved")) continue;
@@ -392,6 +501,54 @@ export function reviseProgramPlan(
     data: { programPlanId: plan.id, reason, previousIntent, newIntent, ...(response === undefined ? {} : { response }) },
   });
   return plan;
+}
+
+/**
+ * Retires a plan for good: the beats it will never run are invalidated and the
+ * public story is left cooling, which releases its participants and gives the
+ * story engine's cooling exit something to close.
+ */
+export function abandonProgramPlan(world: WorldState, ctx: TickContext, plan: ProgramPlan, reason: ProgramRevisionReason, why: string): void {
+  reviseProgramPlan(world, ctx, plan.id, reason, { ...snapshot(plan), intendedPayoff: `Abandon the program: ${why}` }, "abandon");
+  plan.status = "abandoned";
+  for (const beat of world.plannedBeats) {
+    if (beat.programId !== plan.id) continue;
+    if (beat.status === "provisional" || beat.status === "scheduled") beat.status = "invalidated";
+  }
+  const story = world.stories.find((candidate) => candidate.id === plan.storyId);
+  if (story !== undefined && story.phase !== "resolved") {
+    story.phase = "cooling";
+    story.coolingSinceTick = ctx.tick;
+  }
+}
+
+/**
+ * Every plan terminates. A payoff window that passes unresolved buys the
+ * program one extension to the next PLE it can actually reach — beats and all —
+ * and then the plan is abandoned rather than left `active` forever pointing at
+ * a show that already happened.
+ */
+export function advanceProgramPlanLifecycle(world: WorldState, ctx: TickContext): void {
+  for (const plan of world.programPlans) {
+    if (!isActive(plan) || plan.targetPayoffTick > ctx.tick) continue;
+    const extensions = plan.revisions.filter((revision) => revision.reason === "payoff_missed" && revision.response === "extend").length;
+    if (extensions >= world.config.booking.maxPayoffExtensions) {
+      abandonProgramPlan(world, ctx, plan, "payoff_missed", "the payoff window closed again with the build unfinished.");
+      continue;
+    }
+    const extended = targetPayoffTick(world, ctx.tick);
+    const buildTicks = buildShowTicks(world, ctx.tick, extended);
+    const lastBuildTick = buildTicks.at(-1) ?? ctx.tick;
+    for (const beat of world.plannedBeats) {
+      if (beat.programId !== plan.id || beat.status !== "provisional") continue;
+      const payoff = beat.type === "ple_payoff";
+      beat.earliestTick = payoff ? extended : Math.min(Math.max(beat.earliestTick, buildTicks[0] ?? ctx.tick), lastBuildTick);
+      beat.latestTick = payoff ? extended : lastBuildTick;
+    }
+    // The status is deliberately untouched: a plan that had already reached
+    // `payoff_ready` is still payoff-ready, only later.
+    reviseProgramPlan(world, ctx, plan.id, "payoff_missed", { ...snapshot(plan), targetPayoffTick: extended }, "extend");
+  }
 }
 
 /** Execution facts are a replanning input, never a silent change to a program's premise. */
