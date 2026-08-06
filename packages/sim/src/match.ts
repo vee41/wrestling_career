@@ -4,6 +4,7 @@ import { clampScale100 } from "./clamp.js";
 import { findStance, findStory, requireWrestler } from "./lookups.js";
 import { defaultMatchIntent } from "./ai/stance-weights.js";
 import { dominantParticipant, intentsConflict } from "./dominance.js";
+import { absenceWeeks, clearanceTick, injurySeverity, isAvailable } from "./injury.js";
 
 // Spec §6.4: "whose intent dominates the ring" is a contest weighted by
 // psychology + professionalism (plus condition/experience). `experience` has
@@ -26,7 +27,6 @@ const ASSERTIVENESS: Record<MatchIntent, number> = {
 
 const APPEARANCE_PAY_BASE = 30;
 const CROWD_PAY_FACTOR = 0.5;
-const INJURY_CONDITION_THRESHOLD = 40;
 
 export const CARD_POSITION_MULTIPLIER = {
   main_event: 1.3,
@@ -65,7 +65,10 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
   rawScores.forEach((s, i) => {
     if (s > (rawScores[performanceWinnerIdx] ?? Number.NEGATIVE_INFINITY)) performanceWinnerIdx = i;
   });
-  const execution = matchExecution(slot, participants, intents, hasConflict, dominantIdx, performanceWinnerIdx, rng);
+  // Booking already excluded anyone who was not cleared, so the only way a
+  // participant is unavailable *now* is an injury earlier on tonight's card.
+  const hurtTonight = new Set(participants.filter((p) => !isAvailable(world, p)).map((p) => p.id));
+  const execution = matchExecution(slot, participants, intents, hasConflict, dominantIdx, performanceWinnerIdx, hurtTonight, rng);
   const winnerIdx = execution.winnerIdx;
 
   const avgProfessionalism = participants.reduce((s, p) => s + p.skills.professionalism, 0) / participants.length;
@@ -164,16 +167,26 @@ export function resolveMatch(world: WorldState, show: Show, slot: MatchSlot, ctx
     p.money += pay;
     payouts[p.id] = pay;
 
-    // PLAN Phase 2 simplification: injuries are a strain threshold, not a
-    // taxonomy — crossing it while taking real physical cost is "an injury".
-    if (p.condition < 25 || (p.condition < INJURY_CONDITION_THRESHOLD && conditionBefore >= INJURY_CONDITION_THRESHOLD)) {
+    // Injuries stay a strain threshold rather than a taxonomy, and there is now
+    // exactly one: the match drove this wrestler under the line at which they
+    // can be booked. Nobody works a match from below it any more, so the old
+    // "already critical" second clause was unreachable. What the injury *costs*
+    // is the absence, and how far under the line it left them decides that.
+    const health = world.config.health;
+    if (p.condition < health.bookableCondition && conditionBefore >= health.bookableCondition) {
+      const severity = injurySeverity(world.config, p.condition, perf?.physicalCost ?? 0);
+      const weeks = absenceWeeks(world.config, severity);
+      const clearance = clearanceTick(ctx.tick, weeks, world.config);
+      // Absences never shorten: a second injury during an existing one extends
+      // the layoff rather than resetting the clock to the lighter of the two.
+      p.unavailableUntilTick = Math.max(p.unavailableUntilTick ?? 0, clearance);
       addEvent(world, ctx, {
         type: "injury",
-        summary: `${p.name} is banged up after the match and will need to manage a reduced condition.`,
+        summary: `${p.name} is hurt after the match — a ${severity} injury that costs ${weeks === 1 ? "a week" : `${weeks} weeks`} out of the ring.`,
         wrestlerIds: [p.id],
         matchId: result.id,
         showId: show.id,
-        data: { condition: p.condition },
+        data: { condition: p.condition, severity, absenceWeeks: weeks, unavailableUntilTick: p.unavailableUntilTick },
       });
     }
   }
@@ -214,18 +227,26 @@ function titleConsequence(
   // The planned consequence, not an incidental in-ring score, controls title
   // lineage. A disrupted no-contest never creates a phantom title change.
   if (finishFamily === "no_contest") return "none";
-  if (slot.plannedFinish !== undefined && deviationCause === undefined) return slot.plannedFinish.intendedTitleConsequence;
   const holder = slot.titleId === undefined ? undefined : world.titles.find((title) => title.id === slot.titleId)?.holderId;
+  if (slot.plannedFinish !== undefined) {
+    if (deviationCause === undefined) return slot.plannedFinish.intendedTitleConsequence;
+    // Phase 3.12.5: a finish that did not go as booked cannot move a belt. The
+    // champion walks out still champion and the planner decides on the replan
+    // whether the challenger has earned another shot — a title change is a
+    // creative decision, never the side effect of somebody getting hurt.
+    return holder === undefined ? "none" : "retain";
+  }
   return holder === undefined ? "none" : holder === winnerId ? "retain" : "change";
 }
 
 function matchExecution(
   slot: MatchSlot,
-  participants: readonly { id: string; condition: number }[],
+  participants: readonly { id: string }[],
   intents: readonly MatchIntent[],
   hasConflict: boolean,
   dominantIdx: number,
   performanceWinnerIdx: number,
+  hurtTonight: ReadonlySet<string>,
   rng: { chance(probability: number): boolean },
 ): { winnerIdx: number; finishFamily: FinishFamily; deviationCause?: ExecutionDeviationCause } {
   const planned = slot.plannedFinish;
@@ -233,7 +254,9 @@ function matchExecution(
   const intendedIdx = participants.findIndex((participant) => participant.id === planned.intendedWinnerWrestlerId);
   if (intendedIdx < 0) return { winnerIdx: performanceWinnerIdx, finishFamily: planned.finishFamily, deviationCause: "refusal" };
   const alternate = performanceWinnerIdx === intendedIdx ? (intendedIdx + 1) % participants.length : performanceWinnerIdx;
-  if ((participants[intendedIdx]?.condition ?? 0) < INJURY_CONDITION_THRESHOLD) {
+  // An injury deviation now means the planned winner actually got hurt tonight,
+  // not merely that they are worn down — which is what makes it rare and loud.
+  if (hurtTonight.has(participants[intendedIdx]?.id ?? "")) {
     return { winnerIdx: alternate, finishFamily: planned.finishFamily, deviationCause: "injury" };
   }
   const refusalIdx = intents.findIndex((intent, index) => index !== intendedIdx && intent === "protect_character");

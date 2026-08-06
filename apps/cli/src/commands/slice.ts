@@ -199,7 +199,9 @@ function seedReport(seed: string, analysis: SliceAnalysis): string[] {
   lines.push("", "### Injury and return arcs");
   if (analysis.injuryArcs.length === 0) lines.push("- No injury-related events.");
   for (const arc of analysis.injuryArcs) {
-    lines.push(`- ${wrestlerName(analysis, arc.wrestlerId)}: injuries ${arc.injuryTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}; missed shows ${arc.missedShowTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}; returns ${arc.returnTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}.`);
+    const serious = new Set(arc.seriousInjuryTicks);
+    const injuries = arc.injuryTicks.map((tick) => `${week(analysis, tick)}${serious.has(tick) ? " (serious)" : ""}`).join(", ") || "none";
+    lines.push(`- ${wrestlerName(analysis, arc.wrestlerId)}: injuries ${injuries}; ${arc.weeksLost} week(s) out; missed shows ${arc.missedShowTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}; returns ${arc.returnTicks.map((tick) => week(analysis, tick)).join(", ") || "none"}.`);
   }
   const { gains, losses, net } = analysis.popularityTotals;
   const signed = (value: number) => `${value > 0 ? "+" : ""}${value}`;

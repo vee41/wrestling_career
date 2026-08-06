@@ -53,7 +53,7 @@ Pointers, not designs — the designs live in PLAN Phases 3.5–3.7:
 - Multiple title lines with lineage (world + midcard).
 - Card positions (main event / upper / mid / opener) with position-scaled stakes.
 - Blowoff-aware booking: peaking stories steered to PLEs and resolved there.
-- Injury absence: wrestlers below a condition threshold are unbookable until recovered.
+- Injury absence: an injury writes a clearance tick, so the wrestler is unbookable for whole show weeks regardless of how fast their condition comes back.
 - Fall mechanics with teeth: overexposure, losing-streak drag, and GM depushes must be able to produce sustained popularity decline, not just slower growth.
 
 ## 5. Out of scope for the slice

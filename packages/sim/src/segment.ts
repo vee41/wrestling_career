@@ -4,6 +4,7 @@ import { clampScale100 } from "./clamp.js";
 import { dominantParticipant, intentsConflict } from "./dominance.js";
 import { defaultSegmentIntent } from "./ai/stance-weights.js";
 import { findStance, findStory, requireWrestler } from "./lookups.js";
+import { isAvailable } from "./injury.js";
 
 const ASSERTIVENESS: Record<SegmentIntent, number> = {
   stay_controlled: -0.5,
@@ -15,7 +16,6 @@ const ASSERTIVENESS: Record<SegmentIntent, number> = {
   generate_hostility: 0.55,
   seek_controversy: 0.8,
 };
-const INJURY_CONDITION_THRESHOLD = 40;
 
 type HeatDirection = PlannedSegmentOutcome["intendedHeatDirection"];
 
@@ -90,7 +90,10 @@ export function resolveSegment(world: WorldState, show: Show, slot: SegmentSlot,
   const assertiveness = intents.map((intent) => ASSERTIVENESS[intent]);
   const naturalDominantIndex = dominantParticipant(participants, rng);
   const conflict = intentsConflict(assertiveness);
-  const execution = segmentExecution(slot, participants, intents, conflict, naturalDominantIndex);
+  // Booking excluded anyone who was not cleared, so an unavailable participant
+  // here was hurt earlier on tonight's card (see match.ts).
+  const hurtTonight = new Set(participants.filter((participant) => !isAvailable(world, participant)).map((participant) => participant.id));
+  const execution = segmentExecution(slot, participants, intents, conflict, naturalDominantIndex, hurtTonight);
   const dominantIndex = execution.dominantIndex;
   const rawScores = participants.map((participant, index) => (
     participant.skills.promoAbility * 0.45 +
@@ -171,17 +174,18 @@ export function resolveSegment(world: WorldState, show: Show, slot: SegmentSlot,
 
 function segmentExecution(
   slot: SegmentSlot,
-  participants: readonly { id: string; condition: number }[],
+  participants: readonly { id: string }[],
   intents: readonly SegmentIntent[],
   conflict: boolean,
   naturalDominantIndex: number,
+  hurtTonight: ReadonlySet<string>,
 ): { dominantIndex: number; deviationCause?: ExecutionDeviationCause } {
   const planned = slot.plannedOutcome;
   if (planned === undefined) return { dominantIndex: naturalDominantIndex };
   const intended = participants.findIndex((participant) => participant.id === planned.intendedDominantWrestlerId);
   if (intended < 0) return { dominantIndex: naturalDominantIndex, deviationCause: "refusal" };
   const alternate = naturalDominantIndex === intended ? (intended + 1) % participants.length : naturalDominantIndex;
-  if ((participants[intended]?.condition ?? 0) < INJURY_CONDITION_THRESHOLD) return { dominantIndex: alternate, deviationCause: "injury" };
+  if (hurtTonight.has(participants[intended]?.id ?? "")) return { dominantIndex: alternate, deviationCause: "injury" };
   const refusal = intents.findIndex((intent, index) => index !== intended && intent === "protect_mystery");
   if (refusal >= 0) return { dominantIndex: refusal, deviationCause: "refusal" };
   if (conflict && naturalDominantIndex !== intended && intents[naturalDominantIndex] === "seek_controversy") {

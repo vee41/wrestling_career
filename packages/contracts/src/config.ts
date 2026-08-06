@@ -81,6 +81,45 @@ export const matchTuningSchema = z.object({
 });
 export type MatchTuning = z.infer<typeof matchTuningSchema>;
 
+/**
+ * Scenario-owned controls for wear, injury severity, and enforced absence.
+ *
+ * The distinction this group exists to hold: `condition` is the gradual wear
+ * axis and a tick of rest moves it, while an injury writes a *calendar* fact —
+ * a clearance tick nothing but time can reach. Without that, an injury is only
+ * a condition dip the wrestler heals out of before the next card is composed.
+ */
+export const healthTuningSchema = z.object({
+  /**
+   * The condition at or above which a wrestler may be booked. Being driven
+   * below it by a match is, by definition, the injury.
+   */
+  bookableCondition: z.number().min(0).max(100).default(40),
+  /**
+   * An injury that leaves a wrestler at or below this is serious rather than
+   * minor: the match did real damage instead of ordinary wear. This is the
+   * axis that separates the tiers — an injury lands somewhere in the band
+   * between here and `bookableCondition`, and how deep decides the layoff.
+   */
+  seriousInjuryCondition: z.number().min(0).max(100).default(30),
+  /**
+   * The match physical cost at or above which an injury is serious whatever
+   * condition it left — the wrestler who got hurt taking a real risk.
+   */
+  seriousInjuryPhysicalCost: z.number().min(0).max(100).default(38),
+  /** Whole show weeks a minor injury keeps a wrestler off the card. */
+  minorAbsenceWeeks: z.number().int().min(1).default(1),
+  /** Whole show weeks a serious injury costs — a full PLE cycle at the shipped cadence. */
+  seriousAbsenceWeeks: z.number().int().min(1).default(4),
+}).refine((tuning) => tuning.seriousInjuryCondition <= tuning.bookableCondition, {
+  message: "seriousInjuryCondition must not exceed bookableCondition",
+  path: ["seriousInjuryCondition"],
+}).refine((tuning) => tuning.seriousAbsenceWeeks >= tuning.minorAbsenceWeeks, {
+  message: "seriousAbsenceWeeks must be at least minorAbsenceWeeks",
+  path: ["seriousAbsenceWeeks"],
+});
+export type HealthTuning = z.infer<typeof healthTuningSchema>;
+
 export const titleEligibilitySchema = z.enum(["none", "all", "midcard"]);
 export type TitleEligibility = z.infer<typeof titleEligibilitySchema>;
 
@@ -193,6 +232,7 @@ export const worldConfigSchema = z.object({
   sliceWeeks: z.number().int().min(1).default(26),
   popularity: popularityTuningSchema.default({}),
   match: matchTuningSchema.default({}),
+  health: healthTuningSchema.default({}),
   roles: rolesTuningSchema.default({}),
   booking: bookingTuningSchema.default({}),
 });

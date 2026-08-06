@@ -17,9 +17,9 @@ import type {
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isShowTick, showKindForTick } from "./booking.js";
+import { isAvailableId } from "./injury.js";
 
 const MAX_ACTIVE_PROGRAMS = 5;
-const MINIMUM_AVAILABLE_CONDITION = 40;
 
 function isActive(plan: ProgramPlan): boolean {
   return plan.status === "active" || plan.status === "payoff_ready";
@@ -143,10 +143,7 @@ function candidate(
 }
 
 function unavailableReasons(world: WorldState, participantIds: readonly string[]): string[] {
-  return participantIds.flatMap((id) => {
-    const wrestler = world.wrestlers.find((candidate) => candidate.id === id);
-    return wrestler === undefined || wrestler.condition < MINIMUM_AVAILABLE_CONDITION ? [`participant_unavailable:${id}`] : [];
-  });
+  return participantIds.flatMap((id) => (isAvailableId(world, id) ? [] : [`participant_unavailable:${id}`]));
 }
 
 function makePlan(world: WorldState, ctx: TickContext, story: Story, selected: ProgramPlanCandidate): ProgramPlan {
@@ -458,7 +455,7 @@ export function pivotProgramPlan(
 
 function invalidateAndSubstitute(world: WorldState, ctx: TickContext, plan: ProgramPlan, invalid: PlannedBeat, targetTick: number): void {
   invalid.status = "invalidated";
-  const available = invalid.requiredParticipantWrestlerIds.filter((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) >= MINIMUM_AVAILABLE_CONDITION);
+  const available = invalid.requiredParticipantWrestlerIds.filter((id) => isAvailableId(world, id));
   const substitute = available.length > 0 && targetTick <= invalid.latestTick
     ? scopeToParticipants({
       ...beat(world, ctx, plan, "promo_interview", targetTick, invalid.latestTick, `Keep the program visible while replacing ${invalid.type.replace(/_/g, " ")}.`, invalid.escalationLevel),
@@ -560,7 +557,7 @@ export function selectPlannedBeatsForShow(world: WorldState, ctx: TickContext, t
       if (targetTick < candidate.earliestTick || candidate.preconditions.requirePle !== isPle) continue;
       const prerequisites = candidate.preconditions.requiredResolvedBeatIds;
       if (!prerequisites.every((id) => world.plannedBeats.find((beat) => beat.id === id)?.status === "resolved")) continue;
-      if (candidate.requiredParticipantWrestlerIds.some((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) < MINIMUM_AVAILABLE_CONDITION)) {
+      if (candidate.requiredParticipantWrestlerIds.some((id) => !isAvailableId(world, id))) {
         invalidateAndSubstitute(world, ctx, plan, candidate, targetTick);
         continue;
       }

@@ -200,6 +200,8 @@ export const sliceAnalysisJsonSchema = z.strictObject({
   injuryArcs: z.array(z.strictObject({
     wrestlerId: z.string(),
     injuryTicks: z.array(z.number()),
+    seriousInjuryTicks: z.array(z.number()),
+    weeksLost: z.number(),
     missedShowTicks: z.array(z.number()),
     returnTicks: z.array(z.number()),
     events: z.array(z.strictObject({ tick: z.number(), summary: z.string() })),

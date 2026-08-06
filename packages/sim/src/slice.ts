@@ -233,6 +233,10 @@ export interface SliceShowCard {
 export interface SliceInjuryArc {
   wrestlerId: string;
   injuryTicks: number[];
+  /** The subset of `injuryTicks` that cost a PLE cycle rather than a week. */
+  seriousInjuryTicks: number[];
+  /** Show weeks this wrestler's injuries ruled them out for, summed. */
+  weeksLost: number;
   missedShowTicks: number[];
   returnTicks: number[];
   events: Array<{ tick: number; summary: string }>;
@@ -558,9 +562,12 @@ export function analyzeSlice(run: SliceRun): SliceAnalysis {
 
   const injuryArcs = initialWorld.wrestlers.map((wrestler) => {
     const events = finalWorld.events.filter((event) => event.type === "injury" && event.wrestlerIds.includes(wrestler.id));
+    const injuries = events.filter((event) => event.matchId !== undefined && numberData(event, "condition") !== undefined);
     return {
       wrestlerId: wrestler.id,
-      injuryTicks: events.filter((event) => event.matchId !== undefined && numberData(event, "condition") !== undefined).map((event) => event.tick),
+      injuryTicks: injuries.map((event) => event.tick),
+      seriousInjuryTicks: injuries.filter((event) => stringData(event, "severity") === "serious").map((event) => event.tick),
+      weeksLost: injuries.reduce((total, event) => total + (numberData(event, "absenceWeeks") ?? 0), 0),
       missedShowTicks: events.filter((event) => stringData(event, "absence") === "missed_show").map((event) => event.tick),
       returnTicks: events.filter((event) => stringData(event, "absence") === "return").map((event) => event.tick),
       events: events.map((event) => ({ tick: event.tick, summary: event.summary })),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { idSchema, scale100Schema } from "./common.js";
+import { idSchema, scale100Schema, tickSchema } from "./common.js";
 
 // GDD §7 — the eight skills a wrestler develops.
 export const skillNameSchema = z.enum([
@@ -54,6 +54,12 @@ export const wrestlerSchema = z.object({
   controlledBy: controlledBySchema,
   skills: skillsSchema,
   condition: scale100Schema,
+  /**
+   * The tick an injured wrestler is cleared to compete again. `condition` is the
+   * gradual wear axis and a night's rest moves it; an absence is a calendar fact
+   * that neither resting nor a lucky roll can shorten. Absent when fit.
+   */
+  unavailableUntilTick: tickSchema.optional(),
   money: z.number().int().nonnegative(),
   alignment: alignmentSchema,
   role: roleSchema,

@@ -608,3 +608,105 @@ carry.
 Five knobs carry the change, all scenario-owned: `booking.crowdResponseInterestDrop`
 (20), `booking.heatContradictionLimit` (2), `booking.coolDownTicks` (3),
 `booking.repeatedBeatTypeLimit` (3), and `booking.maxPayoffsPerEvent` (4).
+
+## Phase 3.12.5 injuries that cost shows
+
+8-week, 2-seed run (`slice --weeks 8 --seeds 2`), against 3.12.4:
+
+| Measure | 3.12.4 | 3.12.5 |
+| --- | --- | --- |
+| Match injuries (8wk) | 12 · 9 | 13 · 9 |
+| Wrestler-weeks ruled out | 0 · 0 | 19 · 18 |
+| Injury → missed show → return arcs | 0 · 0 | 6 · 6 |
+| Programs resolved | 7 · 7 | 7 · 6 |
+| Unresolved-program backlog | 2 · 1 | 2 · 4 |
+| PLE build coverage | 60% · 64% | 67% · 55% |
+| Beats invalidated | 1 · 1 | 1 · 4 |
+| No-op revisions | 0 · 0 | 0 · 0 |
+| 26-week MUST failures | 5 / 3 / 3 | 3 / 3 / 2 |
+
+### Tuning recovery was never going to work
+
+The phase offered two routes: tune recovery so an injured wrestler stays under
+the bookable line for a show week, or write an explicit clearance tick. The
+first is unwinnable on this pipeline. The AI's `recover` action gives +18
+condition and its score jumps below condition 45, so an injured wrestler
+chooses it, and one tick buys back more than the hardest match takes off. There
+are three ticks in a week. To keep somebody down for one show week through
+recovery rate alone, the injury would have to remove ~60 condition, which is
+most of the scale — and it would still be undone by two ticks of rest, so the
+absence would be a side effect of what the wrestler chose to do rather than of
+the injury. `unavailableUntilTick` says the thing directly: **condition is the
+wear axis, the clearance tick is the calendar one**, and only one of them is
+what "he's out for a month" means.
+
+### The absence arcs are the point, and they read correctly
+
+Seed 1, week by week: Seth Rollins hurt on the week-5 show, missing week 6,
+back on week 7. Penta hurt twice, out and back twice. CM Punk hurt at the
+week-4 PLE with a serious injury and gone for the rest of the window. That is
+the shape SL-8 was asking for and never got — the pre-phase run's "missed
+shows" were wrestlers who happened to be worn down, unconnected to any injury
+event, which is why the criterion passed while the goal was unmet.
+
+### SL-9 was fixed by injuries, and that is a warning as much as a win
+
+Forcing absences flipped SL-9 to PASS on all three 26-week seeds (minimum
+matches 2/1/3 → 3/3/3) because a roster with four people on the shelf each week
+has to rotate. But **SL-3 now fails on all three seeds** (12/18/17 → 13/14/14 careers
+with a 16+ point weekly swing — it was already failing on seeds 1 and 3): the
+even spread that satisfies "everybody works" is the same even spread that
+flattens individual careers. The two
+criteria pull against each other, and injuries are the wrong lever for either.
+3.12.7's card shape should give hot acts bigger weeks; that raises SL-3 without
+starving SL-9, which is what neither of them can get from the medical list.
+
+Two knob probes confirmed this is not a tuning problem. Dropping the return-to-
+television booking bonus from 500 to 200 left SL-3, SL-7, SL-8 and SL-9
+byte-identical on all three seeds. Moving
+`seriousInjuryCondition` from 30 to 28 swung seed 3 from 2 MUST failures to 5
+while improving seed 2 — noise, not signal. The knobs stayed at their
+principled values.
+
+### A deviated finish no longer moves a belt
+
+`titleConsequence` used to fall through to "whoever won holds it" whenever a
+planned finish deviated, which is how a world title changed hands off a
+mid-card injury with no build. It now returns `retain` for any deviation on a
+planned match. Two things followed: phantom title changes disappeared (3 world-
+title changes on seeds 2 and 3 → 2 and 1, both inside SL-4's band), and the
+question of whether the challenger earned a shot moved to where booking_ai §7
+always said it belonged — the planner, on the revision, weeks ahead.
+
+Injury deviations themselves are now genuinely rare: **one** across 26 weeks and
+three seeds, because a wrestler who is ruled out is never booked, so the only
+way to be hurt in a match is to have been hurt earlier the same night.
+
+**SL-7 is a wash rather than a win.** It flipped to PASS on seed 1 (5 → 10
+distinct PLE main-eventers) and to FAIL on seed 2 (7 → 5). Absences shuffle who
+is available for a main event, and at three seeds that is indistinguishable
+from noise; card shape (3.12.7) is what should own it.
+
+### Absences woke up two of 3.12.4's backstops
+
+3.12.4 handed on `payoff_missed`, `repetition` and `payoff_capacity` as tested
+but never-observed. At 26 weeks they now fire 2/6/3, 1/1/2 and 0/0/2 times. No
+threshold moved — a program whose protagonist is on the shelf for four weeks
+stalls past its payoff window and repeats its remaining beats, which is exactly
+the evidence those triggers were written to read.
+
+### Handoffs
+
+- **A beat is invalidated only when it comes due.** `selectPlannedBeatsForShow`
+  checks availability at selection time, so a program whose protagonist is out
+  for four weeks keeps its later beats until each is reached — seed 1's first
+  invalidation lands in week 9. Reacting to a long layoff at the moment it is
+  written would be a new trigger, and belongs with 3.12.9's portfolio cadence.
+- **`health` is a fourth tuning group.** The series rule names
+  `booking`/`popularity`/`roles`; injury severity is neither booking policy nor
+  a popularity treatment, and `bookableCondition` was an inline `40` duplicated
+  in `gm.ts` and `program-plans.ts` before this. Keep injury knobs in `health`.
+
+Five knobs carry the change, all scenario-owned: `health.bookableCondition` (40),
+`health.seriousInjuryCondition` (30), `health.seriousInjuryPhysicalCost` (38),
+`health.minorAbsenceWeeks` (1), and `health.seriousAbsenceWeeks` (4).

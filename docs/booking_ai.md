@@ -378,6 +378,8 @@ The GM records an intended winner, `clean`/`dirty`/`interference`/`disqualificat
 
 Results retain both planned and actual outcomes and are `adhered` unless an `injury`, `refusal`, `dominant_conflicting_intent`, or `failed_interference` causes a `deviated` execution. Every deviation is a material event and a program-revision input, never a silent creative substitution.
 
+**A deviated finish never moves a championship.** When a booked match does not execute as planned, the belt stays where it was and whoever stood tall has, at most, earned an argument. Whether that argument becomes a title change is a decision the planner makes on the resulting revision — weeks out, as §7 requires of every title change — not an accident of who happened to get hurt in the third match of the night. An `injury` deviation in particular should be uncommon and loud: it means the booked winner was hurt *on this card*, since anyone already ruled out was never bookable for it.
+
 ## 16. Character turns
 
 A turn is a planned creative act executed through a program — never a stat flip, never an LLM decision, and never frequent. The `turn_character` objective exists for it; the turn itself lands on a specific beat.

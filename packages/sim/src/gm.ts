@@ -5,6 +5,7 @@ import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLa
 import { recentPerformanceReaction } from "./patience.js";
 import { releaseUncommittedBeats } from "./planned-beats.js";
 import { selectPlannedBeatsForShow } from "./program-plans.js";
+import { isAvailable, isAvailableId, unavailableReason } from "./injury.js";
 
 // The MVP has no tag division. Keep its legacy token in contracts for old
 // snapshots, but never select an objective the scenario cannot execute.
@@ -13,7 +14,6 @@ export const SUPPORTED_GM_OBJECTIVES: GmObjective[] = [
   "cool_down_overexposed_act", "prepare_major_event",
 ];
 const LEGACY_BOOKING_OBJECTIVE_ROTATION_TICKS = 6;
-export const BOOKABLE_CONDITION_THRESHOLD = 40;
 
 /**
  * Compatibility-only filler guidance. It preserves the pre-plan card
@@ -80,9 +80,26 @@ export function bookingScore(world: WorldState, wrestler: Wrestler, currentTick:
 }
 
 function bookableWrestlers(world: WorldState): Wrestler[] {
-  // Condition is a hard card-composer constraint. A title program must be
-  // revised around an unavailable holder, never waive medical availability.
-  return world.wrestlers.filter((wrestler) => wrestler.condition >= BOOKABLE_CONDITION_THRESHOLD);
+  // Availability is a hard card-composer constraint. A title program must be
+  // revised around an unavailable holder, never waive medical clearance.
+  return world.wrestlers.filter((wrestler) => isAvailable(world, wrestler));
+}
+
+/**
+ * Whether a wrestler's last missed show is more recent than their last return —
+ * i.e. the audience is still waiting for them. Comparing the two most recent
+ * ticks rather than asking whether each has *ever* happened is what lets a
+ * wrestler come back more than once over a run.
+ */
+function isAwayFromTelevision(world: WorldState, wrestlerId: string): boolean {
+  let missed = -Infinity;
+  let returned = -Infinity;
+  for (const event of world.events) {
+    if (event.type !== "injury" || !event.wrestlerIds.includes(wrestlerId)) continue;
+    if (event.data["absence"] === "missed_show") missed = Math.max(missed, event.tick);
+    else if (event.data["absence"] === "return") returned = Math.max(returned, event.tick);
+  }
+  return missed > returned;
 }
 
 function directMatchOnCooldown(world: WorldState, participantIds: readonly string[], targetTick: number, programId?: string): boolean {
@@ -305,7 +322,7 @@ function compositionTrace(world: WorldState, composedAtTick: number, targetTick:
   for (const beat of world.plannedBeats) {
     if ((beat.status !== "provisional" && beat.status !== "scheduled" && beat.status !== "invalidated") || selectedBeatIds.has(beat.id)) continue;
     const missingPrerequisite = beat.preconditions.requiredResolvedBeatIds.some((id) => world.plannedBeats.find((candidate) => candidate.id === id)?.status !== "resolved");
-    const unavailable = beat.requiredParticipantWrestlerIds.some((id) => (world.wrestlers.find((wrestler) => wrestler.id === id)?.condition ?? 0) < BOOKABLE_CONDITION_THRESHOLD);
+    const unavailable = beat.requiredParticipantWrestlerIds.some((id) => !isAvailableId(world, id));
     const alreadyBooked = beat.requiredParticipantWrestlerIds.some((id) => card.some((slot) => slot.participantWrestlerIds.includes(id)));
     const inSchedulingWindow = targetTick >= beat.earliestTick && targetTick <= beat.latestTick && beat.preconditions.requirePle === isPle;
     const directCooldown = beat.compatibleSlotKind === "match" && directMatchOnCooldown(world, beat.requiredParticipantWrestlerIds, targetTick, beat.programId);
@@ -362,10 +379,17 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   const targetSlotCount = ctx.rng.fork(`booking:${targetTick}`).int(range.min, range.max);
   const eligible = new Set(bookableWrestlers(world).map((wrestler) => wrestler.id));
   for (const wrestler of world.wrestlers.filter((candidate) => !eligible.has(candidate.id))) {
+    const reason = unavailableReason(world, wrestler);
     addEvent(world, ctx, {
       type: "injury",
-      summary: `${wrestler.name} is not cleared to compete and will miss the upcoming show.`,
-      wrestlerIds: [wrestler.id], data: { absence: "missed_show", condition: wrestler.condition },
+      summary: reason === "not_cleared"
+        ? `${wrestler.name} is still on the shelf and misses the upcoming show.`
+        : `${wrestler.name} is not cleared to compete and will miss the upcoming show.`,
+      wrestlerIds: [wrestler.id],
+      data: {
+        absence: "missed_show", condition: wrestler.condition, reason,
+        ...(wrestler.unavailableUntilTick === undefined ? {} : { unavailableUntilTick: wrestler.unavailableUntilTick }),
+      },
     });
   }
   const used = new Set<string>();
@@ -501,15 +525,9 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     .sort((a, b) => {
       const rotationScore = (wrestler: Wrestler) => {
         const appearances = previousAppearances.get(wrestler.id) ?? 0;
-        const missedShow = world.events.some((event) =>
-          event.type === "injury" && event.wrestlerIds.includes(wrestler.id) && event.data["absence"] === "missed_show",
-        );
-        const returned = world.events.some((event) =>
-          event.type === "injury" && event.wrestlerIds.includes(wrestler.id) && event.data["absence"] === "return",
-        );
         // The first recovered booking is the visible return beat, so it gets
         // priority over ordinary rotation once the wrestler is cleared.
-        const returnBonus = missedShow && !returned ? 500 : 0;
+        const returnBonus = isAwayFromTelevision(world, wrestler.id) ? 500 : 0;
         const popularity = findPopularity(world, wrestler.id);
         // This applies only to open rotation. At a role's ideal cadence there
         // is no penalty; booking more frequently creates a role-scaled rest
@@ -568,14 +586,8 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   // for the next show rather than staying a phantom claim on this one.
   releaseUncommittedBeats(world, plannedBeats);
   world.shows.push(show);
-  for (const wrestlerId of slots.flatMap((booked) => booked.participantWrestlerIds)) {
-    const hasUnreturnedAbsence = world.events.some((event) =>
-      event.type === "injury" && event.wrestlerIds.includes(wrestlerId) && event.data["absence"] === "missed_show",
-    );
-    const hasReturned = world.events.some((event) =>
-      event.type === "injury" && event.wrestlerIds.includes(wrestlerId) && event.data["absence"] === "return",
-    );
-    if (hasUnreturnedAbsence && !hasReturned) {
+  for (const wrestlerId of new Set(slots.flatMap((booked) => booked.participantWrestlerIds))) {
+    if (isAwayFromTelevision(world, wrestlerId)) {
       addEvent(world, ctx, {
         type: "injury", summary: `${world.wrestlers.find((wrestler) => wrestler.id === wrestlerId)?.name ?? wrestlerId} has recovered and returns to the card.`,
         wrestlerIds: [wrestlerId], showId: show.id, data: { absence: "return" },

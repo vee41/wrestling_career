@@ -61,6 +61,13 @@
     "crowdNoStoryBase": 10,
     "crowdVariance": 8
   },
+  "health": {
+    "bookableCondition": 40,
+    "seriousInjuryCondition": 30,
+    "seriousInjuryPhysicalCost": 38,
+    "minorAbsenceWeeks": 1,
+    "seriousAbsenceWeeks": 4
+  },
   "booking": {
     "restTierPopularityThreshold": 85,
     "restPenalty": 150,

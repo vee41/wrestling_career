@@ -34,12 +34,12 @@ describe("resolveShow", () => {
     expect(result?.performances).toHaveLength(2);
   });
 
-  it("emits an injury event when a match drives a wrestler's condition below the strain threshold", () => {
+  it("writes an enforced absence when a match drives a wrestler below the bookable line", () => {
     const world = createTestWorld({ wrestlerCount: 2, humanCount: 0, seed: "injury" });
     const wrestler = world.wrestlers.find((w) => w.id === "wrestler-0");
-    // physicalCost's floor (follow_plan assertiveness, worst-case rng roll)
-    // is ~8, i.e. at least a 4-point condition hit — 26 always crosses 25.
-    if (wrestler) wrestler.condition = 26;
+    // physicalCost's floor (follow_plan assertiveness, worst-case rng roll) is
+    // ~8, i.e. at least a 2.6-point condition hit — 41 always crosses 40.
+    if (wrestler) wrestler.condition = 41;
     const show: Show = {
       id: "show-y",
       tick: 0,
@@ -52,9 +52,14 @@ describe("resolveShow", () => {
     resolveShow(world, show, ctx);
 
     const injured = world.wrestlers.find((w) => w.id === "wrestler-0");
-    expect(injured?.condition).toBeLessThan(25);
-    const injuryEvents = ctx.events.filter((e) => e.type === "injury");
-    expect(injuryEvents.some((e) => e.wrestlerIds.includes("wrestler-0"))).toBe(true);
+    expect(injured?.condition).toBeLessThan(40);
+    const injury = ctx.events.find((e) => e.type === "injury" && e.wrestlerIds.includes("wrestler-0"));
+    expect(injury).toBeDefined();
+    // The absence, not the condition dip, is what the injury costs: a week out
+    // of the ring, expressed as a clearance tick nothing but time reaches.
+    expect(injury?.data["absenceWeeks"]).toBe(1);
+    expect(injury?.data["severity"]).toBe("minor");
+    expect(injured?.unavailableUntilTick).toBe(6);
   });
 
   it("does not emit an injury event for a wrestler who stays above the strain threshold", () => {

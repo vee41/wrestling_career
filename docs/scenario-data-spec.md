@@ -64,6 +64,11 @@ The knobs the sim reads instead of hardcoding:
   weights, condition, story/intent influence, and performance/crowd variance.
   `starPower` deliberately does not decide a match; it affects booking and the
   durable-status/popularity layer instead.
+- `health`: the bookable-condition line, the two axes that separate a serious
+  injury from a minor one (`seriousInjuryCondition`, `seriousInjuryPhysicalCost`),
+  and what each tier costs in whole show weeks. An injury writes a clearance
+  tick, so these decide how much of the calendar the medical list eats — raise
+  the absence weeks for a grittier promotion, lower them for a cartoon one.
 - `roles`: per-role cadence, scarcity/overexposure, relevance-decay,
   story-gating, and title-eligibility controls. Keep these numeric treatments
   here rather than deriving usage from a wrestler's popularity; the roster's

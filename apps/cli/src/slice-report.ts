@@ -243,7 +243,7 @@ function bookingTrace(analysis: SliceAnalysis, card: SliceAnalysis["showCards"][
 
 function injuries(analysis: SliceAnalysis): string {
   if (analysis.injuryArcs.length === 0) return `<p class="empty">No injury-related events.</p>`;
-  return `<div class="injuries">${analysis.injuryArcs.map((arc) => `<details><summary><b>${html(wrestlerName(analysis, arc.wrestlerId))}</b><span>Injuries: ${arc.injuryTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"} · Missed: ${arc.missedShowTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"} · Returns: ${arc.returnTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"}</span></summary><ul>${arc.events.map((event) => `<li><b>Week ${week(analysis, event.tick)}</b> · ${html(event.summary)}</li>`).join("")}</ul></details>`).join("")}</div>`;
+  return `<div class="injuries">${analysis.injuryArcs.map((arc) => `<details><summary><b>${html(wrestlerName(analysis, arc.wrestlerId))}</b><span>Injuries: ${arc.injuryTicks.map((tick) => `W${week(analysis, tick)}${arc.seriousInjuryTicks.includes(tick) ? "!" : ""}`).join(", ") || "—"} · Out: ${arc.weeksLost}w · Missed: ${arc.missedShowTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"} · Returns: ${arc.returnTicks.map((tick) => `W${week(analysis, tick)}`).join(", ") || "—"}</span></summary><ul>${arc.events.map((event) => `<li><b>Week ${week(analysis, event.tick)}</b> · ${html(event.summary)}</li>`).join("")}</ul></details>`).join("")}</div>`;
 }
 
 function signalCard(label: string, value: string, key: keyof typeof SIGNAL_DESCRIPTIONS): string {
