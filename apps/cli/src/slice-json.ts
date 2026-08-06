@@ -91,6 +91,10 @@ const bookingMetricsSchema = z.strictObject({
   programsWithSoleDominant: z.number(),
   televisionMatchBeats: z.number(),
   outsideBeatParticipants: z.number(),
+  televisionMatchMainEvents: z.strictObject({ matches: z.number(), total: z.number(), share: z.number() }),
+  repeatedPlacements: z.number(),
+  scoreInversions: z.number(),
+  programsByObjective: counts,
 });
 
 const programTimelineSchema = z.strictObject({

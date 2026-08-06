@@ -314,6 +314,24 @@ Card ordering cannot be only a descending heat sort. It should preserve the hott
 
 Every booked and rejected candidate should expose its hard-constraint result and score components. Agents must be able to answer "why was this booked?" without reconstructing the decision from source code.
 
+### The score has to be what selects
+
+The soft score above is not advisory. Reservation is for hard obligations only — a due payoff, a beat whose window closes tonight, a title obligation — and everything else competes on the score and is committed in score order. A composer that orders each pass by some private heuristic and then computes these components afterwards, so that the trace has numbers in it, has two scoring systems and reports the wrong one; the trace then explains a decision nobody made.
+
+Two consequences follow. A term that cannot discriminate between candidates is a defect, not a neutral term: `promotion-objective fit` summed per participant is a constant on any objective phrased about the roster rather than the card, and an objective about *which slots matter* (defend the belt, get the event built) has to be scored against the slot. And a term is only as safe as the selection it drives: `freshness` read an absent appearance history as *least* fresh, which was invisible decoration until it started selecting and then starved acts who had never been booked out of ever being booked. An act the audience has never seen is the freshest thing on the roster.
+
+Candidates competing under different card-shape budgets — the couple of story items a television show carries, versus open rotation filling what is left — are separate pools. Ranking is only meaningful within a pool, and the trace records which pool each candidate competed in so the report can tell a score loss from a budget.
+
+### Card shape is a statement, not a byproduct
+
+Television closes on a match. An angle may still close a show when it is genuinely hotter than every match on the card, so the rule is a score bias rather than a prohibition — but a promotion whose every main event is a promo is not running a wrestling show, and heat alone will produce exactly that, because a hot feud's promo and its match carry the same heat while only one of them is a fight.
+
+A program also pays to keep the card position it held on the previous show. Three weeks of identical main event and opener tells the audience nothing has changed, however hot the feud is.
+
+### Rotation feeds the pipeline
+
+Results in the matches nobody planned are evidence. A wrestler winning open rotation is the promotion's own argument that the audience would believe them in a bigger spot, and the planner should be able to read that form when it chooses what a program is *for* — an objective that exists to build somebody is worth more when the form is already there. This is a derived read over recent results, never stored streak state: a form number that can disagree with the results it came from is a second source of truth.
+
 ## 11. Recommended two-PLE slice
 
 The first creative-booking target is an eight-week deterministic slice covering two four-week PLE cycles. It is a focused architecture and readability gate before returning to the full 26-week balance gate.

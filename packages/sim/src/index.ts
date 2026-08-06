@@ -9,7 +9,8 @@ export function describeSim(): string {
 export { runTick, type TickResult } from "./tick.js";
 export { createRng, type Rng } from "./rng.js";
 export { createIdFactory, type IdFactory } from "./ids.js";
-export { isShowTick, nextShowTick, upcomingSlotsFor, DECISION_TICKS_PER_WEEK, WEEK_LENGTH_TICKS } from "./booking.js";
+export { isGoHomeShowTick, isShowTick, nextShowTick, upcomingSlotsFor, DECISION_TICKS_PER_WEEK, WEEK_LENGTH_TICKS } from "./booking.js";
+export { rotationForm, type RotationForm } from "./form.js";
 export { stanceWeights, defaultMatchIntent, defaultSegmentIntent, type StanceWeights } from "./ai/stance-weights.js";
 export { decideFallbackTurn } from "./ai/decide.js";
 export { worldFromScenario } from "./scenario.js";

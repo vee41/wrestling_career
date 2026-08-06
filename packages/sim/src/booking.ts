@@ -20,6 +20,16 @@ export function showKindForTick(tick: number, config: WorldConfig = DEFAULT_WORL
 }
 
 /**
+ * The last television show before the next event: the week a build has to land
+ * whatever it still has to say. This is what `prepare_major_event` means as a
+ * booking instruction, as opposed to "book popular people".
+ */
+export function isGoHomeShowTick(tick: number, config: WorldConfig = DEFAULT_WORLD_CONFIG): boolean {
+  if (!isShowTick(tick, config) || showKindForTick(tick, config) !== "tv") return false;
+  return weekForTick(tick, config) % config.pleIntervalWeeks === config.pleIntervalWeeks - 1;
+}
+
+/**
  * The card is booked one tick ahead of airing (see show.ts's `intents`
  * comment) so players get a decision period to set match intent before it
  * resolves. This finds the show tick a booking made *now* would air on.

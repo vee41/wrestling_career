@@ -156,8 +156,6 @@ export function createTestWorld(options: TestWorldOptions = {}): WorldState {
     narrativeResults: [],
     gmObjective: "new_main_eventer",
     gmObjectiveSince: 0,
-    bookingObjective: "new_main_eventer",
-    bookingObjectiveSince: 0,
     titles: [
       ...(wrestlerCount > 0 ? [{ id: "world-title", name: "World Championship", tier: "world" as const, holderId: "wrestler-0", since: 0 }] : [{ id: "world-title", name: "World Championship", tier: "world" as const }]),
       ...(wrestlerCount > 1 ? [{ id: "midcard-title", name: "Midcard Championship", tier: "midcard" as const, holderId: "wrestler-1", since: 0 }] : [{ id: "midcard-title", name: "Midcard Championship", tier: "midcard" as const }]),

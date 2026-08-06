@@ -1,7 +1,7 @@
-import type { BookingCandidateTrace, BookingTrace, CardSlot, GmObjective, MatchSlot, PlannedBeat, ProgramPlan, SegmentSlot, Show, Title, WorldState, Wrestler } from "@wrestling/contracts";
+import type { BookingCandidateTrace, BookingSelectionMode, BookingTrace, CardPosition, CardSlot, GmObjective, MatchSlot, PlannedBeat, ProgramPlan, SegmentSlot, Show, ShowKind, Title, WorldState, Wrestler } from "@wrestling/contracts";
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
-import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
+import { isBookedForTick, isGoHomeShowTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
 import { recentPerformanceReaction } from "./patience.js";
 import { releaseUncommittedBeats } from "./planned-beats.js";
 import { plannedPayoffWinnerId, selectPlannedBeatsForShow } from "./program-plans.js";
@@ -13,28 +13,6 @@ export const SUPPORTED_GM_OBJECTIVES: GmObjective[] = [
   "new_main_eventer", "rebuild_championship", "capitalise_on_rising_star",
   "cool_down_overexposed_act", "prepare_major_event",
 ];
-const LEGACY_BOOKING_OBJECTIVE_ROTATION_TICKS = 6;
-
-/**
- * Compatibility-only filler guidance. It preserves the pre-plan card
- * composer through Phase 3.11; ProgramPlan is the durable creative source.
- */
-export function rotateBookingObjectiveIfDue(world: WorldState, ctx: TickContext): void {
-  if (ctx.tick - world.bookingObjectiveSince < LEGACY_BOOKING_OBJECTIVE_ROTATION_TICKS) return;
-  const rng = ctx.rng.fork("gm-objective-rotation");
-  const allObjectives: GmObjective[] = [
-    "new_main_eventer", "strengthen_tag_division", "rebuild_championship", "capitalise_on_rising_star",
-    "cool_down_overexposed_act", "prepare_major_event",
-  ];
-  const next = rng.pick(allObjectives.filter((objective) => objective !== world.bookingObjective));
-  addEvent(world, ctx, {
-    type: "gm_decision",
-    summary: `The GM's operational booking focus shifted from ${world.bookingObjective.replace(/_/g, " ")} to ${next.replace(/_/g, " ")}.`,
-    wrestlerIds: [], data: { previousObjective: world.bookingObjective, objective: next, scope: "legacy_booking" },
-  });
-  world.bookingObjective = next;
-  world.bookingObjectiveSince = ctx.tick;
-}
 
 export function rotateGmObjectiveIfDue(world: WorldState, ctx: TickContext): void {
   // Program plans own medium-term creative direction. The promotion-level
@@ -59,18 +37,43 @@ function isChampion(world: WorldState, wrestlerId: string): boolean {
   return world.titles.some((title) => title.holderId === wrestlerId);
 }
 
+/** What the promotion's one creative objective wants from a *wrestler*. */
 function objectiveFit(world: WorldState, wrestler: Wrestler): number {
   const popularity = findPopularity(world, wrestler.id);
-  switch (world.bookingObjective) {
+  switch (world.gmObjective) {
     case "new_main_eventer": return popularity.momentum > 0 && popularity.generalPopularity < 70 ? popularity.momentum * 0.5 : 0;
-    case "rebuild_championship": return isChampion(world, wrestler.id) || popularity.generalPopularity > 50 ? 10 : 0;
+    // The champion themself, not "anybody reasonably popular": the old
+    // `> 50` arm matched most of the roster, which is how this whole term
+    // became a flat 20.0 on every candidate of a rebuild cycle.
+    case "rebuild_championship": return isChampion(world, wrestler.id) ? 10 : 0;
     case "capitalise_on_rising_star": return popularity.momentum > 10 ? popularity.momentum : 0;
     // This is deliberately a real booking penalty, not merely a slower rise:
     // an overexposed act is pushed down the card and may be rested entirely.
     case "cool_down_overexposed_act": return popularity.fatigue > 60 ? -35 : 0;
-    case "prepare_major_event": return popularity.generalPopularity * 0.3;
+    // Preparing an event is a statement about which *slots* matter, not about
+    // who is popular. `objectiveSlotFit` carries it.
+    case "prepare_major_event": return 0;
     case "strengthen_tag_division": default: return 0;
   }
+}
+
+/**
+ * What the objective wants from the *slot*. Two of the six objectives are about
+ * the shape of the card rather than the people on it, and expressing them
+ * per-participant is what made this score component unable to discriminate:
+ * a championship cycle wants belts defended, and an approaching event wants
+ * program beats rather than rotation — most of all on the go-home show.
+ */
+function objectiveSlotFit(world: WorldState, slot: CardSlot, targetTick: number): number {
+  const bonus = world.config.booking.objectiveSlotFitBonus;
+  if (world.gmObjective === "rebuild_championship") {
+    return slot.kind !== "segment" && slot.titleId !== undefined ? bonus : 0;
+  }
+  if (world.gmObjective === "prepare_major_event") {
+    if (slot.plannedBeatId === undefined) return 0;
+    return isGoHomeShowTick(targetTick, world.config) ? bonus * 2 : bonus;
+  }
+  return 0;
 }
 
 export function bookingScore(world: WorldState, wrestler: Wrestler, currentTick: number): number {
@@ -280,19 +283,57 @@ function isTopOfCardProgram(world: WorldState, booked: MatchSlot): boolean {
   return candidateHeat >= hottestActiveStory;
 }
 
-function assignPositions(world: WorldState, slots: CardSlot[]): CardSlot[] {
-  const ranked = slots.slice().sort((a, b) => programHeat(world, b) - programHeat(world, a));
-  // The previous descending-heat implementation made the coldest slot the
-  // opener. Give the first two strongest justified attractions the opener
-  // and main event respectively, leaving room for a supporting upper slot.
-  const main = ranked[0];
-  const opener = ranked[1] ?? main;
-  return ranked.map((booked, index) => ({
-    ...booked,
-    position: booked.id === main?.id ? "main_event" : booked.id === opener?.id ? "opener" : index === 2 ? "upper" : "mid",
-  }));
+/** The positions a card makes a statement with. Everything else is `mid`. */
+const DISTINGUISHED_POSITIONS: readonly CardPosition[] = ["main_event", "opener", "upper"];
+
+/** The show that aired most recently before the one being composed. */
+function previousShow(world: WorldState, targetTick: number): Show | undefined {
+  return world.shows.filter((show) => show.tick < targetTick).sort((a, b) => a.tick - b.tick).at(-1);
 }
 
+/**
+ * Card order is a creative statement, not a heat sort.
+ *
+ * Two rules beyond heat, both from observed runs. Television closes on a
+ * *match* unless an angle is genuinely hotter than every match on the show —
+ * every main event of the pre-3.12.7 run was a promo. And a program pays to
+ * keep the position it held last week: the same feud opening three shows
+ * running tells the audience nothing has changed, however hot it is.
+ */
+function assignPositions(world: WorldState, kind: ShowKind, targetTick: number, slots: CardSlot[]): CardSlot[] {
+  const tuning = world.config.booking;
+  const prior = previousShow(world, targetTick);
+  const heldPosition = (slot: CardSlot): CardPosition | undefined => slot.programId === undefined
+    ? undefined
+    : prior?.card.find((candidate) => candidate.programId === slot.programId)?.position;
+  const placementScore = (slot: CardSlot, position: CardPosition): number =>
+    programHeat(world, slot)
+    + (position === "main_event" && kind === "tv" && slot.kind !== "segment" ? tuning.tvMainEventMatchBias : 0)
+    - (heldPosition(slot) === position ? tuning.repeatPlacementPenalty : 0);
+
+  const remaining = slots.slice();
+  const placed: CardSlot[] = [];
+  for (const position of DISTINGUISHED_POSITIONS) {
+    if (remaining.length === 0) break;
+    const best = remaining.slice()
+      .sort((a, b) => placementScore(b, position) - placementScore(a, position) || a.id.localeCompare(b.id))[0]!;
+    remaining.splice(remaining.indexOf(best), 1);
+    placed.push({ ...best, position });
+  }
+  return [
+    ...placed,
+    ...remaining
+      .sort((a, b) => programHeat(world, b) - programHeat(world, a) || a.id.localeCompare(b.id))
+      .map((booked) => ({ ...booked, position: "mid" as const })),
+  ];
+}
+
+/**
+ * booking_ai §10's soft score, for one candidate. Since Phase 3.12.7 this is
+ * what actually *selects* the discretionary part of the card rather than being
+ * recomputed afterwards for the trace, so every term here is a real booking
+ * decision and a term that cannot discriminate is a defect.
+ */
 function scoreComponents(world: WorldState, slot: CardSlot, targetTick: number): Record<string, number> {
   const plan = slot.programId === undefined ? undefined : world.programPlans.find((candidate) => candidate.id === slot.programId);
   const beat = slot.plannedBeatId === undefined ? undefined : world.plannedBeats.find((candidate) => candidate.id === slot.plannedBeatId);
@@ -304,12 +345,41 @@ function scoreComponents(world: WorldState, slot: CardSlot, targetTick: number):
     programPriority: plan?.priority ?? 0,
     beatUrgency: urgency,
     heat: programHeat(world, slot),
-    promotionObjectiveFit: objective,
-    freshness: slot.participantWrestlerIds.reduce((sum, id) => sum + (weeksSinceLastAppearance(world, id, targetTick) ?? 1), 0),
+    promotionObjectiveFit: objective + objectiveSlotFit(world, slot, targetTick),
+    // An act nobody has booked yet is the *freshest* thing on the roster, not
+    // the stalest. Reading the undefined appearance history as 1 was harmless
+    // while this score was only decoration on the trace; once it selected, it
+    // became a starvation loop — never booked, so never fresh, so never booked
+    // — and three wrestlers went a full 26 weeks without a match.
+    freshness: slot.participantWrestlerIds.reduce((sum, id) =>
+      sum + (weeksSinceLastAppearance(world, id, targetTick) ?? weekForTick(targetTick, world.config)), 0),
     cardShapeContribution: slot.kind === "segment" ? 2 : 1,
     overexposure: -overexposure,
+    repeatPairing: -repeatPairingPenalty(world, slot.participantWrestlerIds, targetTick),
     conditionRisk: -conditionRisk,
   };
+}
+
+/**
+ * What a pairing costs for having been seen before — booking_ai §10's
+ * `repeat-pairing penalty`, which the soft score has listed since Phase 3.12
+ * and nothing implemented. A rematch is a creative decision a program makes on
+ * purpose; open rotation stumbling into one is just a card repeating itself.
+ */
+function repeatPairingPenalty(world: WorldState, participantIds: readonly string[], targetTick: number): number {
+  if (participantIds.length < 2) return 0;
+  const tuning = world.config.booking;
+  const priorTicks = world.matchResults
+    .filter((result) => result.participantWrestlerIds.length === participantIds.length
+      && participantIds.every((id) => result.participantWrestlerIds.includes(id)))
+    .flatMap((result) => {
+      const tick = world.shows.find((show) => show.id === result.showId)?.tick;
+      return tick === undefined || tick >= targetTick ? [] : [tick];
+    });
+  if (priorTicks.length === 0) return 0;
+  const previous = previousShow(world, targetTick);
+  const consecutive = previous !== undefined && priorTicks.includes(previous.tick);
+  return tuning.repeatPairingPenalty + (consecutive ? tuning.consecutivePairingPenalty : 0);
 }
 
 function placementReason(slot: CardSlot): string {
@@ -319,8 +389,18 @@ function placementReason(slot: CardSlot): string {
   return "roster rotation showcase";
 }
 
+/** One discretionary candidate a score pass considered but could not fit. */
+interface RejectedCandidate {
+  slot: CardSlot;
+  pool: BookingSelectionMode;
+  reason: string;
+}
+
 /** Build the durable, private audit record after hard-valid candidates are committed. */
-function compositionTrace(world: WorldState, composedAtTick: number, targetTick: number, card: readonly CardSlot[]): BookingTrace {
+function compositionTrace(
+  world: WorldState, composedAtTick: number, targetTick: number, card: readonly CardSlot[],
+  selectionModes: ReadonlyMap<string, BookingSelectionMode>, rejected: readonly RejectedCandidate[],
+): BookingTrace {
   const selectedBeatIds = new Set(card.flatMap((slot) => slot.plannedBeatId === undefined ? [] : [slot.plannedBeatId]));
   const candidates: BookingCandidateTrace[] = card.map((slot) => {
     const components = scoreComponents(world, slot, targetTick);
@@ -329,11 +409,24 @@ function compositionTrace(world: WorldState, composedAtTick: number, targetTick:
       ...(slot.programId === undefined ? {} : { programId: slot.programId }),
       ...(slot.plannedBeatId === undefined ? {} : { plannedBeatId: slot.plannedBeatId }),
       ...(slot.kind === "match" && slot.titleId !== undefined ? { titleId: slot.titleId } : {}),
-      disposition: "selected", hardInvalidReasons: [], scoreComponents: components,
+      disposition: "selected", selection: selectionModes.get(slot.id) ?? "reserved",
+      hardInvalidReasons: [], scoreComponents: components,
       totalScore: Object.values(components).reduce((sum, value) => sum + value, 0), slotId: slot.id,
       placementReason: `${placementReason(slot)}; ${slot.position.replace(/_/g, " ")}`,
     };
   });
+  // Everything the score pass weighed and left off, with the score it lost on.
+  // "Why was this booked?" is only answerable next to what was not.
+  for (const { slot, pool, reason } of rejected) {
+    const components = scoreComponents(world, slot, targetTick);
+    candidates.push({
+      id: `candidate:${slot.id}`, kind: slot.kind ?? "match", participantWrestlerIds: [...slot.participantWrestlerIds],
+      ...(slot.kind === "match" && slot.titleId !== undefined ? { titleId: slot.titleId } : {}),
+      disposition: "rejected", selection: pool, hardInvalidReasons: [], scoreComponents: components,
+      totalScore: Object.values(components).reduce((sum, value) => sum + value, 0),
+      placementReason: reason,
+    });
+  }
   const isPle = showKindForTick(targetTick, world.config) === "ple";
   for (const beat of world.plannedBeats) {
     if ((beat.status !== "provisional" && beat.status !== "scheduled" && beat.status !== "invalidated") || selectedBeatIds.has(beat.id)) continue;
@@ -350,8 +443,8 @@ function compositionTrace(world: WorldState, composedAtTick: number, targetTick:
       ...(missingPrerequisite ? ["beat_precondition_unmet"] : []),
     ];
     const virtualSlot: CardSlot = beat.compatibleSlotKind === "segment"
-      ? { kind: "segment", id: `trace-${beat.id}`, participantWrestlerIds: beat.requiredParticipantWrestlerIds, position: "mid", gmIntent: world.bookingObjective, programId: beat.programId, ...(storyId === undefined ? {} : { storyId }), intents: {} }
-      : { kind: "match", id: `trace-${beat.id}`, participantWrestlerIds: beat.requiredParticipantWrestlerIds, position: "mid", gmIntent: world.bookingObjective, programId: beat.programId, ...(storyId === undefined ? {} : { storyId }), intents: {} };
+      ? { kind: "segment", id: `trace-${beat.id}`, participantWrestlerIds: beat.requiredParticipantWrestlerIds, position: "mid", gmIntent: world.gmObjective, programId: beat.programId, ...(storyId === undefined ? {} : { storyId }), intents: {} }
+      : { kind: "match", id: `trace-${beat.id}`, participantWrestlerIds: beat.requiredParticipantWrestlerIds, position: "mid", gmIntent: world.gmObjective, programId: beat.programId, ...(storyId === undefined ? {} : { storyId }), intents: {} };
     const components = scoreComponents(world, virtualSlot, targetTick);
     candidates.push({
       id: `candidate:beat:${beat.id}`, kind: beat.compatibleSlotKind === "segment" ? "segment" : "match", participantWrestlerIds: [...beat.requiredParticipantWrestlerIds],
@@ -410,6 +503,10 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   }
   const used = new Set<string>();
   const slots: CardSlot[] = [];
+  // booking_ai §10's composition order: hard obligations are *reserved* in
+  // order, and everything discretionary below competes on the soft score.
+  const selectionModes = new Map<string, BookingSelectionMode>();
+  const rejected: RejectedCandidate[] = [];
   // Planned beats claim their own match/segment primitive. The old random
   // segment chance remains only for unplanned filler below.
   const plannedBeats = selectPlannedBeatsForShow(world, ctx, targetTick, targetSlotCount);
@@ -443,8 +540,8 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
     const shared = { storyId: plan.storyId, programId: plan.id, plannedBeatId: plannedBeat.id };
     const titleId = plannedBeat.type === "ple_payoff" ? plan.stakesTitleId : undefined;
     slots.push(plannedBeat.compatibleSlotKind === "match"
-      ? slot(ctx, participants, world.bookingObjective, { ...shared, ...(titleId === undefined ? {} : { titleId }), plannedFinish: finishForPlannedBeat(world, plan, plannedBeat, participants, titleId) })
-      : segmentSlot(ctx, participants, world.bookingObjective, { ...shared, ...(plannedBeat.plannedSegmentOutcome === undefined ? {} : { plannedOutcome: plannedBeat.plannedSegmentOutcome }) }));
+      ? slot(ctx, participants, world.gmObjective, { ...shared, ...(titleId === undefined ? {} : { titleId }), plannedFinish: finishForPlannedBeat(world, plan, plannedBeat, participants, titleId) })
+      : segmentSlot(ctx, participants, world.gmObjective, { ...shared, ...(plannedBeat.plannedSegmentOutcome === undefined ? {} : { plannedOutcome: plannedBeat.plannedSegmentOutcome }) }));
   }
   // A stale championship has a hard defence floor. Reserve one viable
   // challenger before the program pass so unrelated peaking stories cannot
@@ -485,7 +582,7 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
         const priorSlot = priorShow?.card.find((slot) => slot.id === result.matchSlotId);
         return priorSlot?.kind !== "segment" && priorSlot?.titleId === title.id && participants.every((id) => result.participantWrestlerIds.includes(id));
       });
-      const potentialSlot = slot(ctx, participants, world.bookingObjective, {
+      const potentialSlot = slot(ctx, participants, world.gmObjective, {
         storyId: story.id, ...(title ? { titleId: title.id } : {}),
       });
       if (pairAlreadyMetForTitle && !isTopOfCardProgram(world, potentialSlot)) continue;
@@ -515,30 +612,52 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       if (!contender) continue;
       used.add(holderId); used.add(contender.id);
       const storyId = storyForPair(world, holderId, contender.id);
-      slots.push(slot(ctx, [holderId, contender.id], world.bookingObjective, {
+      slots.push(slot(ctx, [holderId, contender.id], world.gmObjective, {
         titleId: title.id, ...(storyId ? { storyId } : {}),
       }));
     }
   }
 
+  // Everything above is a reserved obligation, claimed in composition order.
+  for (const booked of slots) selectionModes.set(booked.id, "reserved");
+
+  /**
+   * Commit discretionary candidates strictly in soft-score order. Before Phase
+   * 3.12.7 each pass had its own ordering — stories by raw audience interest,
+   * rotation by a private rotation score — and `scoreComponents` was computed
+   * afterwards purely so the trace had numbers in it. The score the report
+   * shows is now the score that decided.
+   */
+  const commitScored = (candidates: readonly CardSlot[], pool: BookingSelectionMode, limit: number): void => {
+    const ranked = candidates
+      .map((candidate) => ({ candidate, components: scoreComponents(world, candidate, targetTick) }))
+      .map((entry) => ({ ...entry, score: Object.values(entry.components).reduce((sum, value) => sum + value, 0) }))
+      .sort((a, b) => b.score - a.score || a.candidate.id.localeCompare(b.candidate.id));
+    for (const { candidate } of ranked) {
+      if (slots.length >= limit) { rejected.push({ slot: candidate, pool, reason: "capacity reserved for higher-scoring candidates" }); continue; }
+      if (candidate.participantWrestlerIds.some((id) => used.has(id))) { rejected.push({ slot: candidate, pool, reason: "a higher-scoring candidate booked one of its participants" }); continue; }
+      candidate.participantWrestlerIds.forEach((id) => used.add(id));
+      selectionModes.set(candidate.id, pool);
+      slots.push(candidate);
+    }
+  };
+
   const storySlotBudget = kind === "tv" ? Math.min(2, targetSlotCount) : targetSlotCount;
-  const stories = world.stories.filter((story) => story.phase === "building" && story.participantWrestlerIds.length >= 2)
-    .sort((a, b) => b.audienceInterest - a.audienceInterest);
-  for (const story of stories) {
-    if (slots.length >= storySlotBudget) break;
+  const storyCandidates: CardSlot[] = [];
+  for (const story of world.stories.filter((candidate) => candidate.phase === "building" && candidate.participantWrestlerIds.length >= 2)) {
     const participants = story.participantWrestlerIds;
     if (participants.some((id) => used.has(id) || !eligible.has(id))) continue;
     const linkedPlan = world.programPlans.find((plan) => plan.storyId === story.id && (plan.status === "active" || plan.status === "payoff_ready"));
     if (directMatchOnCooldown(world, participants, targetTick, linkedPlan?.id)) continue;
-    for (const wrestlerId of participants) used.add(wrestlerId);
     // TV title bouts are exceptional and only happen when the story itself justifies one.
     const title = kind === "tv" && ctx.rng.fork(`tv-title:${story.id}`).chance(0.08)
       ? world.titles.find((candidate) => candidate.tier === "midcard" && candidate.holderId !== undefined && participants.includes(candidate.holderId) && participantsTitleEligible(world, participants, candidate.tier)) : undefined;
     const useSegment = kind === "tv" && ctx.rng.fork(`story-segment:${targetTick}:${story.id}`).chance(world.config.booking.segmentChance);
-    slots.push(useSegment
-      ? segmentSlot(ctx, participants, world.bookingObjective, { storyId: story.id })
-      : slot(ctx, participants, world.bookingObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
+    storyCandidates.push(useSegment
+      ? segmentSlot(ctx, participants, world.gmObjective, { storyId: story.id })
+      : slot(ctx, participants, world.gmObjective, { storyId: story.id, ...(title ? { titleId: title.id } : {}) }));
   }
+  commitScored(storyCandidates, "scored_story", storySlotBudget);
 
   const previousAppearances = new Map<string, number>();
   for (const result of world.matchResults) {
@@ -546,21 +665,22 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
       previousAppearances.set(wrestlerId, (previousAppearances.get(wrestlerId) ?? 0) + 1);
     }
   }
-  const remaining = bookableWrestlers(world)
+  // Who is *due* is a cadence question the soft score does not answer: rest
+  // pressure, appearance counts, and a return from injury are roster rules, so
+  // they decide the order the rotation pool is drawn from. What the pool is
+  // worth on this card is then the same soft score as everything else.
+  const rotationPool = bookableWrestlers(world)
     .filter((wrestler) => !used.has(wrestler.id))
     // Legends and part-timers only appear through the meaningful story/title
     // passes above; ordinary rotation never spends a rare appearance.
     .filter((wrestler) => !world.config.roles[wrestler.role].storyGated)
-    .filter((wrestler) => !(world.bookingObjective === "cool_down_overexposed_act" && findPopularity(world, wrestler.id).fatigue > 75))
-    // Existing stories and title scenes still lead the card, but open slots
-    // deliberately rotate the rest of the roster through it.
+    .filter((wrestler) => !(world.gmObjective === "cool_down_overexposed_act" && findPopularity(world, wrestler.id).fatigue > 75))
     .sort((a, b) => {
       const rotationScore = (wrestler: Wrestler) => {
         const appearances = previousAppearances.get(wrestler.id) ?? 0;
         // The first recovered booking is the visible return beat, so it gets
         // priority over ordinary rotation once the wrestler is cleared.
         const returnBonus = isAwayFromTelevision(world, wrestler.id) ? 500 : 0;
-        const popularity = findPopularity(world, wrestler.id);
         // This applies only to open rotation. At a role's ideal cadence there
         // is no penalty; booking more frequently creates a role-scaled rest
         // pressure, steepest for rare acts.
@@ -572,33 +692,42 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
           : 0;
         return bookingScore(world, wrestler, ctx.tick) - appearances * 7 + Math.max(0, 3 - appearances) * 100 + returnBonus - restPenalty;
       };
-      return rotationScore(b) - rotationScore(a);
-    });
-  let index = 0;
+      return rotationScore(b) - rotationScore(a) || a.id.localeCompare(b.id);
+    })
+    .map((wrestler) => wrestler.id);
+
+  const rotationCandidates: CardSlot[] = [];
   // One TV undercard match may become a triple threat or fatal four-way. It
-  // draws strictly from `remaining`, never consuming a story or title slot.
-  const canBookMultiWay = kind === "tv" && slots.length < targetSlotCount && remaining.length >= 3;
-  if (canBookMultiWay && ctx.rng.fork(`multi-way:${targetTick}`).chance(world.config.booking.multiWayChance)) {
-    const participantCount = Math.min(world.config.booking.maxMultiWayParticipants, remaining.length);
-    const participants = remaining.slice(0, participantCount).map((wrestler) => wrestler.id);
-    slots.push(slot(ctx, participants, world.bookingObjective));
-    index = participantCount;
+  // draws strictly from the rotation pool, never consuming a story or title slot.
+  if (kind === "tv" && slots.length < targetSlotCount && rotationPool.length >= 3
+    && ctx.rng.fork(`multi-way:${targetTick}`).chance(world.config.booking.multiWayChance)) {
+    rotationCandidates.push(slot(ctx, rotationPool.splice(0, Math.min(world.config.booking.maxMultiWayParticipants, rotationPool.length)), world.gmObjective));
   }
-  for (; slots.length < targetSlotCount && index + 1 < remaining.length; index += 2) {
-    const a = remaining[index]; const b = remaining[index + 1];
-    if (!a || !b) break;
-    if (directMatchOnCooldown(world, [a.id, b.id], targetTick)) continue;
-    slots.push(slot(ctx, [a.id, b.id], world.bookingObjective));
+  // Pair the pool greedily rather than by adjacency in the due order. Adjacency
+  // is what quietly handed the same two acts each other week after week: the
+  // rest and appearance rules put them next to each other every time. The most
+  // due wrestler goes on first, against whoever is next due among the partners
+  // the repeat-pairing penalty does not object to.
+  while (rotationPool.length >= 2) {
+    const first = rotationPool.shift()!;
+    const partner = rotationPool
+      .map((id, index) => ({ id, index }))
+      .filter((entry) => !directMatchOnCooldown(world, [first, entry.id], targetTick))
+      .sort((a, b) => repeatPairingPenalty(world, [first, a.id], targetTick) - repeatPairingPenalty(world, [first, b.id], targetTick) || a.index - b.index)[0];
+    if (partner === undefined) continue;
+    rotationPool.splice(partner.index, 1);
+    rotationCandidates.push(slot(ctx, [first, partner.id], world.gmObjective));
   }
+  commitScored(rotationCandidates, "scored_rotation", targetSlotCount);
 
   const committedSlots = slots.map((booked) => {
     if (booked.kind === "segment" || booked.plannedFinish !== undefined || (booked.storyId === undefined && booked.titleId === undefined)) return booked;
     return { ...booked, plannedFinish: finishForBookedStoryOrTitle(world, booked) };
   });
-  const positionedCard = assignPositions(world, committedSlots);
+  const positionedCard = assignPositions(world, kind, targetTick, committedSlots);
   const show: Show = {
     id: ctx.ids.next("show"), tick: targetTick, kind, card: positionedCard,
-    bookingTrace: compositionTrace(world, ctx.tick, targetTick, positionedCard),
+    bookingTrace: compositionTrace(world, ctx.tick, targetTick, positionedCard, selectionModes, rejected),
   };
   for (const plannedBeat of plannedBeats) {
     if (!positionedCard.some((slot) => slot.plannedBeatId === plannedBeat.id)) continue;

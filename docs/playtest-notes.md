@@ -843,3 +843,154 @@ on seed 1 while costing that same seed PLE coverage (47% → 42%), adherence
 Two knobs carry the change, both scenario-owned:
 `booking.beatOutsideCandidateCount` (3) and
 `booking.maxOptionalBeatParticipants` (1).
+
+## Phase 3.12.7 — card shape, score-driven selection, one objective system
+
+`slice --weeks 8 --seeds 2`, and the 26-week/3-seed gate, both against 3.12.6
+at commit `bf378c5`.
+
+| 8-week metric | 3.12.6 | 3.12.7 |
+| --- | --- | --- |
+| TV main events that are matches | 1/6 · 1/6 | **4/6 · 4/6** |
+| Repeated card placements | 10 · 5 | **2 · 2** |
+| Score inversions | — (new) | 0 · 0 |
+| Programs resolved | 5 (63%) · 6 | 7 (70%) · 6 (60%) |
+| PLE build coverage | 57% · 55% | 70% · 40% |
+| Distinct main-eventers | 7 · 9 | 9 · 10 |
+| Television match beats | 3 · 4 | 6 · 5 |
+| Planned-finish adherence | 78% · 82% | 75% · 84% |
+| Direct rematches | 3 · 3 | 4 · 3 |
+
+| 26-week metric | 3.12.6 | 3.12.7 |
+| --- | --- | --- |
+| MUST failures | 2 / 3 / 2 | 2 / 3 / 4 |
+| SL-10 (distinct #1 acts) | PASS (3) | PASS (2) |
+| TV main events that are matches | 4/20 · 6/20 · 5/20 | **12/20 · 13/20 · 9/20** |
+| Repeated card placements | 27 · 14 · 22 | **4 · 6 · 3** |
+| Score inversions | — (new) | 0 · 0 · 0 |
+| Wrestlers with zero matches | 0 · 0 · 0 | 0 · 0 · 0 |
+| Programs resolved | 62% · 75% · 63% | 78% · 70% · 68% |
+| Distinct main-eventers | 16 · 18 · 21 | 20 · 16 · 21 |
+| Planned-finish adherence | 79% · 74% · 79% | 70% · 83% · 83% |
+
+### The week now has a shape
+
+A week of television used to open and close on the same two programs, in the
+same order, in promos. Both changed:
+
+```
+3.12.6, seed 1        3.12.7, seed 1
+wk1 main  segment     wk1 main  segment  (promo — the cycle just opened)
+wk2 main  segment     wk2 main  match    (showcase: CM Punk beats Jey Uso)
+wk3 main  segment     wk3 main  match    (rivalry match: Priest vs. Balor)
+wk5 main  segment     wk5 main  segment  (promo — new cycle, new programs)
+wk6 main  match       wk6 main  match
+wk7 main  segment     wk7 main  match
+```
+
+The exceptions are not random: on both seeds the two segment main events are
+weeks 1 and 5, the first show of each PLE cycle, when every program is one tick
+old and a promo is genuinely the only thing it has. That is the "white-hot
+angle" escape hatch doing what it was specified to do, and it is why the bias
+is additive rather than a rule — with `tvMainEventMatchBias` set to 0 the same
+card puts the angle back on top, which is what the golden test asserts.
+
+Repeated placements collapsing from 27 to 4 over 26 weeks is the more visible
+change to read. The old composer was a pure descending-heat sort, so the
+hottest feud held the main event for its whole four-week build by construction.
+
+### Making the score select found two real bugs
+
+The interesting part of this phase was not writing the ranking; it was that
+turning the documented soft score from decoration into the thing that decides
+immediately exposed defects that had been invisible.
+
+**`freshness` had its sign backwards for anyone never booked.** The term read
+`weeksSinceLastAppearance(...) ?? 1`, and that function returns `undefined` for
+a wrestler with no appearance history at all. So an act nobody had booked
+scored as the *stalest* thing on the roster rather than the freshest, and once
+the term selected instead of merely being reported it became a starvation loop:
+never booked, so never fresh, so never booked. Three wrestlers went a full 26
+weeks without a single match, SL-9's minimum dropped to 0 on all three seeds,
+and SL-10 broke to one distinct #1 act as the same handful of popular names
+absorbed the whole card. Reading an unbooked act as maximally fresh fixed all
+three at once.
+
+**Adjacency pairing was manufacturing rematches.** Open rotation paired the
+due-order list two at a time — indices 0-1, 2-3, and so on. But the due order
+is computed from rest pressure and appearance counts, which are nearly
+identical for two wrestlers who just worked each other, so they sort next to
+each other again the following week and get paired again. Greedy pairing with
+the new repeat-pairing penalty as the tiebreak replaced it.
+
+Neither was findable by reading the code, and neither would have shown up in a
+unit test on `scoreComponents` — the numbers were all correct in isolation.
+
+### The two objective systems are one
+
+`bookingObjective` is gone from contracts, sim and the tick pipeline, four
+phases after Phase 3.9 task 5 first required it. It rotated every 6 ticks on
+its own random timer while `gmObjective` settled over a PLE cycle, and *it* was
+the one the card composer, `objectiveFit`, every slot's `gmIntent` and the GM
+interaction model actually read — so the objective the report displayed was
+never the objective doing the booking.
+
+Retiring it also forced the question of what the objectives *mean*, because
+`promotionObjectiveFit` was observably a flat 20.0 on every candidate of a
+`rebuild_championship` week: the per-wrestler arm read "champion **or** general
+popularity above 50", which is most of the roster, twice per pairing. Two of
+the six objectives turn out to be statements about which slots matter rather
+than about which people are over, and they are now scored that way — a belt on
+the slot for `rebuild_championship`, a program beat for `prepare_major_event`,
+doubled on the go-home show. `prepare_major_event` had previously been
+implemented as `generalPopularity * 0.3`, which is not what preparing an event
+means.
+
+### `fallbackObjective` is a live decision now
+
+3.12.6 handed on that every story was getting a second scored, traced program
+candidate the planner could never select. It is selectable: `planPrograms`
+ranks both and takes the better one. That only matters if something can
+actually differentiate two objectives for the same story, which is what task
+5's form read supplies — `contenderForm` pays `establish_challenger` and
+`elevate_act` for participants who are winning the matches nobody planned, so a
+`settle_grudge` primary can now lose to an elevation alternative when both
+wrestlers are hot. It wins 1–2 programs per 26-week seed. Form itself spans
+−3…+3 across 42 of 44 wrestlers, so it is a real signal rather than a constant.
+
+### What did not improve, and why it was not tuned
+
+MUST failures went 7 → 9 across the seed set. Both new failures are on seed 3
+and both are one unit from passing: SL-1 at 2 risers where 3 are wanted, and
+SL-9 at 2 matches for Damian Priest. Per the rule 3.12.5 established, neither
+was bought back with a knob.
+
+SL-9 is worth being precise about, because 3.12.5's hand-on diagnosed it
+wrongly and that diagnosis was this phase's assignment. It said the rotation
+pass's `restPenalty` was keeping a high-popularity act off cards it had room
+for. Priest is a `legend`, and `storyGated` roles are excluded from open
+rotation *by design* — `restPenalty` is never evaluated for him. His matches
+track his programs exactly:
+
+| Seed | Programs containing Priest | Matches | Segments |
+| --- | ---: | ---: | ---: |
+| 1 | 5 | 7 | 11 |
+| 2 | 1 | 2 | 2 |
+| 3 | 1 | 2 | 2 |
+
+So SL-9 here reads "the director never built a story around this legend", which
+is catalyst generation — 3.12.9 task 1. The wrong fix is available and
+tempting: let rotation spend a rare appearance when the gap gets long enough.
+That would pass the row and delete the scarcity the role exists to create.
+
+PLE build coverage is the noisiest number in the set (70% on one 8-week seed,
+40% on the other) and the cause is structural rather than tuned: the television
+story-slot budget is still an inline `Math.min(2, targetSlotCount)` compared
+against the *total* slot count, so a show that already reserved two program
+beats admits no story slots at all. Making it a real knob with its own
+semantics belongs with 3.12.8, which adds title programs to the same pool.
+
+Seven knobs carry the phase, all scenario-owned: `tvMainEventMatchBias` (30),
+`repeatPlacementPenalty` (25), `repeatPairingPenalty` (20),
+`consecutivePairingPenalty` (60), `objectiveSlotFitBonus` (20),
+`rotationFormMatches` (3), `contenderFormBonus` (8).

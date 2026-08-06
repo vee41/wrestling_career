@@ -17,6 +17,7 @@ import type {
 import { addEvent, type TickContext } from "./context.js";
 import { findPopularity } from "./lookups.js";
 import { isShowTick, showKindForTick } from "./booking.js";
+import { rotationForm } from "./form.js";
 import { isAvailableId } from "./injury.js";
 
 const MAX_ACTIVE_PROGRAMS = 5;
@@ -103,16 +104,33 @@ function protectedParticipants(world: WorldState, participantIds: readonly strin
   return challenger === undefined ? [] : [challenger];
 }
 
-function scoreComponents(world: WorldState, story: Story, objective: ProgramCreativeObjective, primary: boolean): Record<string, number> {
+/** Objectives whose whole purpose is to make somebody bigger than they are. */
+function buildsSomebody(objective: ProgramCreativeObjective): boolean {
+  return objective === "establish_challenger" || objective === "elevate_act";
+}
+
+function scoreComponents(
+  world: WorldState, ctx: TickContext, story: Story, objective: ProgramCreativeObjective, primary: boolean,
+): Record<string, number> {
   const objectiveFit = objective === objectiveFor(world, story, titleForStory(world, story)) ? 30 : 5;
   const participantPopularity = story.participantWrestlerIds
     .reduce((total, id) => total + findPopularity(world, id).generalPopularity, 0) / story.participantWrestlerIds.length;
+  // Results in the matches nobody planned are the promotion's own evidence
+  // about who the audience would believe in a bigger spot, so an objective that
+  // exists to build somebody is worth more when the form is already there.
+  // This is the only term that varies by objective for a fixed story, and so
+  // the only reason the alternative candidate can ever win.
+  const form = buildsSomebody(objective)
+    ? story.participantWrestlerIds.reduce((total, id) => total + Math.max(0, rotationForm(world, id, ctx.tick).net), 0)
+      * world.config.booking.contenderFormBonus
+    : 0;
   return {
     audienceInterest: story.audienceInterest,
     momentum: story.momentum * 2,
     coherence: story.coherence * 0.2,
     participantPopularity: participantPopularity * 0.2,
     objectiveFit,
+    contenderForm: form,
     primaryIntent: primary ? 5 : 0,
   };
 }
@@ -128,7 +146,7 @@ function candidate(
   creativeObjective: ProgramCreativeObjective,
   primary: boolean,
 ): ProgramPlanCandidate {
-  const components = scoreComponents(world, story, creativeObjective, primary);
+  const components = scoreComponents(world, ctx, story, creativeObjective, primary);
   return {
     id: ctx.ids.next("program-candidate"),
     tick: ctx.tick,
@@ -368,6 +386,26 @@ function resolveTemplate(world: WorldState, plan: ProgramPlan, template: BeatTem
 }
 
 /**
+ * The part of an archetype a program with `count` shows can actually run.
+ *
+ * The end of the build, not the start: with two weeks left there is no time to
+ * establish a premise the audience will have forgotten by the payoff, and the
+ * beats that matter are the ones that put the blowoff in doubt. Taking the
+ * front of the list instead is what produced the one-sided short program —
+ * every archetype opens on the eventual winner, so a one-show build followed by
+ * a payoff named the same wrestler twice and read as a squash.
+ */
+function buildTemplates(objective: ProgramCreativeObjective, count: number): readonly BeatTemplate[] {
+  const archetype = ARCHETYPES[objective];
+  const tail = archetype.slice(Math.max(0, archetype.length - count));
+  if (count === 0 || tail.some((template) => template.dominant === "payoff_loser")) return tail;
+  // A single show to build on has to be the one where the other side stands
+  // tall, whatever the archetype would otherwise have spent it on.
+  const standTall = archetype.filter((template) => template.dominant === "payoff_loser").at(-1);
+  return standTall === undefined ? tail : [standTall, ...tail.slice(1)];
+}
+
+/**
  * A premise → complication → escalation → payoff cadence laid over the shows
  * that exist. Each build beat opens on its own television show and stays open
  * until the last one before the payoff: the prerequisite chain enforces the
@@ -380,7 +418,7 @@ export function createBeatSkeleton(world: WorldState, ctx: TickContext, plan: Pr
   const buildTicks = buildShowTicks(world, plan.startTick, plan.targetPayoffTick);
   const lastBuildTick = buildTicks.at(-1) ?? plan.startTick;
   const build: PlannedBeat[] = [];
-  for (const [index, planned] of ARCHETYPES[plan.creativeObjective].slice(0, buildTicks.length).entries()) {
+  for (const [index, planned] of buildTemplates(plan.creativeObjective, buildTicks.length).entries()) {
     const previous = build.at(-1);
     const template = resolveTemplate(world, plan, planned);
     build.push(beat(world, ctx, plan, {
@@ -765,12 +803,18 @@ export function planPrograms(world: WorldState, ctx: TickContext): void {
 
   const selectedIds = new Set<string>();
   const activeParticipants = new Set(world.programPlans.filter(isActive).flatMap((plan) => plan.participants.map((participant) => participant.wrestlerId)));
-  const primaryCandidates = stories
-    .map((story) => candidatesByStory.get(story.id)![0]!)
-    .filter((entry) => entry.disposition !== "hard_invalid")
+  // Score selects here too. Each story puts up both of its candidates and the
+  // better one carries it; before Phase 3.12.7 only the primary was ever
+  // considered, so the alternative objective was scored, traced, and
+  // structurally unreachable — a decision the report showed nobody making.
+  const contenders = stories
+    .map((story) => candidatesByStory.get(story.id)!
+      .filter((entry) => entry.disposition !== "hard_invalid")
+      .sort((a, b) => b.totalScore - a.totalScore || a.id.localeCompare(b.id))[0])
+    .filter((entry): entry is ProgramPlanCandidate => entry !== undefined)
     .sort((a, b) => b.totalScore - a.totalScore || a.storyId.localeCompare(b.storyId));
 
-  for (const selected of primaryCandidates) {
+  for (const selected of contenders) {
     const alternatives = candidatesByStory.get(selected.storyId)!;
     const conflicts = selected.participantWrestlerIds.filter((id) => activeParticipants.has(id));
     if (conflicts.length > 0) {

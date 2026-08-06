@@ -211,7 +211,11 @@ describe("injuries over a live tick loop", () => {
         if (typeof programId !== "string") continue;
         // booking_ai §9: the deviation is a replanning trigger, and 3.12.4's
         // primitives mean the revision it appends actually changes the plan.
+        // The exception is a deviation *at the payoff*: `resolvePayoff` closes
+        // the plan before the deviation is read, and a feud that is over has no
+        // remaining intent to revise.
         const plan = world.programPlans.find((candidate) => candidate.id === programId)!;
+        if (plan.status === "resolved" || plan.status === "abandoned") continue;
         const revision = plan.revisions.find((entry) => entry.reason === "execution_deviation");
         expect(revision, `deviation on ${programId} recorded no revision`).toBeDefined();
         expect(JSON.stringify(revision!.previousIntent)).not.toBe(JSON.stringify(revision!.newIntent));

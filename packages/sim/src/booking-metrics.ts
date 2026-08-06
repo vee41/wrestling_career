@@ -2,6 +2,7 @@ import {
   executionDeviationCauseSchema,
   plannedBeatStatusSchema,
   plannedBeatTypeSchema,
+  programCreativeObjectiveSchema,
   programRevisionReasonSchema,
   programRevisionResponseSchema,
   type ExecutionAdherence,
@@ -142,6 +143,14 @@ export interface SliceBookingMetrics {
   televisionMatchBeats: number;
   /** Distinct wrestlers a beat pulled in from outside its own program. */
   outsideBeatParticipants: number;
+  /** Television main events that were a match rather than an angle. */
+  televisionMatchMainEvents: { matches: number; total: number; share: number };
+  /** Programs that held the same distinguished card position on consecutive shows. */
+  repeatedPlacements: number;
+  /** Score-selected candidates rejected while a lower-scoring one made the same card. */
+  scoreInversions: number;
+  /** Programs created, by the creative objective the planner chose for them. */
+  programsByObjective: Record<ProgramCreativeObjective, number>;
 }
 
 /** Shared, human-facing explanations for the booking metrics — the single source of truth for CLI/report tooltips. */
@@ -164,6 +173,10 @@ export const BOOKING_METRIC_DESCRIPTIONS = {
   programsWithSoleDominant: "Programs whose every planned beat was booked to favour the same wrestler. A build one side wins every week reads as a squash rather than a feud, so this should stay near zero.",
   televisionMatchBeats: "Story match beats that aired on television rather than at the payoff event. Zero means every program is being told entirely in promos until the blowoff.",
   outsideBeatParticipants: "Distinct wrestlers a beat pulled in from outside its own program — showcase opponents and run-ins. Zero means programs never touch the rest of the roster.",
+  televisionMatchMainEvents: "Share of television shows that closed on a match rather than an angle. A promotion whose every main event is a promo is not running a wrestling show.",
+  repeatedPlacements: "Programs that held the same main-event, opener, or upper slot on back-to-back shows. A card that repeats its own shape week after week tells the audience nothing changed.",
+  scoreInversions: "Candidates the soft score ranked above something that was booked instead, on the same card. Any number above zero means the documented score is not what selects.",
+  programsByObjective: "Program plans created, by creative objective. A single objective taking every program means the planner has one idea.",
 } as const satisfies Partial<Record<keyof SliceBookingMetrics, string>>;
 
 type AnyResult = MatchResult | SegmentResult;
@@ -478,6 +491,39 @@ export function analyzeBooking(initialWorld: WorldState, finalWorld: WorldState)
     if (tick !== undefined && showKind(shows, tick) === "tv") televisionMatchBeats += 1;
   }
 
+  // Card shape (Phase 3.12.7). All three read the committed cards and their own
+  // booking traces, so a claim about how a week of television is put together
+  // is checkable without reconstructing the composer.
+  let televisionMainEvents = 0;
+  let televisionMatchMainEvents = 0;
+  let repeatedPlacements = 0;
+  let scoreInversions = 0;
+  let priorPlacements = new Map<string, string>();
+  for (const show of shows) {
+    const placements = new Map<string, string>();
+    for (const slot of show.card) {
+      if (slot.position !== "mid" && slot.programId !== undefined) {
+        placements.set(slot.programId, slot.position);
+        if (priorPlacements.get(slot.programId) === slot.position) repeatedPlacements += 1;
+      }
+      if (show.kind !== "tv" || slot.position !== "main_event") continue;
+      televisionMainEvents += 1;
+      if (slot.kind !== "segment") televisionMatchMainEvents += 1;
+    }
+    priorPlacements = placements;
+    // Within a pool, not across them: the two discretionary pools answer to
+    // different card-shape budgets, so a story candidate the television
+    // story-slot budget turned away is not evidence that rotation outranked it.
+    for (const pool of ["scored_story", "scored_rotation"] as const) {
+      const scored = (show.bookingTrace?.candidates ?? []).filter((candidate) => candidate.selection === pool);
+      const worstSelected = Math.min(...scored.filter((candidate) => candidate.disposition === "selected").map((candidate) => candidate.totalScore));
+      scoreInversions += scored.filter((candidate) => candidate.disposition === "rejected" && candidate.totalScore > worstSelected).length;
+    }
+  }
+
+  const programsByObjective = zeroedCounts(programCreativeObjectiveSchema.options);
+  for (const plan of finalWorld.programPlans) programsByObjective[plan.creativeObjective] += 1;
+
   const created = finalWorld.programPlans.length;
   const metrics: SliceBookingMetrics = {
     programsCreated: created,
@@ -511,6 +557,13 @@ export function analyzeBooking(initialWorld: WorldState, finalWorld: WorldState)
     programsWithSoleDominant,
     televisionMatchBeats,
     outsideBeatParticipants: outsideParticipants.size,
+    televisionMatchMainEvents: {
+      matches: televisionMatchMainEvents, total: televisionMainEvents,
+      share: share(televisionMatchMainEvents, televisionMainEvents),
+    },
+    repeatedPlacements,
+    scoreInversions,
+    programsByObjective,
   };
 
   return { metrics, timelines };

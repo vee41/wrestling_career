@@ -14,7 +14,7 @@ import {
   resolveReactiveResponses,
 } from "./responses.js";
 import { applyActions } from "./resolve-actions.js";
-import { bookUpcomingShowIfDue, rotateBookingObjectiveIfDue, rotateGmObjectiveIfDue } from "./gm.js";
+import { bookUpcomingShowIfDue, rotateGmObjectiveIfDue } from "./gm.js";
 import { resolveCard } from "./card.js";
 import { updatePopularity } from "./popularity.js";
 import { updateChampionships } from "./title.js";
@@ -65,7 +65,6 @@ export function runTick(world: WorldState, playerTurns: readonly PlayerTurn[], s
   mergeCardIntents(draft, turns);
 
   // Step 3 — GM decisions (objective rotation, booking the next show).
-  rotateBookingObjectiveIfDue(draft, ctx);
   rotateGmObjectiveIfDue(draft, ctx);
 
   // Step 4 — resolve interactions and responses (the action slot is

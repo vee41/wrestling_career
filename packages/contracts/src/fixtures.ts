@@ -266,8 +266,6 @@ export const exampleWorldState: WorldState = {
   ],
   gmObjective: "capitalise_on_rising_star",
   gmObjectiveSince: 1,
-  bookingObjective: "capitalise_on_rising_star",
-  bookingObjectiveSince: 1,
   titles: [
     { id: "world-title", name: "World Championship", tier: "world", holderId: "vic-vendetta", since: 1 },
     { id: "midcard-title", name: "Heritage Championship", tier: "midcard", holderId: "ace-steel", since: 2 },

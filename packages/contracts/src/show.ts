@@ -16,6 +16,19 @@ export type CardPosition = z.infer<typeof cardPositionSchema>;
 export const bookingCandidateDispositionSchema = z.enum(["selected", "rejected", "hard_invalid"]);
 export type BookingCandidateDisposition = z.infer<typeof bookingCandidateDispositionSchema>;
 
+/**
+ * How the composer reached this candidate. `reserved` candidates are hard
+ * obligations claimed in composition order (due payoffs, closing beat windows,
+ * title obligations). The two `scored_` pools competed for what capacity was
+ * left and were committed strictly in soft-score order, so a rejected candidate
+ * outranking a selected one *from the same pool* is a defect the report can
+ * see. They are separate pools because they answer to different card-shape
+ * budgets: television carries a couple of story items, and open rotation fills
+ * whatever is left.
+ */
+export const bookingSelectionModeSchema = z.enum(["reserved", "scored_story", "scored_rotation"]);
+export type BookingSelectionMode = z.infer<typeof bookingSelectionModeSchema>;
+
 export const bookingCandidateTraceSchema = z.object({
   id: idSchema,
   kind: z.enum(["match", "segment"]),
@@ -24,6 +37,7 @@ export const bookingCandidateTraceSchema = z.object({
   plannedBeatId: idSchema.optional(),
   titleId: idSchema.optional(),
   disposition: bookingCandidateDispositionSchema,
+  selection: bookingSelectionModeSchema.optional(),
   hardInvalidReasons: z.array(z.string().min(1)).default([]),
   scoreComponents: z.record(z.string(), z.number()).default({}),
   totalScore: z.number(),

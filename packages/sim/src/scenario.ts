@@ -1,10 +1,10 @@
 import {
   CURRENT_SCHEMA_VERSION,
-  gmObjectiveSchema,
   type Scenario,
   type WorldState,
 } from "@wrestling/contracts";
 import { createRng } from "./rng.js";
+import { SUPPORTED_GM_OBJECTIVES } from "./gm.js";
 
 /**
  * Builds a new simulation world from already parsed scenario data. File I/O
@@ -13,8 +13,9 @@ import { createRng } from "./rng.js";
  */
 export function worldFromScenario(scenario: Scenario, seed: string): WorldState {
   const rng = createRng(seed);
-  const bookingObjective = rng.pick(gmObjectiveSchema.options);
-  const gmObjective = bookingObjective === "strengthen_tag_division" ? "new_main_eventer" : bookingObjective;
+  // Only objectives the scenario can actually execute: the tag token survives
+  // in contracts for old snapshots, never as an opening direction.
+  const gmObjective = rng.pick(SUPPORTED_GM_OBJECTIVES);
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -37,8 +38,6 @@ export function worldFromScenario(scenario: Scenario, seed: string): WorldState 
     narrativeResults: [],
     gmObjective,
     gmObjectiveSince: 0,
-    bookingObjective,
-    bookingObjectiveSince: 0,
     titles: scenario.titles.map((title) => ({
       id: title.id,
       name: title.name,

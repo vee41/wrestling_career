@@ -92,6 +92,13 @@
     "maxPayoffsPerEvent": 4,
     "programCandidateRetentionTicks": 30,
     "beatOutsideCandidateCount": 3,
-    "maxOptionalBeatParticipants": 1
+    "maxOptionalBeatParticipants": 1,
+    "tvMainEventMatchBias": 30,
+    "repeatPlacementPenalty": 25,
+    "repeatPairingPenalty": 20,
+    "consecutivePairingPenalty": 60,
+    "objectiveSlotFitBonus": 20,
+    "rotationFormMatches": 3,
+    "contenderFormBonus": 8
   }
 }

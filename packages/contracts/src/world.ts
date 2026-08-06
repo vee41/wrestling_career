@@ -40,12 +40,14 @@ export const worldStateSchema = z
     events: z.array(worldEventSchema),
     narrativeJobs: z.array(narrativeJobSchema),
     narrativeResults: z.array(narrativeResultSchema),
+    /**
+     * The promotion's single creative direction, reconsidered once per PLE
+     * cycle. Phase 3.9 ran a second, faster-rotating operational objective
+     * alongside this one for the card composer; Phase 3.12.7 retired it —
+     * there is one objective system now, and the composer reads this.
+     */
     gmObjective: gmObjectiveSchema,
     gmObjectiveSince: tickSchema,
-    // Phase 3.9 keeps the old card-filler heuristic isolated while private
-    // program objectives settle over a full PLE cycle. Phase 3.12 replaces it.
-    bookingObjective: gmObjectiveSchema,
-    bookingObjectiveSince: tickSchema,
     // Championship lineage is derived from title_change events; this is the
     // current title table for booking and status views.
     titles: z.array(titleSchema).min(2),

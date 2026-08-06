@@ -111,6 +111,10 @@ function bookingMetricsPanel(analysis: SliceAnalysis): string {
     ${metricCard("Sole-dominant programs", String(metrics.programsWithSoleDominant), BOOKING_METRIC_DESCRIPTIONS.programsWithSoleDominant)}
     ${metricCard("TV match beats", String(metrics.televisionMatchBeats), BOOKING_METRIC_DESCRIPTIONS.televisionMatchBeats)}
     ${metricCard("Outside beat bodies", String(metrics.outsideBeatParticipants), BOOKING_METRIC_DESCRIPTIONS.outsideBeatParticipants)}
+    ${metricCard("TV match main events", percent(metrics.televisionMatchMainEvents.share), BOOKING_METRIC_DESCRIPTIONS.televisionMatchMainEvents, `${metrics.televisionMatchMainEvents.matches}/${metrics.televisionMatchMainEvents.total} television shows`)}
+    ${metricCard("Repeated placements", String(metrics.repeatedPlacements), BOOKING_METRIC_DESCRIPTIONS.repeatedPlacements)}
+    ${metricCard("Score inversions", String(metrics.scoreInversions), BOOKING_METRIC_DESCRIPTIONS.scoreInversions)}
+    ${metricCard("Programs by objective", tokenCounts(metrics.programsByObjective), BOOKING_METRIC_DESCRIPTIONS.programsByObjective)}
     ${metricCard("Beats generated", tokenCounts(metrics.beatsGeneratedByType, { includeZero: true }), "Every beat the planner created, by type. A zero means that beat type is never generated at all.")}
     ${metricCard("Beats resolved", tokenCounts(metrics.beatsResolvedByType, { includeZero: true }), "Beats that actually aired, by type.")}
     ${metricCard("Beat statuses", tokenCounts(metrics.beatsByStatus, { includeZero: true }), "Lifecycle spread across provisional, scheduled, resolved, skipped, and invalidated.")}

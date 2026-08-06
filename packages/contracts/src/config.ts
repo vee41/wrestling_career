@@ -233,6 +233,44 @@ export const bookingTuningSchema = z.object({
    * turns beats into multi-participant angles.
    */
   maxOptionalBeatParticipants: z.number().int().min(0).default(1),
+  /**
+   * How much a match outranks a segment when the two compete for a television
+   * main event. Additive rather than absolute: television closes on a match
+   * unless an angle is genuinely hotter than every match on the show.
+   */
+  tvMainEventMatchBias: z.number().min(0).default(30),
+  /**
+   * What a program pays to keep the card position it held on the previous
+   * show. Three identical main events running is the card telling the audience
+   * nothing has changed.
+   */
+  repeatPlacementPenalty: z.number().min(0).default(25),
+  /**
+   * The soft-score cost of a pairing the audience has already seen this run.
+   * booking_ai §10 lists this term; nothing implemented it before Phase
+   * 3.12.7, so open rotation quietly ran the same match repeatedly.
+   */
+  repeatPairingPenalty: z.number().min(0).default(20),
+  /** The extra cost of running a pairing again on the very next show. */
+  consecutivePairingPenalty: z.number().min(0).default(60),
+  /**
+   * What the promotion's creative objective is worth to a slot that structurally
+   * serves it — a title match on a `rebuild_championship` cycle, a program beat
+   * as a major event approaches. Doubled on a go-home show, where what is left
+   * to say has to be said now.
+   */
+  objectiveSlotFitBonus: z.number().min(0).default(20),
+  /**
+   * How many recent open-rotation matches a wrestler's form is read from. This
+   * is the contender pipeline: results in matches nobody planned are the
+   * promotion's own evidence about who is worth building a program around.
+   */
+  rotationFormMatches: z.number().int().min(1).default(3),
+  /**
+   * What one net rotation win is worth to a program candidate whose objective
+   * is to *build* somebody (`establish_challenger`, `elevate_act`).
+   */
+  contenderFormBonus: z.number().min(0).default(8),
 });
 export type BookingTuning = z.infer<typeof bookingTuningSchema>;
 
