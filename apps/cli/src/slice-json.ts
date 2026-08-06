@@ -88,6 +88,9 @@ const bookingMetricsSchema = z.strictObject({
   }),
   distinctMainEventers: z.number(),
   distinctTitleChallengers: z.number(),
+  programsWithSoleDominant: z.number(),
+  televisionMatchBeats: z.number(),
+  outsideBeatParticipants: z.number(),
 });
 
 const programTimelineSchema = z.strictObject({

@@ -147,6 +147,23 @@ Beat selection follows a wrestling cadence rather than repeating the hottest ava
 
 This is a pattern, not a mandatory script. Different program archetypes may provide different eligible beat sequences, and world events may cause replanning.
 
+### Archetypes: what a program is for decides what it is built out of
+
+One skeleton for every program makes the whole card sound the same, and a catalog whose match beats are never generated is a catalog of promos. **The creative objective selects the beat sequence.** The shapes are deliberately few and each exists because a different kind of story needs a different kind of evidence:
+
+- **`establish_challenger`** — claim, *showcase win*, go-home. A challenger is made credible by beating somebody, not by saying they can.
+- **`settle_grudge`** — reason, *ambush*, *rivalry match with the score left open*. A grudge is fought, and it drags in whoever is standing nearby.
+- **`elevate_act`** — claim, the established name talks down to them, *showcase win*. The answer to being dismissed is a result.
+- **`retain_championship` / `change_championship`** — a championship is argued: promo, confrontation, go-home. The match is the argument's conclusion.
+
+### Momentum trading
+
+Dominance is planned **relative to the payoff**, never by name. The wrestler booked to win the blowoff does not stand tall every week on the way to it — that is a squash with extra steps. The side that is going to lose takes the go-home angle, or the television fall in a grudge, so the payoff is a comeback rather than a formality. A program whose every beat favours one wrestler is a booking defect, and the slice report counts them.
+
+### Bodies from outside the program
+
+Showcase and interference beats need somebody who is not one of the core pair — an opponent worth beating, a run-in. The planner *names* a shortlist when it writes the beat; the composer *chooses* from it when it builds the card, weeks later, because who is fit and unbooked has changed by then. Availability, double-booking, and pairing cooldowns are the composer's hard constraints and apply to these participants exactly as they do to everyone else. A beat that can find nobody stands down in favour of the complication it replaces rather than blocking the program.
+
 ## 7. Planned outcomes and actual execution
 
 For important matches and segments, the booker must choose an intended outcome. A wrestling booking engine that normally derives the winner or dominant speaker solely from performance is closer to a sports league than an authored wrestling promotion.

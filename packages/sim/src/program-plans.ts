@@ -188,44 +188,184 @@ function makePlan(world: WorldState, ctx: TickContext, story: Story, selected: P
   };
 }
 
-function beat(world: WorldState, ctx: TickContext, plan: ProgramPlan, type: PlannedBeatType, earliestTick: number, latestTick: number, effect: string, escalationLevel: number, requiredResolvedBeatIds: string[] = []): PlannedBeat {
-  const participants = plan.participants.map((participant) => participant.wrestlerId);
-  const payoff = type === "ple_payoff";
-  const direct = type === "direct_rivalry_match" || payoff;
-  const focal = plan.participants.find((participant) => participant.role === "protagonist")?.wrestlerId ?? participants[0]!;
-  const antagonist = plan.participants.find((participant) => participant.role === "antagonist")?.wrestlerId;
-  const intendedDominantWrestlerId = (type === "attack_save_interference" || type === "go_home_angle") && antagonist !== undefined ? antagonist : focal;
-  const intendedHeatDirection = type === "confrontation" ? "mixed" as const
-    : (type === "attack_save_interference" || type === "go_home_angle") ? "negative" as const
-      : "positive" as const;
+/**
+ * A beat is booked to favour one side *relative to the payoff*, never by name:
+ * a skeleton in which the eventual winner stands tall every week is a squash,
+ * not a feud. The wrestler each token resolves to is read off the plan when the
+ * beat is written, and again by `finishForPlannedBeat` when it is booked.
+ */
+type BeatDominance = "payoff_winner" | "payoff_loser";
+
+type BeatHeat = NonNullable<PlannedBeat["plannedSegmentOutcome"]>["intendedHeatDirection"];
+
+interface BeatSpec {
+  type: PlannedBeatType;
+  earliestTick: number;
+  latestTick: number;
+  effect: string;
+  escalationLevel: number;
+  requiredResolvedBeatIds?: string[];
+  dominant?: BeatDominance;
+  heat?: BeatHeat;
+  /** Defaults to the whole program. A showcase deliberately books only one side of it. */
+  required?: string[];
+  /** Bodies from outside the program the composer may add if they are free. */
+  optional?: string[];
+}
+
+/**
+ * Who the program means to send home with the win. Every beat's dominance is
+ * expressed against this, and `finishForPlannedBeat` decides the payoff itself
+ * the same way — one answer to "whose program is this", read in both places.
+ */
+export function plannedPayoffWinnerId(world: WorldState, plan: ProgramPlan): string {
+  const participantIds = plan.participants.map((participant) => participant.wrestlerId);
+  const titleHolder = plan.stakesTitleId === undefined
+    ? undefined
+    : world.titles.find((title) => title.id === plan.stakesTitleId)?.holderId;
+  const protagonist = plan.participants.find((participant) => participant.role === "protagonist")?.wrestlerId ?? participantIds[0]!;
+  const wantsChange = plan.creativeObjective === "change_championship"
+    || plan.creativeObjective === "establish_challenger"
+    || plan.creativeObjective === "elevate_act";
+  return titleHolder !== undefined && !wantsChange && participantIds.includes(titleHolder) ? titleHolder : protagonist;
+}
+
+/** The other side of the program — whoever the payoff is booked against. */
+function payoffLoserId(world: WorldState, plan: ProgramPlan): string {
+  const winner = plannedPayoffWinnerId(world, plan);
+  return plan.participants.find((participant) => participant.wrestlerId !== winner)?.wrestlerId ?? winner;
+}
+
+function beat(world: WorldState, ctx: TickContext, plan: ProgramPlan, spec: BeatSpec): PlannedBeat {
+  const required = spec.required ?? plan.participants.map((participant) => participant.wrestlerId);
+  const payoff = spec.type === "ple_payoff";
+  const direct = spec.type === "direct_rivalry_match" || payoff;
+  const isMatch = direct || spec.type === "showcase_contender_match";
+  const favoured = spec.dominant === "payoff_loser" ? payoffLoserId(world, plan) : plannedPayoffWinnerId(world, plan);
+  const intendedDominantWrestlerId = required.includes(favoured) ? favoured : required[0]!;
   return {
-    id: ctx.ids.next("planned-beat"), programId: plan.id, type,
-    requiredParticipantWrestlerIds: participants,
-    optionalParticipantWrestlerIds: [],
-    earliestTick, latestTick,
-    preconditions: { requiredResolvedBeatIds, requirePle: payoff },
-    intendedStoryEffect: effect, escalationLevel,
-    ...(direct ? {} : {
+    id: ctx.ids.next("planned-beat"), programId: plan.id, type: spec.type,
+    requiredParticipantWrestlerIds: required,
+    optionalParticipantWrestlerIds: (spec.optional ?? []).filter((id) => !required.includes(id)),
+    earliestTick: spec.earliestTick, latestTick: spec.latestTick,
+    preconditions: { requiredResolvedBeatIds: spec.requiredResolvedBeatIds ?? [], requirePle: payoff },
+    intendedStoryEffect: spec.effect, escalationLevel: spec.escalationLevel,
+    // A match's creative outcome is a planned *finish*, composed against the
+    // actual participants when the card is built; only segments carry theirs
+    // on the beat itself.
+    ...(isMatch ? {} : {
       plannedSegmentOutcome: {
         intendedDominantWrestlerId,
-        intendedHeatDirection,
-        intendedStoryEffect: effect,
-        protectedWrestlerIds: [...plan.protectedWrestlerIds],
-        adherenceStrength: type === "go_home_angle" ? "strict" as const : "standard" as const,
+        intendedHeatDirection: spec.heat ?? "positive",
+        intendedStoryEffect: spec.effect,
+        protectedWrestlerIds: plan.protectedWrestlerIds.filter((id) => required.includes(id)),
+        adherenceStrength: spec.type === "go_home_angle" ? "strict" as const : "standard" as const,
       },
     }),
     spendsDirectMatchup: direct,
-    compatibleSlotKind: direct || type === "showcase_contender_match" ? "match" : "segment",
+    compatibleSlotKind: isMatch ? "match" : "segment",
     status: "provisional", resultIds: [],
   };
 }
 
-/** The escalating build, in order. The payoff is appended to whatever fits. */
-const BUILD_BEATS: readonly { type: PlannedBeatType; effect: string; escalationLevel: number }[] = [
-  { type: "promo_interview", effect: "Establish the conflict and stakes.", escalationLevel: 0 },
-  { type: "confrontation", effect: "Complicate the conflict without spending the rivalry match.", escalationLevel: 1 },
-  { type: "go_home_angle", effect: "Escalate the conflict and make the payoff unavoidable.", escalationLevel: 2 },
+interface BeatTemplate {
+  type: PlannedBeatType;
+  effect: string;
+  dominant: BeatDominance;
+  heat?: BeatHeat;
+}
+
+/**
+ * What a program is *for* decides what it is built out of. Every archetype
+ * still runs premise → complication → escalation → payoff, but a challenger is
+ * made credible by beating somebody, a grudge escalates through an ambush and
+ * an unsettled television fall, and a championship story is argued in promos.
+ * Each also trades momentum: the side losing the blowoff stands tall on the way
+ * in, so the payoff is a comeback rather than a formality.
+ */
+const CHALLENGER_BUILD: readonly BeatTemplate[] = [
+  { type: "promo_interview", effect: "State the claim on the champion in public.", dominant: "payoff_winner", heat: "positive" },
+  { type: "showcase_contender_match", effect: "Beat a credible opponent so the challenge means something.", dominant: "payoff_winner" },
+  { type: "go_home_angle", effect: "Let the champion stand tall so the payoff is in doubt.", dominant: "payoff_loser", heat: "negative" },
 ];
+
+const GRUDGE_BUILD: readonly BeatTemplate[] = [
+  { type: "promo_interview", effect: "Put the reason for the fight on television.", dominant: "payoff_winner", heat: "positive" },
+  { type: "attack_save_interference", effect: "Ambush the rival and drag somebody else into it.", dominant: "payoff_loser", heat: "negative" },
+  { type: "direct_rivalry_match", effect: "Trade the first fall on television and leave the score unsettled.", dominant: "payoff_loser" },
+];
+
+const ELEVATION_BUILD: readonly BeatTemplate[] = [
+  { type: "promo_interview", effect: "Make the case that they belong in the conversation.", dominant: "payoff_winner", heat: "positive" },
+  { type: "confrontation", effect: "Let the established name talk down to them in person.", dominant: "payoff_loser", heat: "mixed" },
+  { type: "showcase_contender_match", effect: "Answer it by beating somebody who matters.", dominant: "payoff_winner" },
+];
+
+const ARGUMENT_BUILD: readonly BeatTemplate[] = [
+  { type: "promo_interview", effect: "Establish the conflict and stakes.", dominant: "payoff_winner", heat: "positive" },
+  { type: "confrontation", effect: "Complicate the conflict without spending the rivalry match.", dominant: "payoff_loser", heat: "mixed" },
+  { type: "go_home_angle", effect: "Escalate the conflict and make the payoff unavoidable.", dominant: "payoff_loser", heat: "negative" },
+];
+
+const ARCHETYPES: Record<ProgramCreativeObjective, readonly BeatTemplate[]> = {
+  establish_challenger: CHALLENGER_BUILD,
+  settle_grudge: GRUDGE_BUILD,
+  elevate_act: ELEVATION_BUILD,
+  retain_championship: ARGUMENT_BUILD,
+  change_championship: ARGUMENT_BUILD,
+  // booking_ai §16 designs these for Phase 3.14; they stay dormant rather than
+  // unbuildable, so a scenario that reaches one still gets a coherent build.
+  turn_character: ARGUMENT_BUILD,
+  redeem_act: ARGUMENT_BUILD,
+};
+
+/**
+ * Bodies from outside the program. A showcase needs an opponent the audience
+ * will believe the challenger had to beat, and an ambush needs somebody to run
+ * in — neither may be one of the core pair, a wrestler another program is
+ * already spending, a champion, or one of the rare acts the rotation protects.
+ * Several are named because the beat is written weeks before it is booked, and
+ * who is free by then has changed.
+ */
+function outsideCandidates(world: WorldState, plan: ProgramPlan, relativeTo: string): string[] {
+  const committed = new Set(world.programPlans.filter(isActive).flatMap((candidate) => candidate.participants.map((participant) => participant.wrestlerId)));
+  for (const participant of plan.participants) committed.add(participant.wrestlerId);
+  const reference = findPopularity(world, relativeTo).generalPopularity;
+  return world.wrestlers
+    .filter((wrestler) => !committed.has(wrestler.id) && isAvailableId(world, wrestler.id))
+    .filter((wrestler) => !world.config.roles[wrestler.role].storyGated)
+    .filter((wrestler) => !world.titles.some((title) => title.holderId === wrestler.id))
+    .map((wrestler) => ({ id: wrestler.id, gap: reference - findPopularity(world, wrestler.id).generalPopularity }))
+    // Credible but beatable: the closest act below the wrestler the beat is
+    // for, before any above them. Squashing the bottom of the card proves
+    // nothing, and losing to somebody bigger is not a showcase at all.
+    .sort((a, b) => (a.gap < 0 ? 1 : 0) - (b.gap < 0 ? 1 : 0) || Math.abs(a.gap) - Math.abs(b.gap) || a.id.localeCompare(b.id))
+    .slice(0, world.config.booking.beatOutsideCandidateCount)
+    .map((entry) => entry.id);
+}
+
+/**
+ * Turns a template into the shape the beat is actually written in: who it
+ * books, and which outsiders the composer may add weeks later. A showcase that
+ * can find nobody to face becomes the complication it stands in for — a
+ * promotion with no spare bodies still gets a coherent build rather than a beat
+ * that can never be booked.
+ */
+function resolveTemplate(world: WorldState, plan: ProgramPlan, template: BeatTemplate): BeatTemplate & Pick<BeatSpec, "required" | "optional"> {
+  const favoured = template.dominant === "payoff_loser" ? payoffLoserId(world, plan) : plannedPayoffWinnerId(world, plan);
+  const outsiders = template.type === "showcase_contender_match" || template.type === "attack_save_interference"
+    ? outsideCandidates(world, plan, favoured)
+    : [];
+  if (template.type === "showcase_contender_match") {
+    // The rival is not in this match: the whole point is that somebody else
+    // takes the fall, in front of them.
+    return outsiders.length === 0
+      ? { ...ARGUMENT_BUILD[1]!, dominant: template.dominant }
+      : { ...template, required: [favoured], optional: outsiders };
+  }
+  // An ambush works with the two of them; a run-in only makes it better.
+  return { ...template, optional: outsiders };
+}
 
 /**
  * A premise → complication → escalation → payoff cadence laid over the shows
@@ -240,18 +380,27 @@ export function createBeatSkeleton(world: WorldState, ctx: TickContext, plan: Pr
   const buildTicks = buildShowTicks(world, plan.startTick, plan.targetPayoffTick);
   const lastBuildTick = buildTicks.at(-1) ?? plan.startTick;
   const build: PlannedBeat[] = [];
-  for (const [index, template] of BUILD_BEATS.slice(0, buildTicks.length).entries()) {
+  for (const [index, planned] of ARCHETYPES[plan.creativeObjective].slice(0, buildTicks.length).entries()) {
     const previous = build.at(-1);
-    build.push(beat(
-      world, ctx, plan, template.type, buildTicks[index]!, lastBuildTick,
-      template.effect, template.escalationLevel, previous === undefined ? [] : [previous.id],
-    ));
+    const template = resolveTemplate(world, plan, planned);
+    build.push(beat(world, ctx, plan, {
+      type: template.type,
+      earliestTick: buildTicks[index]!, latestTick: lastBuildTick,
+      effect: template.effect, escalationLevel: index,
+      requiredResolvedBeatIds: previous === undefined ? [] : [previous.id],
+      dominant: template.dominant,
+      ...(template.heat === undefined ? {} : { heat: template.heat }),
+      ...(template.required === undefined ? {} : { required: template.required }),
+      ...(template.optional === undefined ? {} : { optional: template.optional }),
+    }));
   }
   const last = build.at(-1);
-  const payoff = beat(
-    world, ctx, plan, "ple_payoff", plan.targetPayoffTick, plan.targetPayoffTick,
-    plan.intendedPayoff, 3, last === undefined ? [] : [last.id],
-  );
+  const payoff = beat(world, ctx, plan, {
+    type: "ple_payoff",
+    earliestTick: plan.targetPayoffTick, latestTick: plan.targetPayoffTick,
+    effect: plan.intendedPayoff, escalationLevel: 3,
+    requiredResolvedBeatIds: last === undefined ? [] : [last.id],
+  });
   return [...build, payoff];
 }
 
@@ -348,7 +497,15 @@ function makeProtagonist(plan: ProgramPlan, wrestlerId: string): void {
 
 /** Re-points the beats still to come at the wrestler the program now favours. */
 function pointBeatsAt(world: WorldState, plan: ProgramPlan, wrestlerId: string): void {
+  const core = new Set(plan.participants.map((participant) => participant.wrestlerId));
   for (const candidate of openBuildBeats(world, plan)) {
+    // A showcase books one side of the program against an outsider, so pivoting
+    // means the *other* side is the one getting the win now. Leaving it alone
+    // would build the wrestler the program has just stopped being about.
+    if (candidate.type === "showcase_contender_match") {
+      candidate.requiredParticipantWrestlerIds = [wrestlerId, ...candidate.requiredParticipantWrestlerIds.filter((id) => !core.has(id))];
+      continue;
+    }
     const planned = candidate.plannedSegmentOutcome;
     if (planned === undefined || !candidate.requiredParticipantWrestlerIds.includes(wrestlerId)) continue;
     planned.intendedDominantWrestlerId = wrestlerId;
@@ -402,10 +559,11 @@ export function extendProgramPlan(
     payoff.latestTick = extended;
   }
   if (open.length === 0 && buildTicks.length > 0) {
-    const warm = beat(
-      world, ctx, plan, "promo_interview", buildTicks[0]!, buildTicks.at(-1)!,
-      "Keep the program in front of the crowd until the payoff.", Math.min(3, plan.escalation),
-    );
+    const warm = beat(world, ctx, plan, {
+      type: "promo_interview", earliestTick: buildTicks[0]!, latestTick: buildTicks.at(-1)!,
+      effect: "Keep the program in front of the crowd until the payoff.",
+      escalationLevel: Math.min(3, plan.escalation),
+    });
     world.plannedBeats.push(warm);
     plan.plannedBeatIds.push(warm.id);
   }
@@ -456,12 +614,18 @@ export function pivotProgramPlan(
 function invalidateAndSubstitute(world: WorldState, ctx: TickContext, plan: ProgramPlan, invalid: PlannedBeat, targetTick: number): void {
   invalid.status = "invalidated";
   const available = invalid.requiredParticipantWrestlerIds.filter((id) => isAvailableId(world, id));
+  // `beat` scopes its own creative outcome to whoever it books, so a stand-in
+  // for a subset of the program never names an absent wrestler as its dominant
+  // — which used to make the segment resolve as a refusal against someone who
+  // was never in it.
   const substitute = available.length > 0 && targetTick <= invalid.latestTick
-    ? scopeToParticipants({
-      ...beat(world, ctx, plan, "promo_interview", targetTick, invalid.latestTick, `Keep the program visible while replacing ${invalid.type.replace(/_/g, " ")}.`, invalid.escalationLevel),
-      requiredParticipantWrestlerIds: available,
-      preconditions: { requiredResolvedBeatIds: [...invalid.preconditions.requiredResolvedBeatIds], requirePle: false },
-    }, available)
+    ? beat(world, ctx, plan, {
+      type: "promo_interview", earliestTick: targetTick, latestTick: invalid.latestTick,
+      effect: `Keep the program visible while replacing ${invalid.type.replace(/_/g, " ")}.`,
+      escalationLevel: invalid.escalationLevel,
+      requiredResolvedBeatIds: [...invalid.preconditions.requiredResolvedBeatIds],
+      required: available,
+    })
     : undefined;
   if (substitute !== undefined) {
     world.plannedBeats.push(substitute);
@@ -481,24 +645,6 @@ function invalidateAndSubstitute(world: WorldState, ctx: TickContext, plan: Prog
       ? `the ${invalid.type.replace(/_/g, " ")} was lost to an unavailable participant.`
       : `re-shaped around whoever is available for the ${invalid.type.replace(/_/g, " ")}.`),
   });
-}
-
-/**
- * A beat booked for a subset of the program cannot keep the whole program's
- * planned outcome: naming an absent wrestler as the intended dominant makes the
- * segment resolve as a refusal deviation against someone who was never in it.
- */
-function scopeToParticipants(candidate: PlannedBeat, participants: readonly string[]): PlannedBeat {
-  const planned = candidate.plannedSegmentOutcome;
-  if (planned === undefined) return candidate;
-  return {
-    ...candidate,
-    plannedSegmentOutcome: {
-      ...planned,
-      intendedDominantWrestlerId: participants.includes(planned.intendedDominantWrestlerId) ? planned.intendedDominantWrestlerId : participants[0]!,
-      protectedWrestlerIds: planned.protectedWrestlerIds.filter((id) => participants.includes(id)),
-    },
-  };
 }
 
 /**
@@ -561,11 +707,27 @@ export function selectPlannedBeatsForShow(world: WorldState, ctx: TickContext, t
         invalidateAndSubstitute(world, ctx, plan, candidate, targetTick);
         continue;
       }
-      const lastDirect = world.plannedBeats
-        .filter((beat) => beat.programId === plan.id && beat.spendsDirectMatchup && beat.status === "resolved")
+      // A beat that needs a body from outside the program — a showcase
+      // opponent — cannot air without one, and a program that holds the week
+      // open waiting for an opponent who never turns up misses its payoff and
+      // is abandoned. Treat the missing outsider as exactly what it is: an
+      // unavailable participant, stood in for and spliced out of the chain.
+      if (candidate.compatibleSlotKind === "match" && candidate.requiredParticipantWrestlerIds.length < 2
+        && !candidate.optionalParticipantWrestlerIds.some((id) => isAvailableId(world, id))) {
+        invalidateAndSubstitute(world, ctx, plan, candidate, targetTick);
+        continue;
+      }
+      const directResolved = world.plannedBeats
+        .filter((beat) => beat.programId === plan.id && beat.spendsDirectMatchup && beat.status === "resolved");
+      const lastDirect = directResolved
         .map((beat) => world.shows.find((show) => show.id === beat.scheduledShowId)?.tick ?? -Infinity)
         .reduce((latest, tick) => Math.max(latest, tick), -Infinity);
       if (candidate.spendsDirectMatchup && targetTick - lastDirect < plan.directMatchCooldownTicks) continue;
+      // The rivalry match is rationed, and the blowoff is never what it is
+      // rationed against: `directMatchRepetitionBudget` counts how often the
+      // pair may meet *before* the payoff, so the crowd has not already seen it.
+      if (candidate.spendsDirectMatchup && candidate.type !== "ple_payoff"
+        && directResolved.filter((beat) => beat.type !== "ple_payoff").length >= plan.directMatchRepetitionBudget) continue;
       candidate.status = "scheduled";
       selected.push(candidate);
       break; // Phase 3.10: one beat per program per show.

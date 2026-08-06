@@ -220,6 +220,19 @@ export const bookingTuningSchema = z.object({
    * the default holds several PLE cycles of history for the booking report.
    */
   programCandidateRetentionTicks: z.number().int().min(1).default(30),
+  /**
+   * How many wrestlers from outside a program a beat names as possible extra
+   * bodies — the opponent a showcase needs, the run-in an interference angle
+   * needs. Named at plan time but chosen at booking time, so more than one is
+   * listed: who is available and unbooked changes over the weeks in between.
+   */
+  beatOutsideCandidateCount: z.number().int().min(1).default(3),
+  /**
+   * How many of those named outsiders one beat may actually book. A showcase
+   * needs exactly one opponent and an angle needs one run-in; raising this
+   * turns beats into multi-participant angles.
+   */
+  maxOptionalBeatParticipants: z.number().int().min(0).default(1),
 });
 export type BookingTuning = z.infer<typeof bookingTuningSchema>;
 

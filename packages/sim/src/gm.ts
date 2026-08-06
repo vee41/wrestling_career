@@ -4,7 +4,7 @@ import { findPopularity } from "./lookups.js";
 import { isBookedForTick, isShowTick, showKindForTick, weekForTick, weeksSinceLastAppearance } from "./booking.js";
 import { recentPerformanceReaction } from "./patience.js";
 import { releaseUncommittedBeats } from "./planned-beats.js";
-import { selectPlannedBeatsForShow } from "./program-plans.js";
+import { plannedPayoffWinnerId, selectPlannedBeatsForShow } from "./program-plans.js";
 import { isAvailable, isAvailableId, unavailableReason } from "./injury.js";
 
 // The MVP has no tag division. Keep its legacy token in contracts for old
@@ -114,6 +114,14 @@ function directMatchOnCooldown(world: WorldState, participantIds: readonly strin
   });
 }
 
+/** Whether this exact pairing has already happened at any point in the run. */
+function hasAlreadyMet(world: WorldState, participantIds: readonly string[]): boolean {
+  return world.matchResults.some((result) =>
+    result.participantWrestlerIds.length === participantIds.length
+    && participantIds.every((id) => result.participantWrestlerIds.includes(id)),
+  );
+}
+
 function storyForPair(world: WorldState, a: string, b: string): string | undefined {
   return world.stories.find((story) =>
     story.phase !== "resolved" && story.participantWrestlerIds.length === 2 &&
@@ -151,15 +159,23 @@ function segmentSlot(ctx: TickContext, participants: string[], gmIntent: GmObjec
 /** Program planning, rather than match resolution, owns the normal creative finish. */
 function finishForPlannedBeat(world: WorldState, plan: ProgramPlan, beat: PlannedBeat, participants: readonly string[], titleId: string | undefined): MatchSlot["plannedFinish"] {
   const titleHolder = titleId === undefined ? undefined : world.titles.find((title) => title.id === titleId)?.holderId;
-  const protagonist = plan.participants.find((participant) => participant.role === "protagonist")?.wrestlerId ?? participants[0]!;
-  const wantsChange = plan.creativeObjective === "change_championship" || plan.creativeObjective === "establish_challenger" || plan.creativeObjective === "elevate_act";
-  const intendedWinnerWrestlerId = titleHolder !== undefined && !wantsChange ? titleHolder : protagonist;
+  const planParticipantIds = new Set(plan.participants.map((participant) => participant.wrestlerId));
+  const payoffWinner = plannedPayoffWinnerId(world, plan);
+  const intendedWinnerWrestlerId = beat.type === "showcase_contender_match"
+    // A showcase exists to make the program's own wrestler credible; the
+    // outsider is in the match to take the fall for them.
+    ? participants.find((id) => planParticipantIds.has(id)) ?? payoffWinner
+    : beat.type === "direct_rivalry_match"
+      // Momentum trades. The television fall goes to whoever is losing the
+      // blowoff, so the payoff is a comeback rather than a formality.
+      ? plan.participants.find((participant) => participant.wrestlerId !== payoffWinner)?.wrestlerId ?? payoffWinner
+      : payoffWinner;
   const winner = participants.includes(intendedWinnerWrestlerId) ? intendedWinnerWrestlerId : participants[0]!;
   const winnerRole = plan.participants.find((participant) => participant.wrestlerId === winner)?.role;
   return {
     intendedWinnerWrestlerId: winner,
     finishFamily: titleHolder !== undefined && winnerRole === "antagonist" ? "dirty" : "clean",
-    protectedWrestlerIds: [...plan.protectedWrestlerIds],
+    protectedWrestlerIds: plan.protectedWrestlerIds.filter((id) => participants.includes(id)),
     intendedTitleConsequence: titleHolder === undefined ? "none" : winner === titleHolder ? "retain" : "change",
     intendedStoryEffect: beat.intendedStoryEffect,
     adherenceStrength: beat.type === "ple_payoff" ? "strict" : "standard",
@@ -399,14 +415,30 @@ export function bookShow(world: WorldState, ctx: TickContext, targetTick: number
   const plannedBeats = selectPlannedBeatsForShow(world, ctx, targetTick, targetSlotCount);
   for (const plannedBeat of plannedBeats) {
     const plan = world.programPlans.find((candidate) => candidate.id === plannedBeat.programId)!;
-    const participants = [...plannedBeat.requiredParticipantWrestlerIds, ...plannedBeat.optionalParticipantWrestlerIds]
-      .filter((id, index, all) => all.indexOf(id) === index);
-    if (participants.some((id) => used.has(id))) {
+    const required = plannedBeat.requiredParticipantWrestlerIds;
+    if (required.some((id) => used.has(id))) {
       // `selectPlannedBeatsForShow` is intentionally program-local; the
       // composer is the final no-double-booking authority. The beat is released
       // back to the pool with every other uncommitted one below.
       continue;
     }
+    // Optional participants are named weeks ahead as a shortlist, so the
+    // composer picks from whoever is still free and cleared tonight rather than
+    // losing the beat because the first name on it is busy. The pairing rules
+    // are the composer's, not the planner's: an outsider on cooldown with this
+    // beat's own wrestlers is barred outright, and one they have already met
+    // this run goes to the back of the queue so a showcase does not quietly
+    // become the same match twice.
+    const extras = plannedBeat.optionalParticipantWrestlerIds
+      .filter((id) => !required.includes(id) && !used.has(id) && eligible.has(id))
+      .filter((id) => !directMatchOnCooldown(world, [...required, id], targetTick, plannedBeat.programId))
+      .sort((a, b) => Number(hasAlreadyMet(world, [...required, a])) - Number(hasAlreadyMet(world, [...required, b])))
+      .slice(0, world.config.booking.maxOptionalBeatParticipants);
+    const participants = [...required, ...extras];
+    // A showcase books one side of the program against an outsider, so it is
+    // the one beat that can arrive without an opponent. Hold it for a show
+    // where somebody is free rather than booking a match against nobody.
+    if (plannedBeat.compatibleSlotKind === "match" && participants.length < 2) continue;
     participants.forEach((id) => used.add(id));
     const shared = { storyId: plan.storyId, programId: plan.id, plannedBeatId: plannedBeat.id };
     const titleId = plannedBeat.type === "ple_payoff" ? plan.stakesTitleId : undefined;

@@ -136,6 +136,12 @@ export interface SliceBookingMetrics {
   };
   distinctMainEventers: number;
   distinctTitleChallengers: number;
+  /** Programs whose every planned beat names the same intended dominant — a squash, not a feud. */
+  programsWithSoleDominant: number;
+  /** Resolved story match beats that aired on television rather than at the payoff event. */
+  televisionMatchBeats: number;
+  /** Distinct wrestlers a beat pulled in from outside its own program. */
+  outsideBeatParticipants: number;
 }
 
 /** Shared, human-facing explanations for the booking metrics — the single source of truth for CLI/report tooltips. */
@@ -155,6 +161,9 @@ export const BOOKING_METRIC_DESCRIPTIONS = {
   finishAdherence: "Share of planned finishes and segment outcomes that executed as planned. Deviations should be rare and always attributed to a cause.",
   distinctMainEventers: "Distinct wrestlers who appeared in a main-event slot.",
   distinctTitleChallengers: "Distinct wrestlers who challenged for a title without holding it going in.",
+  programsWithSoleDominant: "Programs whose every planned beat was booked to favour the same wrestler. A build one side wins every week reads as a squash rather than a feud, so this should stay near zero.",
+  televisionMatchBeats: "Story match beats that aired on television rather than at the payoff event. Zero means every program is being told entirely in promos until the blowoff.",
+  outsideBeatParticipants: "Distinct wrestlers a beat pulled in from outside its own program — showcase opponents and run-ins. Zero means programs never touch the rest of the roster.",
 } as const satisfies Partial<Record<keyof SliceBookingMetrics, string>>;
 
 type AnyResult = MatchResult | SegmentResult;
@@ -446,6 +455,29 @@ export function analyzeBooking(initialWorld: WorldState, finalWorld: WorldState)
     if (result.deviationCause !== undefined) deviationCauses[result.deviationCause] += 1;
   }
 
+  // Who each beat was booked to favour, read off the same planned-versus-actual
+  // view the report renders: the intended winner of a match beat, the intended
+  // dominant of a segment one.
+  const programsWithSoleDominant = timelines.filter((timeline) => {
+    const favoured = timeline.beats.flatMap((beat) => beat.execution.planned === undefined ? [] : [beat.execution.planned.wrestlerId]);
+    return favoured.length >= 2 && new Set(favoured).size === 1;
+  }).length;
+
+  let televisionMatchBeats = 0;
+  const outsideParticipants = new Set<string>();
+  for (const beat of finalWorld.plannedBeats) {
+    const plan = finalWorld.programPlans.find((candidate) => candidate.id === beat.programId);
+    const core = new Set(plan?.participants.map((participant) => participant.wrestlerId) ?? []);
+    for (const resultId of beat.resultIds) {
+      for (const id of resultById.get(resultId)?.participantWrestlerIds ?? []) {
+        if (!core.has(id)) outsideParticipants.add(id);
+      }
+    }
+    if (beat.status !== "resolved" || beat.compatibleSlotKind !== "match" || beat.type === "ple_payoff") continue;
+    const tick = beatTick(beat);
+    if (tick !== undefined && showKind(shows, tick) === "tv") televisionMatchBeats += 1;
+  }
+
   const created = finalWorld.programPlans.length;
   const metrics: SliceBookingMetrics = {
     programsCreated: created,
@@ -476,9 +508,16 @@ export function analyzeBooking(initialWorld: WorldState, finalWorld: WorldState)
     },
     distinctMainEventers: mainEventers.size,
     distinctTitleChallengers: titleChallengers.size,
+    programsWithSoleDominant,
+    televisionMatchBeats,
+    outsideBeatParticipants: outsideParticipants.size,
   };
 
   return { metrics, timelines };
+}
+
+function showKind(shows: readonly Show[], tick: number): Show["kind"] | undefined {
+  return shows.find((show) => show.tick === tick)?.kind;
 }
 
 /** Why an open plan has not paid off — the question the 8-week report could not answer before Phase 3.12.1. */

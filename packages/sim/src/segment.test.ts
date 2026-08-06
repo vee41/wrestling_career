@@ -157,10 +157,13 @@ describe("segments over a live tick loop", () => {
     for (const id of stars) {
       expect(findPopularity(world, id).generalPopularity).toBeGreaterThanOrEqual(startingPopularity.get(id)! - 2);
     }
-    // Undercard matches can still bury a lesser act; neither star of the
-    // program does, because the program itself is all they ran.
-    const buried = world.events.filter((event) => event.type === "popularity_changed" && event.data.reason === "burial");
-    expect(buried.some((event) => event.wrestlerIds.some((id) => (stars as readonly string[]).includes(id)))).toBe(false);
+    // Matches can still bury — including, since Phase 3.12.6, the rivalry
+    // match a grudge program spends on television, which somebody has to lose.
+    // What must never happen is an *appearance* burying anyone.
+    const buriedByPromo = world.segmentResults
+      .flatMap((result) => result.performances)
+      .filter((performance) => performance.popularityImpact?.reason === "burial");
+    expect(buriedByPromo).toEqual([]);
     // Alignment decides the pool for the rivalry itself, so the face's cheers
     // outgrow the boos a hostile booked angle can still put on them — before
     // this phase every one of these appearances was negative heat only.

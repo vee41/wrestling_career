@@ -710,3 +710,136 @@ the evidence those triggers were written to read.
 Five knobs carry the change, all scenario-owned: `health.bookableCondition` (40),
 `health.seriousInjuryCondition` (30), `health.seriousInjuryPhysicalCost` (38),
 `health.minorAbsenceWeeks` (1), and `health.seriousAbsenceWeeks` (4).
+
+## Phase 3.12.6 — complete the beat catalog; vary the beat outcomes
+
+Re-run: `slice --weeks 8 --seeds 2` and `slice --weeks 26 --seeds 3`, against
+3.12.5 at commit `e94218e`.
+
+| 8-week metric | 3.12.5 (s1 / s2) | 3.12.6 (s1 / s2) |
+| --- | --- | --- |
+| Beats generated: ambush / showcase / rivalry match | 0·0 / 0·0 / 0·0 | 1·1 / 4·6 / 1·1 |
+| Television match beats | 0 / 0 | 3 / 4 |
+| Outside beat participants | 0 / 0 | 2 / 4 |
+| Programs with one sole dominant | — (new metric) | 0 / 0 |
+| Programs resolved | 7 / 6 | 5 / 6 |
+| PLE build coverage | 67% / 55% | 57% / 45% |
+| Planned-finish adherence | 89% / 93% | 78% / 82% |
+
+| 26-week metric (3 seeds) | 3.12.5 | 3.12.6 |
+| --- | --- | --- |
+| MUST failures | 3 / 3 / 2 | 3 / 3 / 2 |
+| Beat types never generated | 3 | **0** |
+| Distinct main-eventers | 13 / 12 / 11 | **16 / 18 / 21** |
+| Story advancement from segments | 62% / 54% / 53% | 43% / 36% / 41% |
+| Television match beats | 0 / 0 / 0 | 13 / 17 / 15 |
+| Programs resolved | 21 / 19 / 19 | 16 / 18 / 15 |
+| PLE build coverage | 61% / 49% / 54% | 47% / 53% / 42% |
+| Planned-finish adherence | 84% / 87% / 79% | 79% / 74% / 79% |
+| Direct rematches | 21 / 12 / 18 | 22 / 21 / 13 |
+
+### The programs read like feuds now
+
+The clearest single read is a whole program from the 8-week seed-1 run, and it
+is worth quoting because nothing of this shape existed before:
+
+```
+program-t5-1 elevate_act — Kofi Kingston (antagonist) vs. Shinsuke Nakamura (protagonist)
+  w3 promo interview   planned Kofi Kingston → actual Shinsuke Nakamura [deviated: refusal]
+  w5 confrontation     planned Shinsuke Nakamura (mixed heat) → adhered
+  w6 showcase match    planned Shinsuke Nakamura beats an outsider → adhered
+  w8 ple payoff        planned Shinsuke Nakamura → adhered
+```
+
+A man makes his case, gets answered in person, goes out and beats somebody to
+prove the point, and then wins the blowoff. Before this phase every one of
+those middle beats was a promo, and the same wrestler was booked to stand tall
+in all of them.
+
+Sole-dominant programs are **0** on every seed at both lengths, which is the
+Done-when's third clause measured rather than asserted. It is not free: making
+the payoff loser stand tall in the go-home is what generates most of the
+adherence cost below.
+
+### The adherence cost has one mechanism, and it is not the catalog
+
+Deviations by beat type across the three 26-week seeds, before → after:
+
+| beat | before | after |
+| --- | --- | --- |
+| promo interview | 24 | 27 |
+| confrontation | 5 | 14 |
+| showcase contender match | 0 | 7 |
+| direct rivalry match | 0 | 3 |
+| go home angle | 5 | 0 |
+| ple payoff | 6 | 3 |
+
+Nearly all of the increase is `refusal`, and `refusal` here is not a character
+choice. `segmentExecution` reads a non-intended participant playing
+`protect_mystery` as refusing to be the supporting act — but `decide.ts` hands
+every AI wrestler their **stance default** intent and never looks at what they
+were booked to do, so a `protect_character`-stanced wrestler refuses every beat
+they are not booked to lead. Under the old skeleton the planner named the
+protagonist for two beats in three, which masked it; trading momentum names the
+other side half the time, and the mask comes off.
+
+This is worth stating plainly because the obvious "fix" is the wrong one:
+un-trading the dominance would buy the adherence rate back and re-break the
+Done-when. The real fix is for the AI to read `slot.plannedOutcome` when it
+picks an intent, so that refusing is a decision somebody made.
+
+### What went the other way
+
+Card mobility is the unlooked-for win: **distinct main-eventers 11–13 → 16–21**.
+A showcase match puts a rising act in a match slot with real heat behind it,
+and `assignPositions` ranks by heat, so those matches close shows. Story
+advancement from segments falling from ~56% to ~40% is the same fact seen from
+the other side — the promotion is no longer telling its stories entirely in
+promos.
+
+`directMatchRepetitionBudget` is now enforced at selection as well as read by
+3.12.4's repetition trigger, and the composer applies its own pairing rules to
+showcase opponents. That second one was found by measurement: without it,
+`outsideCandidates` deterministically hands the same "closest act below you"
+to every program: direct rematches went 12 → 23 on seed 2 and 18 → 25 on seed
+3. Sorting already-met opponents to the back of the shortlist brought seed 3
+back to 13 and seed 2 only to 21 — it fixes the repeated *showcase* opponent,
+not the rotation pass's own pairing, which is 3.12.7 task 3's repeat-pairing
+penalty.
+
+### Two costs handed on rather than tuned away
+
+**Programs finish less often** (21/19/19 → 16/18/15 resolved, abandonments 6 →
+11 across the seed set) and **PLE build coverage fell** (61%/49%/54% →
+47%/53%/42%). The mechanism is structural, not a threshold: a match beat needs
+a match slot, a free opponent, and a clear cooldown, where a promo needs none
+of those. A program that cannot place its showcase loses the week entirely —
+selection commits one beat per program per show — and a program that loses a
+week can miss its payoff window. The guard added here (a beat whose whole
+shortlist is unavailable stands down and is spliced out, rather than holding
+the week open) never fired on these three seeds; it closes the hole for longer
+runs and smaller rosters.
+
+`booking.beatOutsideCandidateCount` was probed at 5 against 3. It bought SL-4
+on seed 1 while costing that same seed PLE coverage (47% → 42%), adherence
+(79% → 71%) and main-eventers (16 → 14). That is the seed-noise signature
+3.12.5 documented, so it stayed at 3 — the shortlist is meant to be a shortlist.
+
+### Handoffs
+
+- **The catalog is complete; the *catalysts* are the monoculture now.**
+  `attack_save_interference` and `direct_rivalry_match` are generated exactly
+  once per 26-week seed, because both belong to `settle_grudge` and the
+  director almost never produces a `grudge`/`betrayal` premise — `elevate_act`
+  is the objective for nearly every story. That is 3.12.9 task 1, and the
+  archetype table will start paying out the moment tensions vary.
+- **`fallbackObjective` is a dead scoring path.** Every story gets a second
+  candidate with a different objective, scored, traced, and never selectable:
+  `planPrograms` only ever considers `primaryCandidates`. 3.12.7 task 3 ("score
+  selects") should either make it reachable or delete it.
+- **Adherence belongs to AI intent, not to booking.** See above; do not recover
+  it by weakening momentum trading.
+
+Two knobs carry the change, both scenario-owned:
+`booking.beatOutsideCandidateCount` (3) and
+`booking.maxOptionalBeatParticipants` (1).

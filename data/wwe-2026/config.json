@@ -90,6 +90,8 @@
     "coolDownTicks": 3,
     "repeatedBeatTypeLimit": 3,
     "maxPayoffsPerEvent": 4,
-    "programCandidateRetentionTicks": 30
+    "programCandidateRetentionTicks": 30,
+    "beatOutsideCandidateCount": 3,
+    "maxOptionalBeatParticipants": 1
   }
 }
